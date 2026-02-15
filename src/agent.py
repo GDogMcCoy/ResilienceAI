@@ -17,23 +17,30 @@ from config import PROCESSED_DIR, MODELS_DIR
 AGENT_SYSTEM_PROMPT = """You are ResilienceAI, an expert disaster vulnerability assessment agent.
 You help emergency planners, public health officials, and policymakers understand
 community disaster risk by analyzing infrastructure gaps, demographic vulnerability,
-and historical disaster data across US counties.
+and historical disaster data across {n_counties} US counties with {n_features} features.
 
-You have access to a database of {n_counties} US counties with {n_features} features including:
+Data dimensions:
 - **Demographics**: Population, income, elderly %, poverty %, disability %, uninsured %
-- **Infrastructure Access**: Distance to nearest hospital, fire station, EMS, nursing home
+- **Infrastructure Access**: Distance to nearest (and 2nd-nearest) hospital, fire station, EMS, nursing home
 - **Infrastructure Density**: Facilities per 10,000 population within 50km
-- **Disaster History**: Total disaster declarations, recent disasters, breakdown by type
-- **Composite Indices**: Vulnerability index, isolation index, risk score
+- **Disaster History**: Total declarations, recent (2015-2025), breakdown by type (flood, hurricane, fire, tornado, severe storms)
+- **Composite Indices**: Vulnerability index, isolation index, risk score (0-1)
 
-When answering questions:
-1. Query the data using the provided tools
-2. Provide specific county-level data with numbers
-3. Suggest actionable recommendations for emergency preparedness
-4. Flag any data limitations or caveats
-5. Be concise but thorough
+Advanced analytics available:
+- **Compound Risk Clusters**: Counties high on 3+ risk dimensions simultaneously
+- **Risk Contagion**: Neighbor-based overflow risk (if surrounding counties are also high-risk)
+- **Disaster Acceleration**: Whether disaster frequency is increasing (2015-2025 vs 2005-2014)
+- **Infrastructure Redundancy**: Distance to 2nd-nearest facility (zero redundancy = single point of failure)
+- **Population-Weighted Impact**: Risk weighted by population for prioritizing by lives affected
+- **State Rankings**: Percentile rank within own state for contextual comparison
+- **Gap Analysis**: Which single intervention (add hospital, add EMS, reduce poverty, etc.) would most reduce each county's risk
 
-Risk levels: Low (0-0.33), Medium (0.33-0.66), High (0.66-1.0)
+When answering:
+1. Use the tools to query real data - always cite specific numbers
+2. Leverage advanced features for deeper insights (e.g., compound risk, gap analysis)
+3. Provide actionable, prioritized recommendations
+4. Compare counties using state percentiles for context
+5. Flag zero-redundancy situations as critical
 """
 
 
@@ -143,6 +150,79 @@ def get_mcp_tools():
                     "disaster_count": {"type": "number"}
                 }
             }
+        },
+        {
+            "name": "find_compound_risk_counties",
+            "description": "Find counties that are simultaneously high-risk across 3+ dimensions (vulnerability, isolation, disaster exposure, infrastructure deficit). These are critical hotspots.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "state": {"type": "string", "description": "Optional state filter"},
+                    "min_dimensions": {"type": "integer", "description": "Minimum risk dimensions (default 3, max 4)"},
+                    "max_results": {"type": "integer", "description": "Max results (default 20)"}
+                }
+            }
+        },
+        {
+            "name": "get_gap_analysis",
+            "description": "Get the top recommended intervention for counties. Shows which single action (add hospital, add EMS, reduce poverty, disaster preparedness) would most reduce risk.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "state": {"type": "string", "description": "Optional state filter"},
+                    "intervention_type": {"type": "string", "description": "Filter by intervention type (e.g., 'add_hospital', 'add_ems', 'add_poverty')"},
+                    "max_results": {"type": "integer", "description": "Max results (default 20)"}
+                }
+            }
+        },
+        {
+            "name": "get_disaster_trends",
+            "description": "Find counties where disasters are accelerating (increasing frequency). Compares 2015-2025 vs 2005-2014.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "state": {"type": "string", "description": "Optional state filter"},
+                    "min_acceleration": {"type": "number", "description": "Minimum acceleration ratio (default 2.0 = doubled)"},
+                    "max_results": {"type": "integer", "description": "Max results (default 20)"}
+                }
+            }
+        },
+        {
+            "name": "find_zero_redundancy",
+            "description": "Find counties with zero infrastructure redundancy - where the 2nd nearest hospital is over 100km away. These are single-point-of-failure communities.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "state": {"type": "string", "description": "Optional state filter"},
+                    "max_results": {"type": "integer", "description": "Max results (default 20)"}
+                }
+            }
+        },
+        {
+            "name": "get_state_rankings",
+            "description": "Get county rankings within a specific state. Shows worst/best counties by risk, vulnerability, or isolation percentile.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "state": {"type": "string", "description": "State abbreviation (required)"},
+                    "metric": {"type": "string", "description": "Metric to rank by: risk_score, vulnerability_index, isolation_index (default: risk_score)"},
+                    "worst_first": {"type": "boolean", "description": "Show worst first (default true)"},
+                    "max_results": {"type": "integer", "description": "Max results (default 10)"}
+                },
+                "required": ["state"]
+            }
+        },
+        {
+            "name": "prioritize_by_impact",
+            "description": "Rank counties by population-weighted risk to prioritize interventions affecting the most lives.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "state": {"type": "string", "description": "Optional state filter"},
+                    "risk_level": {"type": "string", "description": "Optional risk level filter"},
+                    "max_results": {"type": "integer", "description": "Max results (default 20)"}
+                }
+            }
         }
     ]
 
@@ -196,7 +276,9 @@ class ResilienceAgent:
 
         display_cols = ["fips", "county_name", "total_population", "risk_score",
                         "risk_level", "vulnerability_index", "isolation_index",
-                        "disaster_count", "poverty_pct", "elderly_pct"]
+                        "disaster_count", "poverty_pct", "elderly_pct",
+                        "compound_risk_count", "disaster_acceleration",
+                        "top_intervention", "redundancy_score"]
         display_cols = [c for c in display_cols if c in result.columns]
 
         return result[display_cols].to_dict(orient="records")
@@ -245,6 +327,84 @@ class ResilienceAgent:
         stats["feature"] = feature
         stats["n_counties"] = len(subset)
         return stats
+
+    def find_compound_risk_counties(self, state=None, min_dimensions=3, max_results=20):
+        """Find counties high on multiple risk dimensions simultaneously."""
+        if self.df is None:
+            return {"error": "Data not loaded"}
+        result = self.df[self.df["compound_risk_count"] >= min_dimensions].copy()
+        if state:
+            result = result[result["county_name"].str.contains(f", {state}", case=False, na=False)]
+        result = result.sort_values("compound_risk_count", ascending=False).head(max_results)
+        cols = ["fips", "county_name", "compound_risk_count", "risk_score",
+                "vulnerability_index", "isolation_index", "disaster_count", "total_population"]
+        return result[[c for c in cols if c in result.columns]].to_dict(orient="records")
+
+    def get_gap_analysis(self, state=None, intervention_type=None, max_results=20):
+        """Get top recommended interventions per county."""
+        if self.df is None:
+            return {"error": "Data not loaded"}
+        result = self.df.copy()
+        if state:
+            result = result[result["county_name"].str.contains(f", {state}", case=False, na=False)]
+        if intervention_type:
+            result = result[result["top_intervention"] == intervention_type]
+        result = result.sort_values("top_intervention_score", ascending=False).head(max_results)
+        cols = ["fips", "county_name", "top_intervention", "top_intervention_score",
+                "risk_score", "gap_hospital", "gap_ems", "gap_fire", "gap_poverty", "gap_disaster_prep"]
+        return result[[c for c in cols if c in result.columns]].to_dict(orient="records")
+
+    def get_disaster_trends(self, state=None, min_acceleration=2.0, max_results=20):
+        """Find counties with accelerating disaster frequency."""
+        if self.df is None:
+            return {"error": "Data not loaded"}
+        result = self.df[self.df["disaster_acceleration"] >= min_acceleration].copy()
+        if state:
+            result = result[result["county_name"].str.contains(f", {state}", case=False, na=False)]
+        result = result.sort_values("disaster_acceleration", ascending=False).head(max_results)
+        cols = ["fips", "county_name", "disaster_acceleration", "disasters_2015_2025",
+                "disasters_2005_2014", "disaster_count", "risk_score"]
+        return result[[c for c in cols if c in result.columns]].to_dict(orient="records")
+
+    def find_zero_redundancy(self, state=None, max_results=20):
+        """Find counties with zero infrastructure redundancy."""
+        if self.df is None:
+            return {"error": "Data not loaded"}
+        result = self.df[self.df["zero_redundancy_flag"] == 1].copy()
+        if state:
+            result = result[result["county_name"].str.contains(f", {state}", case=False, na=False)]
+        result = result.sort_values("dist_2nd_nearest_hospitals_km", ascending=False).head(max_results)
+        cols = ["fips", "county_name", "dist_nearest_hospitals_km", "dist_2nd_nearest_hospitals_km",
+                "redundancy_score", "risk_score", "total_population"]
+        return result[[c for c in cols if c in result.columns]].to_dict(orient="records")
+
+    def get_state_rankings(self, state, metric="risk_score", worst_first=True, max_results=10):
+        """Get county rankings within a state."""
+        if self.df is None:
+            return {"error": "Data not loaded"}
+        result = self.df[self.df["county_name"].str.contains(f", {state}", case=False, na=False)].copy()
+        if result.empty:
+            return {"error": f"No counties found for state '{state}'"}
+        pctile_col = f"{metric}_state_pctile"
+        sort_col = pctile_col if pctile_col in result.columns else metric
+        result = result.sort_values(sort_col, ascending=not worst_first).head(max_results)
+        cols = ["fips", "county_name", metric, pctile_col, "total_population",
+                "top_intervention", "compound_risk_count"]
+        return result[[c for c in cols if c in result.columns]].to_dict(orient="records")
+
+    def prioritize_by_impact(self, state=None, risk_level=None, max_results=20):
+        """Rank counties by population-weighted risk."""
+        if self.df is None:
+            return {"error": "Data not loaded"}
+        result = self.df.copy()
+        if state:
+            result = result[result["county_name"].str.contains(f", {state}", case=False, na=False)]
+        if risk_level:
+            result = result[result["risk_level"] == risk_level]
+        result = result.sort_values("pop_weighted_risk", ascending=False).head(max_results)
+        cols = ["fips", "county_name", "total_population", "risk_score", "pop_weighted_risk",
+                "pop_weighted_risk_norm", "top_intervention", "compound_risk_flag"]
+        return result[[c for c in cols if c in result.columns]].to_dict(orient="records")
 
     def get_system_prompt(self):
         """Get formatted system prompt with data stats."""

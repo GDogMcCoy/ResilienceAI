@@ -96,8 +96,10 @@ def main():
     st.sidebar.markdown(f"**Showing {len(df_filtered):,} of {len(df):,} counties**")
 
     # ── Tabs ──────────────────────────────────────────────────────────
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "Overview", "Risk Map", "Infrastructure", "Model Performance", "Agent Query"
+    tab1, tab2, tab3, tab6, tab7, tab4, tab5 = st.tabs([
+        "Overview", "Risk Map", "Infrastructure",
+        "Advanced Insights", "Gap Analysis",
+        "Model Performance", "Agent Query"
     ])
 
     # ── Tab 1: Overview ───────────────────────────────────────────────
@@ -224,6 +226,189 @@ def main():
             )
             st.plotly_chart(fig, use_container_width=True)
 
+    # ── Tab 6: Advanced Insights ──────────────────────────────────────
+    with tab6:
+        st.subheader("Advanced Risk Analytics")
+
+        # Compound Risk Clusters
+        st.markdown("#### Compound Risk Hotspots")
+        st.markdown("Counties simultaneously high on 3+ risk dimensions (vulnerability, isolation, disaster exposure, infrastructure deficit)")
+        if "compound_risk_count" in df_filtered.columns:
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                compound = df_filtered[df_filtered["compound_risk_flag"] == 1] if "compound_risk_flag" in df_filtered.columns else df_filtered[df_filtered["compound_risk_count"] >= 3]
+                st.metric("Compound Risk Counties", len(compound))
+                st.metric("Avg Population (compound)", f"{compound['total_population'].mean():,.0f}" if len(compound) > 0 else "N/A")
+
+                # Distribution of compound risk counts
+                fig = px.histogram(df_filtered, x="compound_risk_count",
+                                   title="Risk Dimensions per County",
+                                   labels={"compound_risk_count": "# High-Risk Dimensions"},
+                                   color_discrete_sequence=["#e74c3c"])
+                st.plotly_chart(fig, use_container_width=True)
+
+            with col2:
+                # Map compound risk counties
+                map_df = df_filtered.dropna(subset=["latitude", "longitude"]).copy()
+                map_df = map_df[(map_df["latitude"] > 24) & (map_df["latitude"] < 50) &
+                                (map_df["longitude"] > -130) & (map_df["longitude"] < -65)]
+                if len(map_df) > 0:
+                    fig = px.scatter_mapbox(
+                        map_df, lat="latitude", lon="longitude",
+                        color="compound_risk_count",
+                        color_continuous_scale="YlOrRd",
+                        hover_name="county_name",
+                        hover_data={"compound_risk_count": True, "risk_score": ":.3f"},
+                        mapbox_style="carto-positron",
+                        zoom=3, center={"lat": 39.5, "lon": -98.35},
+                        title="Compound Risk Clusters (3+ dimensions = critical)",
+                        height=500, size_max=12,
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown("---")
+
+        # Disaster Acceleration
+        st.markdown("#### Disaster Acceleration Trends")
+        st.markdown("Counties where disaster frequency is increasing (2015-2025 vs 2005-2014)")
+        if "disaster_acceleration" in df_filtered.columns:
+            col1, col2 = st.columns(2)
+            with col1:
+                accel = df_filtered[df_filtered["disaster_acceleration"] > 1.0]
+                st.metric("Counties with Increasing Disasters", len(accel))
+                fig = px.histogram(df_filtered[df_filtered["disaster_acceleration"] > 0],
+                                   x="disaster_acceleration", nbins=50,
+                                   title="Disaster Acceleration Ratio Distribution",
+                                   labels={"disaster_acceleration": "Acceleration Ratio (>1 = increasing)"})
+                fig.add_vline(x=1.0, line_dash="dash", line_color="red", annotation_text="No change")
+                st.plotly_chart(fig, use_container_width=True)
+            with col2:
+                # Top accelerating counties
+                top_accel = df_filtered.nlargest(15, "disaster_acceleration")
+                display = ["county_name", "disaster_acceleration", "disasters_2015_2025",
+                           "disasters_2005_2014", "risk_score"]
+                display = [c for c in display if c in top_accel.columns]
+                st.markdown("**Top 15 Accelerating Counties:**")
+                st.dataframe(top_accel[display], use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+
+        # Infrastructure Redundancy
+        st.markdown("#### Infrastructure Redundancy & Single Points of Failure")
+        if "zero_redundancy_flag" in df_filtered.columns:
+            col1, col2 = st.columns(2)
+            with col1:
+                zero_red = df_filtered[df_filtered["zero_redundancy_flag"] == 1]
+                st.metric("Zero-Redundancy Counties", len(zero_red))
+                st.markdown("*2nd nearest hospital is >100km away*")
+                if len(zero_red) > 0:
+                    display = ["county_name", "dist_nearest_hospitals_km", "dist_2nd_nearest_hospitals_km",
+                               "redundancy_score", "total_population"]
+                    display = [c for c in display if c in zero_red.columns]
+                    st.dataframe(zero_red.nlargest(15, "dist_2nd_nearest_hospitals_km")[display],
+                                 use_container_width=True, hide_index=True)
+            with col2:
+                if "redundancy_score" in df_filtered.columns:
+                    fig = px.histogram(df_filtered, x="redundancy_score", nbins=50,
+                                       title="Infrastructure Redundancy Score Distribution",
+                                       labels={"redundancy_score": "Redundancy Score (0=none, 1=high)"},
+                                       color_discrete_sequence=["#3498db"])
+                    st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown("---")
+
+        # Risk Contagion
+        st.markdown("#### Neighbor Risk Contagion")
+        st.markdown("Counties surrounded by high-risk neighbors have limited overflow capacity")
+        if "neighbor_avg_risk" in df_filtered.columns and "risk_score" in df_filtered.columns:
+            fig = px.scatter(
+                df_filtered, x="risk_score", y="neighbor_avg_risk",
+                color="risk_level",
+                color_discrete_map={"Low": "#27ae60", "Medium": "#f39c12", "High": "#e74c3c"},
+                hover_name="county_name",
+                title="County Risk vs Neighbor Average Risk",
+                labels={"risk_score": "County Risk Score", "neighbor_avg_risk": "Avg Neighbor Risk"},
+                opacity=0.6,
+            )
+            fig.add_shape(type="line", x0=0, y0=0, x1=1, y1=1,
+                          line=dict(dash="dash", color="gray"))
+            st.plotly_chart(fig, use_container_width=True)
+            st.markdown("*Points above the diagonal: neighbors are higher-risk than the county itself (contagion risk)*")
+
+    # ── Tab 7: Gap Analysis ────────────────────────────────────────────
+    with tab7:
+        st.subheader("Intervention Gap Analysis")
+        st.markdown("Which single intervention would most reduce each county's risk?")
+
+        if "top_intervention" in df_filtered.columns:
+            col1, col2 = st.columns(2)
+            with col1:
+                # Intervention type distribution
+                intervention_counts = df_filtered["top_intervention"].value_counts()
+                fig = px.bar(x=intervention_counts.index, y=intervention_counts.values,
+                             title="Top Recommended Interventions Across Counties",
+                             labels={"x": "Intervention Type", "y": "Number of Counties"},
+                             color=intervention_counts.index)
+                st.plotly_chart(fig, use_container_width=True)
+
+            with col2:
+                # Map by intervention type
+                map_df = df_filtered.dropna(subset=["latitude", "longitude"]).copy()
+                map_df = map_df[(map_df["latitude"] > 24) & (map_df["latitude"] < 50) &
+                                (map_df["longitude"] > -130) & (map_df["longitude"] < -65)]
+                if len(map_df) > 0:
+                    fig = px.scatter_mapbox(
+                        map_df, lat="latitude", lon="longitude",
+                        color="top_intervention",
+                        hover_name="county_name",
+                        hover_data={"top_intervention_score": ":.3f", "risk_score": ":.3f"},
+                        mapbox_style="carto-positron",
+                        zoom=3, center={"lat": 39.5, "lon": -98.35},
+                        title="Geographic Distribution of Recommended Interventions",
+                        height=500,
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+
+            st.markdown("---")
+
+            # Gap dimension breakdown
+            st.markdown("#### Gap Score Breakdown")
+            gap_cols = [c for c in df_filtered.columns if c.startswith("gap_")]
+            if gap_cols:
+                # Average gap scores
+                avg_gaps = df_filtered[gap_cols].mean().sort_values(ascending=False)
+                fig = px.bar(x=avg_gaps.index, y=avg_gaps.values,
+                             title="Average Gap Scores by Dimension",
+                             labels={"x": "Gap Dimension", "y": "Average Gap Score (0-1)"},
+                             color=avg_gaps.index)
+                st.plotly_chart(fig, use_container_width=True)
+
+            # Filterable table
+            st.markdown("#### Counties by Intervention Type")
+            intervention_filter = st.selectbox("Filter by intervention:",
+                                                ["All"] + list(df_filtered["top_intervention"].unique()))
+            table_df = df_filtered if intervention_filter == "All" else df_filtered[df_filtered["top_intervention"] == intervention_filter]
+            table_df = table_df.sort_values("top_intervention_score", ascending=False).head(25)
+            display = ["county_name", "top_intervention", "top_intervention_score",
+                        "risk_score", "total_population"] + gap_cols
+            display = [c for c in display if c in table_df.columns]
+            st.dataframe(table_df[display], use_container_width=True, hide_index=True)
+
+        # State rankings
+        st.markdown("---")
+        st.markdown("#### State-Level County Rankings")
+        if "risk_score_state_pctile" in df_filtered.columns:
+            states_avail = sorted(df_filtered["county_name"].str.extract(r", (\w+)$")[0].dropna().unique())
+            rank_state = st.selectbox("Select state:", states_avail, index=0 if states_avail else None)
+            if rank_state:
+                state_df = df_filtered[df_filtered["county_name"].str.contains(f", {rank_state}$", regex=True, na=False)]
+                state_df = state_df.sort_values("risk_score_state_pctile", ascending=False)
+                display = ["county_name", "risk_score", "risk_score_state_pctile",
+                            "vulnerability_index_state_pctile", "compound_risk_count",
+                            "top_intervention", "total_population"]
+                display = [c for c in display if c in state_df.columns]
+                st.dataframe(state_df[display], use_container_width=True, hide_index=True)
+
     # ── Tab 4: Model Performance ──────────────────────────────────────
     with tab4:
         st.subheader("Model Performance")
@@ -260,6 +445,9 @@ def main():
         - "Which Missouri counties have the highest disaster risk?"
         - "Compare St. Louis County and Jackson County vulnerability"
         - "What are the most flood-prone areas with poor hospital access?"
+        - "Which counties have zero hospital redundancy?"
+        - "Where are disasters accelerating fastest?"
+        - "What intervention does Jackson County need most?"
         """)
 
         query = st.text_input("Your question:", placeholder="e.g., Show me high-risk counties in Missouri")
@@ -304,6 +492,42 @@ def process_demo_query(query, df):
             col = f"disaster_{dtype}"
             if col in results.columns:
                 results = results[results[col] > 0].sort_values(col, ascending=False)
+
+    # Advanced feature queries
+    if "redundancy" in query_lower or "single point" in query_lower or "zero redundancy" in query_lower:
+        if "zero_redundancy_flag" in results.columns:
+            results = results[results["zero_redundancy_flag"] == 1].sort_values("dist_2nd_nearest_hospitals_km", ascending=False)
+            display_cols = ["county_name", "dist_nearest_hospitals_km", "dist_2nd_nearest_hospitals_km",
+                            "redundancy_score", "total_population", "risk_score"]
+            display_cols = [c for c in display_cols if c in results.columns]
+            top = results.head(15)
+            return f"**Zero-Redundancy Counties** (2nd hospital >100km):\n\n{top[display_cols].to_markdown(index=False)}\n\n**{len(results)} total counties** with zero hospital redundancy."
+
+    if "accelerat" in query_lower or "increasing disaster" in query_lower or "disaster trend" in query_lower:
+        if "disaster_acceleration" in results.columns:
+            results = results[results["disaster_acceleration"] > 1.5].sort_values("disaster_acceleration", ascending=False)
+            display_cols = ["county_name", "disaster_acceleration", "disasters_2015_2025",
+                            "disasters_2005_2014", "risk_score"]
+            display_cols = [c for c in display_cols if c in results.columns]
+            top = results.head(15)
+            return f"**Counties with Accelerating Disasters:**\n\n{top[display_cols].to_markdown(index=False)}"
+
+    if "intervention" in query_lower or "gap" in query_lower or "what does" in query_lower and "need" in query_lower:
+        if "top_intervention" in results.columns:
+            results = results.sort_values("top_intervention_score", ascending=False)
+            display_cols = ["county_name", "top_intervention", "top_intervention_score", "risk_score"]
+            display_cols = [c for c in display_cols if c in results.columns]
+            top = results.head(15)
+            return f"**Top Recommended Interventions:**\n\n{top[display_cols].to_markdown(index=False)}"
+
+    if "compound" in query_lower or "hotspot" in query_lower or "multiple risk" in query_lower:
+        if "compound_risk_count" in results.columns:
+            results = results[results["compound_risk_count"] >= 3].sort_values("compound_risk_count", ascending=False)
+            display_cols = ["county_name", "compound_risk_count", "risk_score", "vulnerability_index",
+                            "isolation_index", "disaster_count"]
+            display_cols = [c for c in display_cols if c in results.columns]
+            top = results.head(15)
+            return f"**Compound Risk Hotspots** (3+ risk dimensions):\n\n{top[display_cols].to_markdown(index=False)}"
 
     # Compare detection
     if "compare" in query_lower:

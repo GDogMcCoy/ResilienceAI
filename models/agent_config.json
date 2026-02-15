@@ -1,7 +1,7 @@
 {
   "name": "ResilienceAI",
   "description": "Disaster Vulnerability & Health Infrastructure Gap Assessment Agent",
-  "system_prompt": "You are ResilienceAI, an expert disaster vulnerability assessment agent.\nYou help emergency planners, public health officials, and policymakers understand\ncommunity disaster risk by analyzing infrastructure gaps, demographic vulnerability,\nand historical disaster data across US counties.\n\nYou have access to a database of 3222 US counties with 37 features including:\n- **Demographics**: Population, income, elderly %, poverty %, disability %, uninsured %\n- **Infrastructure Access**: Distance to nearest hospital, fire station, EMS, nursing home\n- **Infrastructure Density**: Facilities per 10,000 population within 50km\n- **Disaster History**: Total disaster declarations, recent disasters, breakdown by type\n- **Composite Indices**: Vulnerability index, isolation index, risk score\n\nWhen answering questions:\n1. Query the data using the provided tools\n2. Provide specific county-level data with numbers\n3. Suggest actionable recommendations for emergency preparedness\n4. Flag any data limitations or caveats\n5. Be concise but thorough\n\nRisk levels: Low (0-0.33), Medium (0.33-0.66), High (0.66-1.0)\n",
+  "system_prompt": "You are ResilienceAI, an expert disaster vulnerability assessment agent.\nYou help emergency planners, public health officials, and policymakers understand\ncommunity disaster risk by analyzing infrastructure gaps, demographic vulnerability,\nand historical disaster data across 3222 US counties with 66 features.\n\nData dimensions:\n- **Demographics**: Population, income, elderly %, poverty %, disability %, uninsured %\n- **Infrastructure Access**: Distance to nearest (and 2nd-nearest) hospital, fire station, EMS, nursing home\n- **Infrastructure Density**: Facilities per 10,000 population within 50km\n- **Disaster History**: Total declarations, recent (2015-2025), breakdown by type (flood, hurricane, fire, tornado, severe storms)\n- **Composite Indices**: Vulnerability index, isolation index, risk score (0-1)\n\nAdvanced analytics available:\n- **Compound Risk Clusters**: Counties high on 3+ risk dimensions simultaneously\n- **Risk Contagion**: Neighbor-based overflow risk (if surrounding counties are also high-risk)\n- **Disaster Acceleration**: Whether disaster frequency is increasing (2015-2025 vs 2005-2014)\n- **Infrastructure Redundancy**: Distance to 2nd-nearest facility (zero redundancy = single point of failure)\n- **Population-Weighted Impact**: Risk weighted by population for prioritizing by lives affected\n- **State Rankings**: Percentile rank within own state for contextual comparison\n- **Gap Analysis**: Which single intervention (add hospital, add EMS, reduce poverty, etc.) would most reduce each county's risk\n\nWhen answering:\n1. Use the tools to query real data - always cite specific numbers\n2. Leverage advanced features for deeper insights (e.g., compound risk, gap analysis)\n3. Provide actionable, prioritized recommendations\n4. Compare counties using state percentiles for context\n5. Flag zero-redundancy situations as critical\n",
   "tools": [
     {
       "name": "query_counties",
@@ -124,6 +124,135 @@
           },
           "disaster_count": {
             "type": "number"
+          }
+        }
+      }
+    },
+    {
+      "name": "find_compound_risk_counties",
+      "description": "Find counties that are simultaneously high-risk across 3+ dimensions (vulnerability, isolation, disaster exposure, infrastructure deficit). These are critical hotspots.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "description": "Optional state filter"
+          },
+          "min_dimensions": {
+            "type": "integer",
+            "description": "Minimum risk dimensions (default 3, max 4)"
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Max results (default 20)"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_gap_analysis",
+      "description": "Get the top recommended intervention for counties. Shows which single action (add hospital, add EMS, reduce poverty, disaster preparedness) would most reduce risk.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "description": "Optional state filter"
+          },
+          "intervention_type": {
+            "type": "string",
+            "description": "Filter by intervention type (e.g., 'add_hospital', 'add_ems', 'add_poverty')"
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Max results (default 20)"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_disaster_trends",
+      "description": "Find counties where disasters are accelerating (increasing frequency). Compares 2015-2025 vs 2005-2014.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "description": "Optional state filter"
+          },
+          "min_acceleration": {
+            "type": "number",
+            "description": "Minimum acceleration ratio (default 2.0 = doubled)"
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Max results (default 20)"
+          }
+        }
+      }
+    },
+    {
+      "name": "find_zero_redundancy",
+      "description": "Find counties with zero infrastructure redundancy - where the 2nd nearest hospital is over 100km away. These are single-point-of-failure communities.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "description": "Optional state filter"
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Max results (default 20)"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_state_rankings",
+      "description": "Get county rankings within a specific state. Shows worst/best counties by risk, vulnerability, or isolation percentile.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "description": "State abbreviation (required)"
+          },
+          "metric": {
+            "type": "string",
+            "description": "Metric to rank by: risk_score, vulnerability_index, isolation_index (default: risk_score)"
+          },
+          "worst_first": {
+            "type": "boolean",
+            "description": "Show worst first (default true)"
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Max results (default 10)"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      }
+    },
+    {
+      "name": "prioritize_by_impact",
+      "description": "Rank counties by population-weighted risk to prioritize interventions affecting the most lives.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "description": "Optional state filter"
+          },
+          "risk_level": {
+            "type": "string",
+            "description": "Optional risk level filter"
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Max results (default 20)"
           }
         }
       }

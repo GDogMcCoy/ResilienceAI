@@ -33,14 +33,16 @@ When natural disasters strike, the damage is not distributed equally. Communitie
 
 **ResilienceAI** fuses **7 federal open data sources** (157,363 total records) into a unified machine learning pipeline that:
 
-1. **Engineers 27 features** capturing spatial infrastructure access, demographic vulnerability, and disaster exposure for every US county
+1. **Engineers 66 features** including 7 advanced differentiator analytics for agentic AI insight exploration
 2. **Trains and evaluates 4 classification models** to predict county-level disaster risk (Low / Medium / High)
-3. **Deploys an agentic AI interface** where emergency planners ask questions in natural language and receive data-backed answers with interactive maps
+3. **Deploys an agentic AI interface** with 11 MCP tools where emergency planners ask questions in natural language and receive data-backed answers with interactive maps
 
 **Example queries the agent handles:**
 - *"Which Missouri counties are most vulnerable to flooding?"*
-- *"Compare hospital access in rural vs. urban counties in the Southeast"*
-- *"What areas have high elderly populations AND no EMS station within 50km?"*
+- *"Where are disasters accelerating fastest in the Southeast?"*
+- *"Which counties have zero hospital redundancy?"*
+- *"What single intervention would most reduce risk in Jackson County?"*
+- *"Show me compound risk hotspots -- counties high on 3+ dimensions"*
 
 ---
 
@@ -74,56 +76,33 @@ All data is downloaded programmatically via `src/download_data.py` with local ca
 
 ## Feature Engineering
 
-We engineered **27 predictive features** across 3,222 US counties, organized into 5 categories:
+We engineered **66 features** across 3,222 US counties, organized into 12 categories:
 
-### Spatial Infrastructure Access (8 features)
-| Feature | Method |
-|---------|--------|
-| Distance to nearest hospital (km) | KD-tree nearest-neighbor search on facility coordinates |
-| Distance to nearest fire station (km) | KD-tree nearest-neighbor search |
-| Distance to nearest EMS station (km) | KD-tree nearest-neighbor search |
-| Distance to nearest nursing home (km) | KD-tree nearest-neighbor search |
-| Hospital count within 50km | KD-tree ball query (radius = 50km) |
-| Fire station count within 50km | KD-tree ball query |
-| EMS station count within 50km | KD-tree ball query |
-| Nursing home count within 50km | KD-tree ball query |
+### Core Features (37)
 
-*Implementation: `scipy.spatial.cKDTree` with coordinates converted to radians for spherical distance approximation.*
+**Spatial Infrastructure Access (12 features)**: KD-tree nearest-neighbor search (`scipy.spatial.cKDTree`) for distance to nearest *and 2nd-nearest* hospital, fire station, EMS station, and nursing home, plus facility counts within 50km.
 
-### Infrastructure Density (4 features)
-| Feature | Formula |
-|---------|---------|
-| Hospital density per 10k population | (count within 50km / population) * 10,000 |
-| Fire station density per 10k | Same formula |
-| EMS density per 10k | Same formula |
-| Nursing home density per 10k | Same formula |
+**Infrastructure Density (4 features)**: Facilities per 10,000 population within 50km for each facility type.
 
-### Disaster History (7 features)
-| Feature | Source |
-|---------|--------|
-| Total disaster declarations (all time) | FEMA, grouped by county FIPS |
-| Recent disaster declarations (2015-present) | FEMA, filtered by declaration date |
-| Flood disaster count | FEMA, filtered by `incidentType` |
-| Hurricane disaster count | FEMA, filtered by `incidentType` |
-| Fire/wildfire disaster count | FEMA, filtered by `incidentType` |
-| Tornado disaster count | FEMA, filtered by `incidentType` |
-| Severe storm count | FEMA, filtered by `incidentType` |
+**Disaster History (7 features)**: Total declarations (all time), recent (2015+), and breakdown by type (flood, hurricane, fire, tornado, severe storms) from FEMA data.
 
-### Demographic Vulnerability (4 features)
-| Feature | Source | National Range |
-|---------|--------|---------------|
-| Elderly population % (age 65+) | Census ACS | 2.9% - 57.9% |
-| Poverty rate % | Census ACS | 1.6% - 65.6% |
-| Disability rate % | Census ACS | 4.0% - 41.1% |
-| Uninsured rate % | Census ACS | 0.0% - 45.1% |
+**Demographic Vulnerability (4 features)**: Elderly %, poverty %, disability %, uninsured % from Census ACS.
 
-### Composite Indices (4 features)
-| Feature | Construction |
-|---------|-------------|
-| **Vulnerability Index** | Min-max normalized average of elderly %, poverty %, disability %, uninsured % |
-| **Isolation Index** | Min-max normalized average of distances to all 4 facility types |
-| **Risk Score** | Weighted composite: 40% vulnerability + 30% isolation + 30% disaster exposure, then min-max normalized to [0, 1] |
-| **Risk Level** | Tercile classification of risk score: Low / Medium / High |
+**Composite Indices (4 features)**: Vulnerability Index, Isolation Index, Risk Score (weighted 40/30/30), Risk Level (tercile classification).
+
+### Advanced Differentiator Features (29)
+
+These features are specifically designed to serve rich, actionable insights to the agentic AI layer:
+
+| # | Feature Category | Key Columns | What It Enables |
+|---|-----------------|-------------|-----------------|
+| 1 | **Compound Risk Clusters** | `compound_risk_count`, `compound_risk_flag` | Identifies counties high on 3+ risk dimensions simultaneously (177 counties flagged) |
+| 2 | **Nearest-Neighbor Risk Contagion** | `neighbor_avg_risk`, `risk_contagion_delta` | Detects overflow risk -- when surrounding counties are also high-risk, capacity is limited |
+| 3 | **Temporal Disaster Acceleration** | `disaster_acceleration`, `disasters_2015_2025`, `disasters_2005_2014` | Compares recent vs prior decade frequency (1,305 counties accelerating) |
+| 4 | **Infrastructure Redundancy** | `redundancy_score`, `zero_redundancy_flag` | Distance to 2nd-nearest facility; flags single-point-of-failure counties (74 with zero hospital redundancy) |
+| 5 | **Population-Weighted Vulnerability** | `pop_weighted_risk`, `pop_weighted_vulnerability` | Weights insights by lives impacted for intervention prioritization |
+| 6 | **State-Level Rankings** | `risk_score_state_pctile`, `vulnerability_index_state_pctile` | Percentile rank within own state for contextual comparison |
+| 7 | **Gap Analysis Matrix** | `gap_hospital`, `gap_ems`, `gap_fire`, `gap_poverty`, `gap_disaster_prep`, `top_intervention` | Identifies which single intervention most reduces each county's risk |
 
 Full column-level documentation: [`docs/DATA_DICTIONARY.md`](docs/DATA_DICTIONARY.md)
 
@@ -211,39 +190,47 @@ ResilienceAI includes a natural language query interface designed for deployment
 ### Agent Design
 
 The agent is configured with:
-- A **system prompt** establishing the agent's role as a disaster vulnerability advisor
-- **5 MCP-compatible tools** for structured data access
+- A **system prompt** establishing the agent as a disaster vulnerability advisor with knowledge of all 66 features
+- **11 MCP-compatible tools** for structured data access and advanced analytics
 - **Temperature 0.3** for factual, consistent responses
 
 ### MCP Tool Definitions
 
-| Tool | Purpose | Parameters |
-|------|---------|------------|
-| `query_counties` | Filter and sort counties by state, risk level, or score | state, risk_level, min_risk_score, sort_by, max_results |
-| `get_county_detail` | Full vulnerability profile for a specific county | county_name or fips |
-| `compare_counties` | Side-by-side comparison of multiple counties | county_names[] |
-| `get_statistics` | Summary statistics for any feature | feature, state, risk_level |
-| `predict_risk` | Predict risk for hypothetical community characteristics | population, income, elderly_pct, etc. |
+| Tool | Purpose |
+|------|---------|
+| `query_counties` | Filter and sort counties by state, risk level, or score |
+| `get_county_detail` | Full vulnerability profile for a specific county |
+| `compare_counties` | Side-by-side comparison of multiple counties |
+| `get_statistics` | Summary statistics for any feature |
+| `predict_risk` | Predict risk for hypothetical community characteristics |
+| `find_compound_risk_counties` | Find hotspot counties high on 3+ risk dimensions |
+| `get_gap_analysis` | Identify which single intervention most reduces risk per county |
+| `get_disaster_trends` | Find counties with accelerating disaster frequency |
+| `find_zero_redundancy` | Locate single-point-of-failure communities |
+| `get_state_rankings` | Rank counties within a state by risk percentile |
+| `prioritize_by_impact` | Rank by population-weighted risk for maximum-impact interventions |
 
 Agent configuration is exported to `models/agent_config.json` for direct import into Archia.
 
 ### Demo Mode
 
-The Streamlit dashboard includes a keyword-based query processor (Tab 5: "Agent Query") that demonstrates the agent's intended functionality with state detection, risk filtering, disaster type filtering, and county comparison.
+The Streamlit dashboard includes a keyword-based query processor (Tab 7: "Agent Query") that demonstrates the agent's intended functionality including advanced feature queries (compound risk, gap analysis, disaster acceleration, redundancy).
 
 ---
 
 ## Interactive Dashboard
 
-The Streamlit dashboard (`app/dashboard.py`) provides 5 interactive tabs:
+The Streamlit dashboard (`app/dashboard.py`) provides 7 interactive tabs:
 
 | Tab | Contents |
 |-----|----------|
-| **Overview** | Key metrics (county count, avg risk, high-risk count, total disasters), risk distribution charts, top 20 highest-risk counties table |
-| **Risk Map** | Interactive Plotly Mapbox scatter map of all US counties colored by risk score, with hover tooltips |
-| **Infrastructure** | Facility distance distributions, infrastructure gap identification (counties >50km from nearest facility), vulnerability vs. isolation scatter plot |
-| **Model Performance** | All evaluation visualizations: model comparison, confusion matrices, ROC curves, feature importance |
-| **Agent Query** | Natural language query interface with example prompts and formatted results |
+| **Overview** | Key metrics, risk distribution charts, top 20 highest-risk counties |
+| **Risk Map** | Interactive Plotly Mapbox scatter map colored by risk score |
+| **Infrastructure** | Facility distance distributions, infrastructure gap identification, vulnerability vs. isolation scatter |
+| **Advanced Insights** | Compound risk hotspot map, disaster acceleration trends, infrastructure redundancy analysis, neighbor risk contagion scatter |
+| **Gap Analysis** | Intervention recommendation map, gap score breakdown by dimension, state-level county rankings with percentiles |
+| **Model Performance** | Model comparison, confusion matrices, ROC curves, feature importance |
+| **Agent Query** | Natural language query interface supporting advanced feature queries |
 
 ### Sidebar Filters
 - State multi-select
@@ -263,17 +250,17 @@ resilienceai/
 |
 |-- src/
 |   |-- download_data.py         # Data acquisition from 5 APIs with caching and pagination
-|   |-- feature_engineering.py   # 27 engineered features using KD-tree spatial analysis
+|   |-- feature_engineering.py   # 66 features: 37 core + 29 advanced differentiator analytics
 |   |-- eda.py                   # 7 static visualizations (matplotlib/seaborn)
 |   |-- train_models.py          # 4 ML models with cross-validation and full evaluation suite
-|   |-- agent.py                 # Archia agent system prompt, MCP tool definitions, query processor
+|   |-- agent.py                 # Archia agent: system prompt, 11 MCP tools, 7 advanced query methods
 |
 |-- app/
-|   |-- dashboard.py             # Streamlit dashboard with 5 interactive tabs
+|   |-- dashboard.py             # Streamlit dashboard with 7 interactive tabs incl. advanced insights
 |
 |-- data/
 |   |-- raw/                     # Downloaded CSVs from federal APIs (gitignored, regenerated by pipeline)
-|   |-- processed/               # county_features.csv: 3,222 x 37 (gitignored, regenerated)
+|   |-- processed/               # county_features.csv: 3,222 x 66 (gitignored, regenerated)
 |   |-- cache/                   # API response cache for fast re-runs (gitignored)
 |
 |-- models/
@@ -284,7 +271,7 @@ resilienceai/
 |   |-- figures/                 # EDA + model evaluation PNGs (gitignored, regenerated)
 |
 |-- docs/
-|   |-- DATA_DICTIONARY.md       # Column-level documentation for all 37 features
+|   |-- DATA_DICTIONARY.md       # Column-level documentation for all 66 features
 |   |-- SETUP_GUIDE.md           # Teammate onboarding instructions
 |   |-- API_REFERENCE.md         # Verified API endpoints, pagination details, troubleshooting
 ```
@@ -306,7 +293,7 @@ python run_pipeline.py
 
 This executes all 5 stages:
 1. **Download** - Fetches all 7 data sources from federal APIs (~3 min, cached after first run)
-2. **Feature Engineering** - Computes 27 features for 3,222 counties (~10 sec)
+2. **Feature Engineering** - Computes 66 features for 3,222 counties (~15 sec)
 3. **EDA** - Generates 7 visualizations (~5 sec)
 4. **Model Training** - Trains 4 classifiers with cross-validation (~60 sec)
 5. **Agent Config** - Exports Archia-compatible agent configuration (~1 sec)
@@ -335,12 +322,12 @@ Open [http://localhost:8503](http://localhost:8503) in your browser.
 | Category | Weight | What We Deliver |
 |----------|:------:|-----------------|
 | **Model Development** | 30% | 4 classifiers (RF, GBM, LR, MLP), 5-fold stratified CV, ROC-AUC, confusion matrices, feature importance, best F1=0.983 |
-| **Feature Engineering** | 20% | 27 features from 7 sources: KD-tree spatial distances, infrastructure density, FEMA disaster history, Census vulnerability composites, normalized risk indices |
-| **EDA** | 10% | 7 static visualizations + interactive Plotly/Mapbox dashboard with filters |
+| **Feature Engineering** | 20% | 66 features from 7 sources: KD-tree spatial distances, infrastructure density/redundancy, FEMA disaster history + acceleration trends, Census vulnerability composites, compound risk clusters, gap analysis matrix, risk contagion, population-weighted impact, state rankings |
+| **EDA** | 10% | 7 static visualizations + 7-tab interactive Plotly/Mapbox dashboard with advanced insight overlays |
 | **Evaluation Metrics** | 10% | Accuracy, F1 (macro), precision/recall per class, 5-fold CV with standard deviation, micro-average ROC curves |
-| **Novelty** | 10% | Multi-agency federal data fusion, KD-tree geospatial feature engineering, natural language agent with MCP tools |
-| **Presentation** | 10% | 5-tab interactive Streamlit dashboard, Mapbox risk visualization, agent query demo |
-| **Problem + Social Good** | 10% | Disaster preparedness for vulnerable communities, actionable for FEMA/state emergency management, real federal data |
+| **Novelty** | 10% | Multi-agency federal data fusion, 7 advanced differentiator features (compound risk, contagion, acceleration, redundancy, gap analysis), 11 MCP tools for agentic AI |
+| **Presentation** | 10% | 7-tab interactive Streamlit dashboard: Mapbox risk maps, compound risk overlays, gap analysis maps, disaster acceleration charts, state ranking tables |
+| **Problem + Social Good** | 10% | Disaster preparedness for vulnerable communities, actionable gap analysis for FEMA/state emergency management, 100% real federal data |
 
 ---
 
