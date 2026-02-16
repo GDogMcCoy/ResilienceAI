@@ -17,13 +17,7 @@ from pathlib import Path
 from config import PROCESSED_DIR, MODELS_DIR, FIGURES_DIR
 
 try:
-    import pydeck as pdk
-    HAS_PYDECK = True
-except ImportError:
-    HAS_PYDECK = False
-
-try:
-    from src.visualization_3d import Visualization3D, get_visualization_help, HAS_PYDECK as VIZ_HAS_PYDECK, HAS_PLOTLY as VIZ_HAS_PLOTLY
+    from src.visualization_3d import Visualization3D, get_visualization_help, HAS_PLOTLY as VIZ_HAS_PLOTLY
     HAS_ADVANCED_VIZ = True
 except ImportError:
     HAS_ADVANCED_VIZ = False
@@ -143,6 +137,13 @@ def load_data():
 
 
 @st.cache_resource
+def get_agent():
+    """Load ResilienceAgent once and cache across rerenders."""
+    from src.agent import ResilienceAgent
+    return ResilienceAgent()
+
+
+@st.cache_resource
 def load_model():
     """Load trained model."""
     model_path = MODELS_DIR / "best_model.pkl"
@@ -244,14 +245,20 @@ def main():
     st.sidebar.markdown(f"**Showing {len(df_filtered):,} of {len(df):,} counties**")
 
     st.sidebar.markdown("---")
+
+    if st.sidebar.button("Reset Filters"):
+        st.session_state.clear()
+        st.rerun()
+
+    st.sidebar.markdown("---")
     st.sidebar.markdown("**Data Sources**")
     st.sidebar.caption("FEMA OpenData | CMS Medicare | US Census ACS | FEMA ArcGIS Hub")
 
     # ── Tabs ──────────────────────────────────────────────────────────
-    (tab_overview, tab_map, tab_3d, tab_scenario, tab_infra, tab_insights,
+    (tab_overview, tab_map, tab_3d, tab_infra, tab_scenario, tab_insights,
      tab_gaps, tab_alerts, tab_benchmark, tab_model, tab_agent) = st.tabs([
-        "Overview", "Risk Map", "3D Tower Map", "Scenario Sim",
-        "Infrastructure", "Advanced Insights", "Gap Analysis",
+        "Overview", "Risk Map", "Geographic Analysis", "Infrastructure",
+        "Scenario Sim", "Advanced Insights", "Gap Analysis",
         "Alert Center", "Benchmarking",
         "Model Performance", "Agent Query"
     ])
@@ -338,7 +345,7 @@ def main():
 
     # ── Tab: 3D Tower Map ──────────────────────────────────────────────
     with tab_3d:
-        st.subheader("🗼 3D Vulnerability Tower Map")
+        st.subheader("🗺️ Geographic Risk Analysis")
         
         if HAS_ADVANCED_VIZ and "latitude" in df_filtered.columns:
             viz = Visualization3D(df_filtered)
@@ -349,7 +356,7 @@ def main():
                 with view_col1:
                     viz_mode = st.selectbox(
                         "Visualization Mode",
-                        ["County Heatmap", "County Scatter Map", "State Choropleth", "Regional Hexbins"],
+                        ["County Heatmap", "County Scatter Map", "3D Risk Landscape", "State Choropleth", "Regional Hexbins"],
                         key="viz_mode"
                     )
                 with view_col2:
@@ -393,6 +400,22 @@ def main():
                         - **State borders** shown as blue lines
                         """)
                         
+                elif viz_mode == "3D Risk Landscape":
+                    fig = viz.create_3d_risk_landscape()
+                    if fig:
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.warning("Could not create 3D landscape.")
+
+                    with st.expander("📊 3D Landscape Guide", expanded=False):
+                        st.markdown("""
+                        **3D Risk Landscape**
+                        - **Height (Z-axis)** = Risk score (taller = higher risk)
+                        - **Color** = Risk score (Green to Red)
+                        - **Size** = Population (larger = more populous)
+                        - **Drag** to rotate, **scroll** to zoom, **hover** for details
+                        """)
+
                 elif viz_mode == "State Choropleth":
                     fig = viz.create_state_choropleth()
                     if fig:
@@ -439,7 +462,7 @@ def main():
                 st.warning("No counties with valid coordinates in current filter.")
                 
         elif not HAS_ADVANCED_VIZ:
-            st.info("Install required packages: `pip install pydeck plotly scipy`")
+            st.info("Install required packages: `pip install plotly scipy`")
         else:
             st.warning("Geographic data not available.")
 
@@ -782,8 +805,7 @@ def main():
             show_critical_only = st.checkbox("Critical Only", value=False)
 
         with alert_col2:
-            from src.agent import ResilienceAgent
-            _agent = ResilienceAgent()
+            _agent = get_agent()
             alerts_result = _agent.get_real_time_alerts(
                 state=selected_states[0] if selected_states else None,
                 risk_threshold=risk_thresh,
@@ -823,8 +845,7 @@ def main():
         if bench_county:
             bench_match = df[df["county_name"] == bench_county]
             if not bench_match.empty:
-                from src.agent import ResilienceAgent
-                _bench_agent = ResilienceAgent()
+                _bench_agent = get_agent()
                 bench_result = _bench_agent.benchmark_county(bench_match.iloc[0]["fips"])
 
                 if "error" in bench_result:
@@ -923,7 +944,7 @@ def main():
         - "Benchmark Cook County against its peers"
         """)
 
-        query = st.text_input("Your question:", placeholder="e.g., Show me high-risk counties in Missouri")
+        query = st.text_input("Your question:", placeholder="e.g., Which Missouri counties have the highest disaster risk?")
 
         if query and df is not None:
             st.markdown("---")
@@ -946,12 +967,19 @@ def process_demo_query(query, df):
 
     # State detection
     state_abbrevs = {
-        "missouri": "MO", "california": "CA", "texas": "TX", "florida": "FL",
-        "new york": "NY", "illinois": "IL", "ohio": "OH", "georgia": "GA",
-        "pennsylvania": "PA", "north carolina": "NC", "michigan": "MI",
-        "kansas": "KS", "arkansas": "AR", "oklahoma": "OK", "iowa": "IA",
-        "nebraska": "NE", "louisiana": "LA", "mississippi": "MS",
-        "alabama": "AL", "tennessee": "TN", "kentucky": "KY",
+        "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR",
+        "california": "CA", "colorado": "CO", "connecticut": "CT", "delaware": "DE",
+        "florida": "FL", "georgia": "GA", "hawaii": "HI", "idaho": "ID",
+        "illinois": "IL", "indiana": "IN", "iowa": "IA", "kansas": "KS",
+        "kentucky": "KY", "louisiana": "LA", "maine": "ME", "maryland": "MD",
+        "massachusetts": "MA", "michigan": "MI", "minnesota": "MN", "mississippi": "MS",
+        "missouri": "MO", "montana": "MT", "nebraska": "NE", "nevada": "NV",
+        "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY",
+        "north carolina": "NC", "north dakota": "ND", "ohio": "OH", "oklahoma": "OK",
+        "oregon": "OR", "pennsylvania": "PA", "rhode island": "RI", "south carolina": "SC",
+        "south dakota": "SD", "tennessee": "TN", "texas": "TX", "utah": "UT",
+        "vermont": "VT", "virginia": "VA", "washington": "WA", "west virginia": "WV",
+        "wisconsin": "WI", "wyoming": "WY",
     }
     detected_state = None
     for state_name, abbrev in state_abbrevs.items():
@@ -961,9 +989,11 @@ def process_demo_query(query, df):
             break
 
     # Risk level detection
-    if "high risk" in query_lower or "highest risk" in query_lower or "most vulnerable" in query_lower:
+    high_keywords = ["high risk", "highest risk", "most vulnerable", "most dangerous", "worst", "riskiest", "top risk"]
+    low_keywords = ["low risk", "lowest risk", "safest", "least vulnerable", "best", "least risk"]
+    if any(kw in query_lower for kw in high_keywords):
         results = results.sort_values("risk_score", ascending=False)
-    elif "low risk" in query_lower or "safest" in query_lower:
+    elif any(kw in query_lower for kw in low_keywords):
         results = results.sort_values("risk_score", ascending=True)
 
     # Disaster type detection
@@ -992,7 +1022,7 @@ def process_demo_query(query, df):
             top = results.head(15)
             return f"**Counties with Accelerating Disasters:**\n\n{top[display_cols].to_markdown(index=False)}"
 
-    if "intervention" in query_lower or "gap" in query_lower or "what does" in query_lower and "need" in query_lower:
+    if "intervention" in query_lower or "gap" in query_lower or "recommend" in query_lower or ("what" in query_lower and "need" in query_lower):
         if "top_intervention" in results.columns:
             results = results.sort_values("top_intervention_score", ascending=False)
             display_cols = ["county_name", "top_intervention", "top_intervention_score", "risk_score"]
@@ -1009,10 +1039,27 @@ def process_demo_query(query, df):
             top = results.head(15)
             return f"**Compound Risk Hotspots** (3+ risk dimensions):\n\n{top[display_cols].to_markdown(index=False)}"
 
+    if "equity" in query_lower or "disparity" in query_lower or "inequality" in query_lower:
+        if "poverty_pct" in results.columns:
+            results = results.sort_values("poverty_pct", ascending=False)
+            display_cols = ["county_name", "poverty_pct", "elderly_pct", "disability_pct",
+                            "uninsured_pct", "risk_score", "total_population"]
+            display_cols = [c for c in display_cols if c in results.columns]
+            top = results.head(15)
+            return f"**Equity Analysis - Highest Disparity Counties:**\n\n{top[display_cols].to_markdown(index=False)}"
+
+    if "population" in query_lower and ("impact" in query_lower or "affected" in query_lower or "at risk" in query_lower):
+        if "pop_weighted_risk" in results.columns:
+            results = results.sort_values("pop_weighted_risk", ascending=False)
+            display_cols = ["county_name", "pop_weighted_risk", "total_population", "risk_score", "risk_level"]
+            display_cols = [c for c in display_cols if c in results.columns]
+            top = results.head(15)
+            return f"**Population-Weighted Impact Prioritization:**\n\n{top[display_cols].to_markdown(index=False)}"
+
     # Compare detection
-    if "compare" in query_lower:
+    if "compare" in query_lower or "vs" in query_lower or "versus" in query_lower:
         # Try to extract county names
-        parts = query_lower.replace("compare", "").replace(" and ", ",").split(",")
+        parts = query_lower.replace("compare", "").replace("versus", ",").replace(" vs ", ",").replace(" and ", ",").split(",")
         compare_results = []
         for part in parts:
             part = part.strip()

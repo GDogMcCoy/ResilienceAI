@@ -1,6 +1,6 @@
 """
-ResilienceAI - Lightweight County-Level Heatmap Visualizations
-Simple, reliable 2D heatmaps for county-level risk visualization
+ResilienceAI - Geographic Visualizations
+County-level risk heatmaps, scatter maps, choropleths, and 3D risk landscapes.
 """
 import numpy as np
 import pandas as pd
@@ -14,11 +14,6 @@ try:
 except ImportError:
     HAS_PLOTLY = False
 
-try:
-    import pydeck as pdk
-    HAS_PYDECK = True
-except ImportError:
-    HAS_PYDECK = False
 
 
 def prepare_data_for_viz(df: pd.DataFrame) -> pd.DataFrame:
@@ -310,8 +305,97 @@ def create_hexbin_map(df: pd.DataFrame) -> Optional[Any]:
     return fig
 
 
+def create_3d_risk_landscape(df: pd.DataFrame) -> Optional[Any]:
+    """
+    Create an interactive 3D scatter plot where:
+    - X = longitude, Y = latitude, Z = risk_score (height)
+    - Color = risk_score (RdYlGn_r)
+    - Size = population
+    Rotatable, zoomable, dark-themed.
+    """
+    if not HAS_PLOTLY or len(df) == 0:
+        return None
+
+    plot_df = df.copy()
+
+    # Scale population for marker size (3-15 range)
+    if "total_population" in plot_df.columns:
+        pop = np.log1p(plot_df["total_population"])
+        pop_min, pop_max = pop.min(), pop.max()
+        if pop_max > pop_min:
+            plot_df["size_3d"] = 3 + 12 * (pop - pop_min) / (pop_max - pop_min)
+        else:
+            plot_df["size_3d"] = 5
+    else:
+        plot_df["size_3d"] = 5
+
+    # Build custom colorscale values (0-1 mapped to RdYlGn_r)
+    fig = go.Figure(data=[go.Scatter3d(
+        x=plot_df["longitude"],
+        y=plot_df["latitude"],
+        z=plot_df["risk_score"],
+        mode="markers",
+        marker=dict(
+            size=plot_df["size_3d"],
+            color=plot_df["risk_score"],
+            colorscale="RdYlGn_r",
+            cmin=0,
+            cmax=1,
+            opacity=0.8,
+            colorbar=dict(
+                title=dict(text="Risk Score", font=dict(color="#E0E0E0")),
+                tickfont=dict(color="#E0E0E0"),
+                tickvals=[0, 0.33, 0.67, 1.0],
+                ticktext=["Low", "Medium", "High", "Extreme"],
+            ),
+            line=dict(width=0),
+        ),
+        text=plot_df.get("county_name", ""),
+        customdata=np.stack([
+            plot_df["risk_score"],
+            plot_df.get("risk_level", pd.Series([""] * len(plot_df))),
+            plot_df.get("total_population", pd.Series([0] * len(plot_df))),
+        ], axis=-1),
+        hovertemplate=(
+            "<b>%{text}</b><br>"
+            "Risk Score: %{customdata[0]:.3f}<br>"
+            "Risk Level: %{customdata[1]}<br>"
+            "Population: %{customdata[2]:,.0f}<br>"
+            "Lon: %{x:.2f}, Lat: %{y:.2f}"
+            "<extra></extra>"
+        ),
+    )])
+
+    fig.update_layout(
+        scene=dict(
+            xaxis=dict(title="Longitude", color="#E0E0E0", gridcolor="#1E293B",
+                        backgroundcolor="#0E1117", range=[-130, -65]),
+            yaxis=dict(title="Latitude", color="#E0E0E0", gridcolor="#1E293B",
+                        backgroundcolor="#0E1117", range=[24, 50]),
+            zaxis=dict(title="Risk Score", color="#E0E0E0", gridcolor="#1E293B",
+                        backgroundcolor="#0E1117", range=[0, 1]),
+            bgcolor="#0E1117",
+            camera=dict(
+                eye=dict(x=1.5, y=-1.5, z=0.8),
+                center=dict(x=0, y=0, z=-0.1),
+            ),
+        ),
+        paper_bgcolor="#0E1117",
+        font=dict(color="#E0E0E0"),
+        margin=dict(l=0, r=0, b=0, t=50),
+        title=dict(
+            text="<b>3D Risk Landscape</b><br><sup>Height = Risk Score | Size = Population | Rotate to explore</sup>",
+            font=dict(color="#E0E0E0", size=16),
+            x=0.5,
+        ),
+        height=700,
+    )
+
+    return fig
+
+
 class Visualization3D:
-    """Simplified visualization class focused on reliable 2D heatmaps."""
+    """Geographic visualization class with 2D and 3D views."""
     
     def __init__(self, df: pd.DataFrame):
         self.df = prepare_data_for_viz(df)
@@ -340,48 +424,38 @@ class Visualization3D:
             return None
         return create_hexbin_map(self.df)
     
-    # Backwards compatibility - return simple heatmap instead of 3D
-    def create_topological_manifold_map(self, **kwargs) -> Optional[Any]:
-        """Fallback to simple heatmap."""
-        return self.create_county_heatmap()
-    
-    def create_enhanced_tower_map(self, **kwargs) -> Optional[Any]:
-        """Fallback to scatter map."""
-        return self.create_county_scatter_map()
-    
-    def create_hexagon_map(self, **kwargs) -> Optional[Any]:
-        """Fallback to hexbin."""
-        return self.create_hexbin_map()
-    
-    def create_plotly_3d_views(self) -> Dict[str, Any]:
-        """Return available views."""
+    def create_3d_risk_landscape(self) -> Optional[Any]:
+        """Create interactive 3D risk landscape."""
+        if len(self.df) == 0:
+            return None
+        return create_3d_risk_landscape(self.df)
+
+    def get_all_views(self) -> Dict[str, Any]:
+        """Return all available views."""
         return {
             "county_heatmap": self.create_county_heatmap(),
             "county_scatter": self.create_county_scatter_map(),
             "state_choropleth": self.create_state_choropleth(),
-            "hexbin": self.create_hexbin_map()
+            "hexbin": self.create_hexbin_map(),
+            "3d_landscape": self.create_3d_risk_landscape(),
         }
 
 
 def get_visualization_help() -> str:
     """Return help text about the visualization options."""
     return """
-    ## County-Level Heatmap Guide
-    
+    ## Geographic Analysis Guide
+
     ### Available Views:
     - **County Heatmap**: Density-based heatmap showing risk concentration
     - **County Scatter**: Each county as a sized/colored dot on US map
     - **State Choropleth**: Average risk by state
     - **Regional Hexbins**: Hexagonal aggregation showing regional patterns
-    
+    - **3D Risk Landscape**: Interactive 3D scatter with risk as height axis
+
     ### Visual Encodings:
-    - **Color**: Green (low) → Yellow (medium) → Red (high) risk
+    - **Color**: Green (low) -> Yellow (medium) -> Red (high) risk
     - **Size** (scatter): Population size
+    - **Height** (3D): Risk score
     - **Intensity** (heatmap): Risk concentration
-    
-    ### All views are:
-    - Fast and reliable
-    - Interactive (zoom, pan, hover)
-    - Mobile-friendly
-    - No complex 3D physics
     """
