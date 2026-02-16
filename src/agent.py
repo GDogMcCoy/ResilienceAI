@@ -976,6 +976,24 @@ def get_mcp_tools():
                 "required": ["fips"]
             }
         },
+        {
+            "name": "get_mo_health_disparities",
+            "description": "Missouri-specific tool: Analyzes health disparities and socioeconomic gaps across Missouri counties. Compares life expectancy, insurance rates, and poverty to identify priority zones.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "focus_metric": {
+                        "type": "string",
+                        "enum": ["uninsured_pct", "poverty_pct", "elderly_pct", "disability_pct", "risk_score"],
+                        "description": "Primary metric for disparity analysis"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Max counties to return (default 10)"
+                    }
+                }
+            }
+        },
     ]
 
 
@@ -2098,6 +2116,51 @@ class ResilienceAgent:
             "increasing_risk_count": sum(1 for r in results if r.get('forecast_trend') == 'increasing'),
             "stable_risk_count": sum(1 for r in results if r.get('forecast_trend') == 'stable'),
             "results": results
+        }
+
+    def get_mo_health_disparities(self, focus_metric="uninsured_pct", max_results=10):
+        """
+        Missouri-specific health disparity analysis.
+        Identifies gaps between health outcomes and socioeconomic factors.
+        """
+        if self.df is None:
+            return {"error": "Data not loaded"}
+
+        # Filter for Missouri
+        mo_df = self.df[self.df["county_name"].str.contains(", MO", case=False, na=False)].copy()
+        if mo_df.empty:
+            return {"error": "No Missouri data found"}
+
+        # Calculate metrics relative to state average
+        state_avg_metric = mo_df[focus_metric].mean()
+        state_avg_risk = mo_df["risk_score"].mean()
+
+        mo_df["metric_vs_avg"] = mo_df[focus_metric] / (state_avg_metric + 1e-10)
+        mo_df["risk_vs_avg"] = mo_df["risk_score"] / (state_avg_risk + 1e-10)
+
+        # Find counties where metric is high AND risk is high (priority zones)
+        mo_df["disparity_index"] = (mo_df["metric_vs_avg"] + mo_df["risk_vs_avg"]) / 2
+        
+        top_disparate = mo_df.sort_values("disparity_index", ascending=False).head(max_results)
+
+        results = []
+        for _, row in top_disparate.iterrows():
+            results.append({
+                "county_name": row["county_name"],
+                "fips": row["fips"],
+                focus_metric: round(float(row[focus_metric]), 3),
+                "risk_score": round(float(row["risk_score"]), 3),
+                "disparity_index": round(float(row["disparity_index"]), 3),
+                "state_percentile": round(float(row.get("risk_score_state_pctile", 0)), 1),
+                "population": int(row["total_population"])
+            })
+
+        return {
+            "focus_metric": focus_metric,
+            "state_average_metric": round(float(state_avg_metric), 3),
+            "state_average_risk": round(float(state_avg_risk), 3),
+            "priority_zones": results,
+            "summary": f"Identified {len(results)} priority counties in Missouri with elevated {focus_metric} and disaster risk."
         }
 
     def get_climate_adaptation_recommendations(self, fips: str, scenario: str = 'ssp2_45'):
