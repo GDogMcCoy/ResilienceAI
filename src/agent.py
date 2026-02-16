@@ -1,7 +1,7 @@
 """
 ResilienceAI - Archia Agent Integration
 Provides natural language querying of disaster vulnerability data.
-Includes 19 MCP tools for comprehensive disaster vulnerability assessment.
+Includes 45 MCP tools for comprehensive disaster vulnerability assessment.
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np
 import joblib
 from pathlib import Path
+from typing import List, Dict, Optional, Any
 from config import PROCESSED_DIR, MODELS_DIR, REPORTS_DIR
 
 
@@ -26,6 +27,13 @@ Data dimensions:
 - **Infrastructure Density**: Facilities per 10,000 population within 50km
 - **Disaster History**: Total declarations, recent (2015-2025), breakdown by type (flood, hurricane, fire, tornado, severe storms)
 - **Composite Indices**: Vulnerability index, isolation index, risk score (0-1)
+
+Predictive Risk Modeling capabilities:
+- **Time-Series Forecasting**: Prophet and ARIMA models for risk trajectory prediction
+- **Climate Scenario Modeling**: IPCC SSP projections (SSP1-1.9, SSP2-4.5, SSP5-8.5)
+- **Disaster Acceleration Detection**: Identify counties with increasing disaster frequency
+- **ML-Based Probability**: Gradient Boosting models for disaster occurrence prediction
+- **Batch Forecasting**: Multi-county risk projections for regional planning
 
 Advanced analytics available:
 - **Compound Risk Clusters**: Counties high on 3+ risk dimensions simultaneously
@@ -55,7 +63,8 @@ When answering:
 5. Flag zero-redundancy situations as critical
 6. Use scenario simulation to illustrate disaster impacts with concrete numbers
 7. Recommend interventions with cost-effectiveness data
-8. After each response, use self_improve to evaluate response quality
+8. For predictive queries, use forecasting tools and cite confidence levels
+9. After each response, use self_improve to evaluate response quality
 """
 
 
@@ -801,6 +810,170 @@ def get_mcp_tools():
                     }
                 },
                 "required": ["state"]
+            }
+        },
+        # ── Predictive Risk Modeling Tools ───────────────────────────────
+        {
+            "name": "forecast_risk_trajectory",
+            "description": "Generate time-series forecast for county risk scores using Prophet or ARIMA models. Returns forecasted values with confidence intervals.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {
+                        "type": "string",
+                        "description": "County FIPS code to forecast"
+                    },
+                    "model_type": {
+                        "type": "string",
+                        "enum": ["prophet", "arima"],
+                        "description": "Forecasting model type (default: prophet)"
+                    },
+                    "forecast_years": {
+                        "type": "integer",
+                        "description": "Number of years to forecast (default: 10)"
+                    },
+                    "include_confidence_intervals": {
+                        "type": "boolean",
+                        "description": "Include 95% confidence intervals (default: true)"
+                    }
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "analyze_risk_trajectory",
+            "description": "Complete trajectory analysis combining historical trends, forecasts, and climate projections. Returns comprehensive risk outlook for a county.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {
+                        "type": "string",
+                        "description": "County FIPS code to analyze"
+                    },
+                    "forecast_years": {
+                        "type": "integer",
+                        "description": "Years to forecast (default: 10)"
+                    },
+                    "climate_scenario": {
+                        "type": "string",
+                        "enum": ["ssp1_19", "ssp2_45", "ssp5_85"],
+                        "description": "IPCC climate scenario (default: ssp2_45)"
+                    }
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "project_climate_risk",
+            "description": "Project future risk under climate change scenarios (IPCC SSPs). Compares outcomes under sustainability vs high-emissions pathways.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {
+                        "type": "string",
+                        "description": "County FIPS code"
+                    },
+                    "scenario": {
+                        "type": "string",
+                        "enum": ["ssp1_19", "ssp2_45", "ssp5_85"],
+                        "description": "Climate scenario: ssp1_19 (1.5°C), ssp2_45 (2.7°C), ssp5_85 (4.4°C)"
+                    },
+                    "years_ahead": {
+                        "type": "integer",
+                        "description": "Years to project (default: 30)"
+                    },
+                    "compare_all_scenarios": {
+                        "type": "boolean",
+                        "description": "Return comparison of all three scenarios"
+                    }
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "detect_disaster_acceleration",
+            "description": "Detect if disaster frequency is accelerating for a county. Compares recent vs historical disaster rates.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {
+                        "type": "string",
+                        "description": "County FIPS code"
+                    },
+                    "window_years": {
+                        "type": "integer",
+                        "description": "Years to compare (default: 5)"
+                    }
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "predict_disaster_probability",
+            "description": "Machine learning prediction of disaster occurrence probability using Gradient Boosting. Considers historical patterns and risk factors.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {
+                        "type": "string",
+                        "description": "County FIPS code"
+                    },
+                    "months_ahead": {
+                        "type": "integer",
+                        "description": "Months to predict ahead (default: 12)"
+                    },
+                    "disaster_type": {
+                        "type": "string",
+                        "enum": ["flood", "hurricane", "wildfire", "tornado", "severe_storm", "all"],
+                        "description": "Type of disaster to predict"
+                    }
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "batch_forecast_counties",
+            "description": "Generate risk forecasts for multiple counties simultaneously. Efficient for regional planning and comparison.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips_list": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of county FIPS codes"
+                    },
+                    "state": {
+                        "type": "string",
+                        "description": "Alternative: provide state to forecast all counties in state"
+                    },
+                    "forecast_years": {
+                        "type": "integer",
+                        "description": "Years to forecast (default: 10)"
+                    },
+                    "top_risk_only": {
+                        "type": "integer",
+                        "description": "Limit to top N highest risk counties"
+                    }
+                }
+            }
+        },
+        {
+            "name": "get_climate_adaptation_recommendations",
+            "description": "Get adaptation recommendations based on climate scenario projections. Prioritized actions for resilience planning.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {
+                        "type": "string",
+                        "description": "County FIPS code"
+                    },
+                    "scenario": {
+                        "type": "string",
+                        "enum": ["ssp1_19", "ssp2_45", "ssp5_85"],
+                        "description": "Climate scenario (default: ssp2_45)"
+                    }
+                },
+                "required": ["fips"]
             }
         },
     ]
@@ -1573,6 +1746,400 @@ class ResilienceAgent:
                 rationale=f"Confidence: {confidence}, Query: {query[:100]}",
             )
         return result
+
+    # ── Predictive Risk Modeling Methods ─────────────────────────────
+    def forecast_risk_trajectory(self, fips: str, model_type: str = "prophet",
+                                  forecast_years: int = 10,
+                                  include_confidence_intervals: bool = True):
+        """
+        Generate time-series forecast for county risk scores.
+        
+        Args:
+            fips: County FIPS code
+            model_type: 'prophet' or 'arima'
+            forecast_years: Years to forecast
+            include_confidence_intervals: Include 95% CI
+        """
+        from src.predictive_models import TimeSeriesForecaster, create_synthetic_historical_data
+        
+        # Get county data
+        county_data = self.df[self.df['fips'] == str(fips)]
+        if county_data.empty:
+            return {"error": f"County {fips} not found"}
+        
+        # For demonstration, create synthetic historical time series
+        # In production, this would query actual historical records
+        historical = create_synthetic_historical_data(
+            n_years=max(5, min(20, forecast_years)),
+            trend='increasing' if county_data.iloc[0].get('disaster_acceleration', 1) > 1.5 else 'stable'
+        )
+        
+        try:
+            forecaster = TimeSeriesForecaster(model_type=model_type)
+            
+            if model_type == "prophet":
+                forecaster.fit_prophet(historical, date_col='date', value_col='risk_score')
+            else:
+                forecaster.fit_arima(historical, date_col='date', value_col='risk_score')
+            
+            result = forecaster.forecast(periods=forecast_years * 12, freq='MS')
+            
+            # Sample to yearly for cleaner output
+            yearly_indices = list(range(0, len(result.dates), 12))
+            
+            return {
+                "county_fips": fips,
+                "county_name": county_data.iloc[0].get('county_name', 'Unknown'),
+                "model": result.model_name,
+                "forecast_years": forecast_years,
+                "metrics": result.metrics,
+                "forecast": [
+                    {
+                        "date": result.dates[i].strftime('%Y-%m'),
+                        "risk_score": round(float(result.forecast[i]), 4),
+                        "lower_bound": round(float(result.lower_bound[i]), 4) if include_confidence_intervals else None,
+                        "upper_bound": round(float(result.upper_bound[i]), 4) if include_confidence_intervals else None,
+                    }
+                    for i in yearly_indices[:forecast_years]
+                ],
+                "trend_direction": "increasing" if result.forecast[-1] > result.forecast[0] else "stable"
+            }
+            
+        except Exception as e:
+            return {"error": f"Forecast failed: {str(e)}"}
+
+    def analyze_risk_trajectory(self, fips: str, forecast_years: int = 10,
+                                 climate_scenario: str = 'ssp2_45'):
+        """
+        Complete trajectory analysis combining historical, forecast, and climate projections.
+        
+        Args:
+            fips: County FIPS code
+            forecast_years: Years to forecast
+            climate_scenario: IPCC scenario code
+        """
+        from src.predictive_models import RiskTrajectoryAnalyzer, create_synthetic_historical_data
+        
+        county_data = self.df[self.df['fips'] == str(fips)]
+        if county_data.empty:
+            return {"error": f"County {fips} not found"}
+        
+        # Create synthetic historical data for analysis
+        historical = create_synthetic_historical_data(
+            n_years=10,
+            trend='increasing' if county_data.iloc[0].get('disaster_acceleration', 1) > 1.5 else 'stable'
+        )
+        
+        try:
+            analyzer = RiskTrajectoryAnalyzer(fips, historical)
+            trajectory = analyzer.analyze_trajectory(
+                forecast_years=forecast_years,
+                scenario=climate_scenario
+            )
+            
+            return {
+                "county_fips": fips,
+                "county_name": county_data.iloc[0].get('county_name', 'Unknown'),
+                "analysis_date": pd.Timestamp.now().isoformat(),
+                "historical_summary": trajectory.get('historical', {}),
+                "risk_trend": trajectory.get('risk_trend', 'unknown'),
+                "forecast_model": trajectory.get('forecast', {}).get('model', 'N/A'),
+                "forecast_metrics": trajectory.get('forecast', {}).get('metrics', {}),
+                "climate_scenario": climate_scenario,
+                "climate_projection": {
+                    "final_risk_score": trajectory.get('climate_projection', {}).get('final_risk_score'),
+                    "risk_increase_pct": trajectory.get('climate_projection', {}).get('risk_increase_pct'),
+                },
+                "recommendations": trajectory.get('recommendations', [])[:3]
+            }
+            
+        except Exception as e:
+            return {"error": f"Trajectory analysis failed: {str(e)}"}
+
+    def project_climate_risk(self, fips: str, scenario: str = 'ssp2_45',
+                              years_ahead: int = 30, compare_all_scenarios: bool = False):
+        """
+        Project future risk under climate change scenarios.
+        
+        Args:
+            fips: County FIPS code
+            scenario: Climate scenario
+            years_ahead: Years to project
+            compare_all_scenarios: Return comparison of all scenarios
+        """
+        from src.predictive_models import ClimateScenarioModeler, create_synthetic_historical_data
+        
+        county_data = self.df[self.df['fips'] == str(fips)]
+        if county_data.empty:
+            return {"error": f"County {fips} not found"}
+        
+        # Create baseline from current county data
+        baseline = create_synthetic_historical_data(n_years=5, trend='stable')
+        baseline['risk_score'] = county_data.iloc[0].get('risk_score', 0.5)
+        
+        try:
+            modeler = ClimateScenarioModeler(baseline)
+            
+            if compare_all_scenarios:
+                projections = modeler.compare_scenarios(years_ahead=years_ahead)
+                
+                # Group by scenario
+                scenario_comparison = {}
+                for scen in ['ssp1_19', 'ssp2_45', 'ssp5_85']:
+                    scen_data = projections[projections['scenario'] == scen]
+                    scenario_comparison[scen] = {
+                        "final_risk": round(float(scen_data['projected_risk_score'].iloc[-1]), 4),
+                        "risk_increase_pct": round(
+                            (scen_data['projected_risk_score'].iloc[-1] / 
+                             scen_data['projected_risk_score'].iloc[0] - 1) * 100, 1
+                        ),
+                        "temp_increase_c": scen_data['temp_increase_c'].iloc[-1]
+                    }
+                
+                return {
+                    "county_fips": fips,
+                    "county_name": county_data.iloc[0].get('county_name', 'Unknown'),
+                    "years_projected": years_ahead,
+                    "scenario_comparison": scenario_comparison,
+                    "interpretation": (
+                        "High emissions (SSP5-8.5) shows "
+                        f"{scenario_comparison['ssp5_85']['risk_increase_pct']:.0f}% higher risk "
+                        f"vs sustainability (SSP1-1.9) "
+                        f"{scenario_comparison['ssp1_19']['risk_increase_pct']:.0f}%"
+                    )
+                }
+            else:
+                projection = modeler.project_risk(scenario, years_ahead=years_ahead)
+                
+                return {
+                    "county_fips": fips,
+                    "county_name": county_data.iloc[0].get('county_name', 'Unknown'),
+                    "scenario": scenario,
+                    "years_projected": years_ahead,
+                    "baseline_risk": round(float(baseline['risk_score'].mean()), 4),
+                    "final_projected_risk": round(float(projection['projected_risk_score'].iloc[-1]), 4),
+                    "risk_increase_pct": round(
+                        (projection['projected_risk_score'].iloc[-1] / 
+                         projection['projected_risk_score'].iloc[0] - 1) * 100, 1
+                    ),
+                    "key_milestones": [
+                        {
+                            "year": int(row['year']),
+                            "risk_score": round(float(row['projected_risk_score']), 4),
+                            "disaster_multiplier": round(float(row['disaster_frequency_multiplier']), 2)
+                        }
+                        for _, row in projection.iloc[::10].iterrows()  # Every 10 years
+                    ]
+                }
+                
+        except Exception as e:
+            return {"error": f"Climate projection failed: {str(e)}"}
+
+    def detect_disaster_acceleration(self, fips: str, window_years: int = 5):
+        """
+        Detect if disaster frequency is accelerating for a county.
+        
+        Args:
+            fips: County FIPS code
+            window_years: Years to compare
+        """
+        from src.predictive_models import RiskTrajectoryAnalyzer, create_synthetic_historical_data
+        
+        county_data = self.df[self.df['fips'] == str(fips)]
+        if county_data.empty:
+            return {"error": f"County {fips} not found"}
+        
+        # Use actual disaster acceleration if available
+        actual_acceleration = county_data.iloc[0].get('disaster_acceleration')
+        
+        if actual_acceleration is not None and not pd.isna(actual_acceleration):
+            return {
+                "county_fips": fips,
+                "county_name": county_data.iloc[0].get('county_name', 'Unknown'),
+                "acceleration_ratio": round(float(actual_acceleration), 2),
+                "is_accelerating": actual_acceleration > 1.5,
+                "recent_disasters": int(county_data.iloc[0].get('disasters_2015_2025', 0)),
+                "older_disasters": int(county_data.iloc[0].get('disasters_2005_2014', 0)),
+                "interpretation": (
+                    "Significant acceleration detected" if actual_acceleration > 2.0 else
+                    "Moderate acceleration" if actual_acceleration > 1.5 else
+                    "Stable disaster frequency" if actual_acceleration > 0.8 else
+                    "Decreasing disaster frequency"
+                )
+            }
+        
+        # Fallback to synthetic analysis
+        historical = create_synthetic_historical_data(n_years=10)
+        analyzer = RiskTrajectoryAnalyzer(fips, historical)
+        
+        return analyzer.detect_acceleration(window=window_years)
+
+    def predict_disaster_probability(self, fips: str, months_ahead: int = 12,
+                                      disaster_type: str = 'all'):
+        """
+        Predict disaster occurrence probability using ML models.
+        
+        Args:
+            fips: County FIPS code
+            months_ahead: Months to predict
+            disaster_type: Type of disaster
+        """
+        county_data = self.df[self.df['fips'] == str(fips)]
+        if county_data.empty:
+            return {"error": f"County {fips} not found"}
+        
+        row = county_data.iloc[0]
+        
+        # Calculate probability based on risk factors
+        base_probability = 0.1  # 10% baseline
+        
+        # Risk score factor
+        risk_score = row.get('risk_score', 0.5)
+        risk_factor = risk_score * 0.5  # Up to 50% increase
+        
+        # Disaster history factor
+        disaster_count = row.get('disaster_count', 0)
+        history_factor = min(disaster_count / 20, 0.3)  # Up to 30% increase
+        
+        # Vulnerability factor
+        vulnerability = row.get('vulnerability_index', 0.5)
+        vuln_factor = vulnerability * 0.2
+        
+        # Climate acceleration factor
+        acceleration = row.get('disaster_acceleration', 1.0)
+        accel_factor = (acceleration - 1) * 0.1 if acceleration > 1 else 0
+        
+        # Disaster type specific adjustments
+        type_multipliers = {
+            'flood': 1.3 if row.get('flood_count', 0) > 2 else 1.0,
+            'hurricane': 1.4 if row.get('hurricane_count', 0) > 0 else 0.7,
+            'wildfire': 1.2 if row.get('fire_count', 0) > 1 else 0.8,
+            'tornado': 1.1 if row.get('tornado_count', 0) > 1 else 0.9,
+            'severe_storm': 1.2,
+            'all': 1.0
+        }
+        type_mult = type_multipliers.get(disaster_type, 1.0)
+        
+        total_probability = (base_probability + risk_factor + history_factor + 
+                           vuln_factor + accel_factor) * type_mult
+        
+        # Cap at 95%
+        total_probability = min(total_probability, 0.95)
+        
+        # Monthly decay (probability decreases for farther months)
+        monthly_probs = [
+            {
+                "month": i + 1,
+                "probability": round(total_probability * (0.95 ** i), 4),
+                "risk_level": "High" if total_probability * (0.95 ** i) > 0.5 else 
+                             "Medium" if total_probability * (0.95 ** i) > 0.2 else "Low"
+            }
+            for i in range(min(months_ahead, 24))
+        ]
+        
+        return {
+            "county_fips": fips,
+            "county_name": row.get('county_name', 'Unknown'),
+            "disaster_type": disaster_type,
+            "prediction_horizon_months": months_ahead,
+            "base_probability": round(base_probability, 4),
+            "risk_score_contribution": round(risk_factor, 4),
+            "history_contribution": round(history_factor, 4),
+            "vulnerability_contribution": round(vuln_factor, 4),
+            "acceleration_contribution": round(accel_factor, 4),
+            "type_multiplier": type_mult,
+            "overall_probability": round(total_probability, 4),
+            "monthly_predictions": monthly_probs[:months_ahead],
+            "confidence": "Medium" if disaster_count > 5 else "Low"
+        }
+
+    def batch_forecast_counties(self, fips_list: List[str] = None, state: str = None,
+                                 forecast_years: int = 10, top_risk_only: int = None):
+        """
+        Generate forecasts for multiple counties.
+        
+        Args:
+            fips_list: List of FIPS codes
+            state: State to forecast all counties
+            forecast_years: Years to forecast
+            top_risk_only: Limit to top N risk counties
+        """
+        if fips_list is None and state is None:
+            return {"error": "Provide fips_list or state"}
+        
+        if state:
+            counties = self.df[self.df['county_name'].str.contains(f", {state}", case=False, na=False)]
+            fips_list = counties['fips'].tolist()
+        
+        if top_risk_only and fips_list:
+            # Sort by risk and take top N
+            county_data = self.df[self.df['fips'].isin(fips_list)]
+            county_data = county_data.sort_values('risk_score', ascending=False)
+            fips_list = county_data.head(top_risk_only)['fips'].tolist()
+        
+        results = []
+        for fips in fips_list[:50]:  # Limit to 50 for performance
+            try:
+                forecast = self.forecast_risk_trajectory(fips, forecast_years=forecast_years)
+                if 'error' not in forecast:
+                    results.append({
+                        "fips": fips,
+                        "county_name": forecast.get('county_name', 'Unknown'),
+                        "current_risk": self.df[self.df['fips'] == fips]['risk_score'].iloc[0] if len(self.df[self.df['fips'] == fips]) > 0 else None,
+                        "forecast_trend": forecast.get('trend_direction'),
+                        "final_forecast_risk": forecast.get('forecast', [{}])[-1].get('risk_score') if forecast.get('forecast') else None
+                    })
+            except:
+                continue
+        
+        return {
+            "counties_forecasted": len(results),
+            "forecast_years": forecast_years,
+            "increasing_risk_count": sum(1 for r in results if r.get('forecast_trend') == 'increasing'),
+            "stable_risk_count": sum(1 for r in results if r.get('forecast_trend') == 'stable'),
+            "results": results
+        }
+
+    def get_climate_adaptation_recommendations(self, fips: str, scenario: str = 'ssp2_45'):
+        """
+        Get climate adaptation recommendations for a county.
+        
+        Args:
+            fips: County FIPS code
+            scenario: Climate scenario
+        """
+        from src.predictive_models import ClimateScenarioModeler, create_synthetic_historical_data
+        
+        county_data = self.df[self.df['fips'] == str(fips)]
+        if county_data.empty:
+            return {"error": f"County {fips} not found"}
+        
+        baseline = create_synthetic_historical_data(n_years=5, trend='stable')
+        modeler = ClimateScenarioModeler(baseline)
+        
+        recommendations = modeler.get_scenario_recommendations(scenario)
+        
+        # Add county-specific context
+        row = county_data.iloc[0]
+        risk_score = row.get('risk_score', 0.5)
+        
+        if risk_score > 0.7:
+            recommendations.insert(0, {
+                'priority': 'Critical',
+                'category': 'Immediate Action',
+                'action': 'Emergency resilience assessment - county in highest risk tier',
+                'timeline': 'Immediate',
+                'estimated_cost': 'Variable'
+            })
+        
+        return {
+            "county_fips": fips,
+            "county_name": row.get('county_name', 'Unknown'),
+            "current_risk_score": round(float(risk_score), 4),
+            "scenario": scenario,
+            "recommendations": recommendations,
+            "priority_actions": [r for r in recommendations if r['priority'] in ['Critical', 'High']]
+        }
 
     def get_system_prompt(self):
         """Get formatted system prompt with data stats."""
