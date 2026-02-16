@@ -16,12 +16,13 @@ sys.path.insert(0, str(src_path))
 if __name__ == "__main__":
     print("🚀 Starting ResilienceAI Dashboard...")
     print("=" * 50)
-    print("Features: 38 MCP tools | 16 tabs | Real-time streaming")
+    print("Features: 45 MCP tools | 16 tabs | Real-time streaming")
     print("=" * 50)
     
     # Import and run streamlit
     import subprocess
     import webbrowser
+    import socket
     from time import sleep
     
     # Check if streamlit is installed
@@ -33,17 +34,27 @@ if __name__ == "__main__":
         subprocess.run([sys.executable, "-m", "pip", "install", "streamlit"], check=True)
         print("✅ Streamlit installed")
     
+    # Find available port
+    def find_free_port(start_port=8501, max_port=8510):
+        for port in range(start_port, max_port + 1):
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                if s.connect_ex(('localhost', port)) != 0:
+                    return port
+        return 8511  # Fallback
+    
+    PORT = find_free_port()
+    
     # Launch dashboard
     dashboard_path = Path(__file__).parent / "app" / "dashboard.py"
     
     print(f"📊 Loading dashboard from: {dashboard_path}")
-    print("🌐 Opening browser at: http://localhost:8501")
+    print(f"🌐 Opening browser at: http://localhost:{PORT}")
     print("\nPress Ctrl+C to stop\n")
     
     # Open browser after short delay
     def open_browser():
         sleep(3)
-        webbrowser.open("http://localhost:8501")
+        webbrowser.open(f"http://localhost:{PORT}")
     
     import threading
     threading.Thread(target=open_browser, daemon=True).start()
@@ -51,6 +62,6 @@ if __name__ == "__main__":
     # Run streamlit
     subprocess.run([
         sys.executable, "-m", "streamlit", "run", str(dashboard_path),
-        "--server.port", "8501",
+        "--server.port", str(PORT),
         "--server.headless", "false"
     ])

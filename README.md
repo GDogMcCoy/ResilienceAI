@@ -6,7 +6,7 @@
 ```bash
 python run_dashboard.py
 ```
-Auto-opens browser at http://localhost:8501
+Auto-detects free port (8501-8510) and opens browser automatically.
 
 ### Option 2: VS Code (F5)
 Press **F5** and select "🚀 Launch ResilienceAI Dashboard"
