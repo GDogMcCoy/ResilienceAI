@@ -156,12 +156,72 @@ MODERN_CSS = """
         font-size: 0.7rem;
     }
 
-    /* Sidebar glassmorphism */
-    section[data-testid="stSidebar"] {
-        background-color: #0f172a;
-        border-right: 1px solid rgba(255, 255, 255, 0.05);
+    /* Bento Grid Layout */
+    .bento-container {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        grid-auto-rows: minmax(150px, auto);
+        gap: 1.5rem;
+        padding: 1rem 0;
+    }
+    
+    .bento-item {
+        background: rgba(30, 41, 59, 0.7);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-radius: 24px;
+        padding: 1.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+    
+    .bento-item:hover {
+        transform: scale(1.02);
+        border-color: rgba(192, 132, 252, 0.5);
+        background: rgba(30, 41, 59, 0.9);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .bento-large { grid-column: span 2; grid-row: span 2; }
+    .bento-wide { grid-column: span 2; }
+    .bento-tall { grid-row: span 2; }
+
+    /* Vanta Background Fix */
+    #vanta-canvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: -1;
     }
 </style>
+
+<div id="vanta-canvas"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.fog.min.js"></script>
+<script>
+    window.addEventListener('DOMContentLoaded', (event) => {
+        VANTA.FOG({
+            el: "#vanta-canvas",
+            mouseControls: true,
+            touchControls: true,
+            gyroControls: false,
+            minHeight: 200.00,
+            minWidth: 200.00,
+            highlightColor: 0x3f3f46,
+            midtoneColor: 0x1e1b4b,
+            lowlightColor: 0x0f172a,
+            baseColor: 0x0f172a,
+            blurFactor: 0.6,
+            speed: 1.5,
+            zoom: 1.00
+        })
+    });
+</script>
 """
 """
 

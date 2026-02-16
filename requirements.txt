@@ -20,6 +20,9 @@ seaborn>=0.12.0
 
 # Dashboard
 streamlit>=1.28.0
+streamlit-lottie>=0.0.5
+streamlit-antd-components>=0.2.0
+streamlit-shadcn-ui>=0.1.0
 
 # HTTP requests
 requests>=2.31.0

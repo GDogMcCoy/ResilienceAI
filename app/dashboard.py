@@ -131,47 +131,85 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 
 # ── Tab 1: Missouri Sentinel ─────────────────────────────────────────
 with tab1:
-    col1, col2 = st.columns([2, 1])
+    st.markdown('<div class="bento-container">', unsafe_allow_html=True)
     
-    with col1:
-        st.subheader("📍 State of Missouri: High-Level Vulnerability")
-        if df is not None:
-            mo_df = df[df['county_name'].str.contains(", MO")]
-            m1, m2, m3 = st.columns(3)
-            with m1:
-                render_metric_card("Avg Risk Score", f"{mo_df['risk_score'].mean():.3f}", icon="🔥")
-            with m2:
-                render_metric_card("High Risk Zones", str(len(mo_df[mo_df['risk_level'] == 'High'])), icon="⚠️")
-            with m3:
-                render_metric_card("Uninsured Avg", f"{mo_df['uninsured_pct'].mean()*100:.1f}%", icon="🏥")
-            
-            st.divider()
-            
-            # Disparity of the Day (Smart Logic)
-            st.markdown("### 🔍 Disparity Highlight")
-            focus_metric = "uninsured_pct"
-            if AGENT_AVAILABLE and st.session_state.local_agent:
-                res = st.session_state.local_agent.get_mo_health_disparities(focus_metric=focus_metric, max_results=5)
-                top_zone = res['priority_zones'][0]
-                st.info(f"**Critical Priority:** {top_zone['county_name']} shows the highest gap between healthcare access and disaster risk index.")
-                
-                # Small chart for top 5
-                df_zones = pd.DataFrame(res['priority_zones'])
-                fig = px.bar(df_zones, x='county_name', y='disparity_index', 
-                           color='disparity_index', color_continuous_scale='Purples',
-                           title="Top 5 Disparity Zones (Healthcare vs Risk)")
-                st.plotly_chart(fig, use_container_width=True)
-    
-    with col2:
-        st.subheader("🚨 Live Alerts")
+    if df is not None:
+        mo_df = df[df['county_name'].str.contains(", MO")]
+        avg_risk = mo_df['risk_score'].mean()
+        high_risk_count = len(mo_df[mo_df['risk_level'] == 'High'])
+        uninsured_avg = mo_df['uninsured_pct'].mean() * 100
+        
+        # Tile 1: Main State Metric (Large)
+        st.markdown(f"""
+        <div class="bento-item bento-large">
+            <div>
+                <span class="metric-label">Missouri Risk Index</span>
+                <div class="metric-value" style="font-size: 4rem;">{avg_risk:.3f}</div>
+            </div>
+            <div class="mono" style="color: #c084fc; font-size: 0.9rem;">
+                ANALYSIS OF 114 COUNTIES + ST. LOUIS CITY
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Tile 2: High Risk Zones
+        st.markdown(f"""
+        <div class="bento-item">
+            <span class="metric-label">Critical Zones</span>
+            <div class="metric-value">{high_risk_count}</div>
+            <span class="risk-high">IMMEDIATE ATTENTION</span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Tile 3: Healthcare Gap
+        st.markdown(f"""
+        <div class="bento-item">
+            <span class="metric-label">Healthcare Gap</span>
+            <div class="metric-value">{uninsured_avg:.1f}%</div>
+            <span class="mono" style="font-size: 0.7rem; color: #94a3b8;">AVG UNINSURED RATE</span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Tile 4: Disparity of the Day (Wide)
         if AGENT_AVAILABLE and st.session_state.local_agent:
-            alerts = st.session_state.local_agent.get_real_time_alerts(state="MO", max_results=5)
+            res = st.session_state.local_agent.get_mo_health_disparities(focus_metric="uninsured_pct", max_results=1)
+            top_zone = res['priority_zones'][0]
+            st.markdown(f"""
+            <div class="bento-item bento-wide">
+                <span class="metric-label">Priority Disparity Zone</span>
+                <div style="font-size: 1.5rem; font-weight: 700; margin: 0.5rem 0;">{top_zone['county_name']}</div>
+                <p style="color: #94a3b8; font-size: 0.9rem;">
+                    This county shows the highest divergence between healthcare access and projected disaster impact.
+                </p>
+                <div class="mono" style="color: #4ade80;">INDEX: {top_zone['disparity_index']:.2f}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Secondary content row
+    st.divider()
+    col_a, col_b = st.columns([2, 1])
+    with col_a:
+        st.subheader("📊 State-Wide Disparity Matrix")
+        if df is not None:
+            # Re-using the logic from the old tab but simplified
+            res = st.session_state.local_agent.get_mo_health_disparities(focus_metric="uninsured_pct", max_results=8)
+            df_zones = pd.DataFrame(res['priority_zones'])
+            fig = px.bar(df_zones, x='county_name', y='disparity_index', 
+                       color='disparity_index', color_continuous_scale='Purples',
+                       template="plotly_dark")
+            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig, use_container_width=True)
+            
+    with col_b:
+        st.subheader("🚨 Sentinel Alerts")
+        if AGENT_AVAILABLE and st.session_state.local_agent:
+            alerts = st.session_state.local_agent.get_real_time_alerts(state="MO", max_results=3)
             for a in alerts['alerts']:
-                with st.container():
-                    st.markdown(f"**{a['county_name']}**")
-                    st.caption(a['reason'])
-                    render_risk_badge(a['severity'])
-                    st.divider()
+                st.markdown(f"**{a['county_name']}**")
+                st.caption(a['reason'])
+                st.divider()
 
 # ── Tab 2: Vulnerability Explorer ────────────────────────────────────
 with tab2:
