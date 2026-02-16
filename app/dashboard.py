@@ -175,8 +175,8 @@ def init_session_state():
     """Initialize session state variables."""
     if 'agent_config' not in st.session_state:
         st.session_state.agent_config = {
-            'archia_url': 'http://localhost:8080',
-            'api_key': '',
+            'archia_url': 'https://api.archia.app/v1',
+            'api_key': 'ask_wbkaHYsVv6yiaBMBko3VU_YZ9Bonga3nThObPyKJwwA=',
             'model': 'claude-sonnet-4-5-20250929',
             'use_local_agent': True
         }

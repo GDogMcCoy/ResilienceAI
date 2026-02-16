@@ -2,7 +2,7 @@
 
 ## API Key
 ```
-ask_ouIAvAYrMqb8LnlJxfDeU3hvOdEkOpA3EGmiS0XlWvc=
+ask_wbkaHYsVv6yiaBMBko3VU_YZ9Bonga3nThObPyKJwwA=
 ```
 
 ## Console Access
@@ -18,7 +18,7 @@ cd /root/.openclaw/workspace/ResilienceAI
 ## Manual Deploy
 ```bash
 # 1. Set API key
-export ARCHIA_API_KEY="ask_ouIAvAYrMqb8LnlJxfDeU3hvOdEkOpA3EGmiS0XlWvc="
+export ARCHIA_API_KEY="ask_wbkaHYsVv6yiaBMBko3VU_YZ9Bonga3nThObPyKJwwA="
 
 # 2. Deploy agent configuration
 curl -X POST https://api.archia.app/v1/agents/deploy \
@@ -44,7 +44,7 @@ streamlit run app/dashboard.py
 
 # 3. In the sidebar, enter:
 #    Archia Endpoint: https://api.archia.app/v1
-#    API Key: ask_ouIAvAYrMqb8LnlJxfDeU3hvOdEkOpA3EGmiS0XlWvc=
+#    API Key: ask_wbkaHYsVv6yiaBMBko3VU_YZ9Bonga3nThObPyKJwwA=
 ```
 
 ## Demo Queries
@@ -103,7 +103,7 @@ streamlit run app/dashboard.py
 ### Connection Issues
 ```bash
 # Test API connectivity
-curl -H "Authorization: Bearer ask_ouIAvAYrMqb8LnlJxfDeU3hvOdEkOpA3EGmiS0XlWvc=" \
+curl -H "Authorization: Bearer ask_wbkaHYsVv6yiaBMBko3VU_YZ9Bonga3nThObPyKJwwA=" \
   https://api.archia.app/v1/health
 ```
 
