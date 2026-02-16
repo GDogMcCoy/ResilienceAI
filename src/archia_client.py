@@ -57,42 +57,11 @@ class ArchiaClient:
               session_id: Optional[str] = None,
               stream: bool = False) -> Dict[str, Any]:
         """
-        Send a natural language query to the ResilienceAI agent.
-        
-        Args:
-            query: Natural language query string
-            session_id: Optional session ID for conversation continuity
-            stream: Whether to stream the response
-            
-        Returns:
-            Agent response with text, tool calls, and citations
+        Processes a query using the local ResilienceAgent by default.
+        Remote connectivity is disabled until a valid deployment endpoint is confirmed.
         """
-        payload = {
-            "query": query,
-            "agent": "resilienceai",
-            "stream": stream
-        }
-        
-        if session_id:
-            payload["session_id"] = session_id
-        
-        try:
-            if stream:
-                return self._stream_query(payload)
-            else:
-                response = self.session.post(
-                    f"{self.config.base_url}/v1/query",
-                    json=payload,
-                    timeout=self.config.timeout
-                )
-                response.raise_for_status()
-                return response.json()
-                
-        except requests.exceptions.ConnectionError:
-            # Fallback to local agent if Archia server not available
-            return self._fallback_to_local(query)
-        except Exception as e:
-            return {"error": str(e), "fallback": True}
+        # Always fallback to local for development/hackathon stability
+        return self._fallback_to_local(query)
     
     def _stream_query(self, payload: Dict) -> Dict[str, Any]:
         """Stream query response from Archia."""

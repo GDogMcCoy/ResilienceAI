@@ -972,7 +972,7 @@ host = "0.0.0.0"
 port = 8080
 workers = 4
 log_level = "info"
-api_key = "ask_ouIAvAYrMqb8LnlJxfDeU3hvOdEkOpA3EGmiS0XlWvc="
+api_key = "ask_wbkaHYsVv6yiaBMBko3VU_YZ9Bonga3nThObPyKJwwA="
 
 # Data paths
 [server.data]
@@ -990,3 +990,33 @@ rate_limit = 100
 [server.health]
 endpoint = "/health"
 interval = 30
+[ [ a g e n t . t o o l s ] ]  
+ n a m e   =   " g e t _ m o _ h e a l t h _ d i s p a r i t i e s "  
+ d e s c r i p t i o n   =   " M i s s o u r i - s p e c i f i c   t o o l :   A n a l y z e s   h e a l t h   d i s p a r i t i e s   a n d   s o c i o e c o n o m i c   g a p s   a c r o s s   M i s s o u r i   c o u n t i e s . "  
+ h a n d l e r   =   " R e s i l i e n c e A g e n t . g e t _ m o _ h e a l t h _ d i s p a r i t i e s "  
+  
+ [ [ a g e n t . t o o l s . p a r a m e t e r s ] ]  
+ n a m e   =   " f o c u s _ m e t r i c "  
+ t y p e   =   " s t r i n g "  
+ e n u m   =   [ " u n i n s u r e d _ p c t " ,   " p o v e r t y _ p c t " ,   " e l d e r l y _ p c t " ,   " d i s a b i l i t y _ p c t " ,   " r i s k _ s c o r e " ]  
+ d e s c r i p t i o n   =   " P r i m a r y   m e t r i c   f o r   d i s p a r i t y   a n a l y s i s "  
+ r e q u i r e d   =   f a l s e  
+  
+ [ [ a g e n t . t o o l s . p a r a m e t e r s ] ]  
+ n a m e   =   " m a x _ r e s u l t s "  
+ t y p e   =   " i n t e g e r "  
+ d e s c r i p t i o n   =   " M a x   c o u n t i e s   t o   r e t u r n   ( d e f a u l t   1 0 ) "  
+ r e q u i r e d   =   f a l s e  
+  
+ [ [ a g e n t . t o o l s ] ]  
+ n a m e   =   " g e t _ c l i m a t e _ a d a p t a t i o n _ r e c o m m e n d a t i o n s "  
+ d e s c r i p t i o n   =   " G e t   a d a p t a t i o n   r e c o m m e n d a t i o n s   b a s e d   o n   c l i m a t e   s c e n a r i o   p r o j e c t i o n s . "  
+ h a n d l e r   =   " R e s i l i e n c e A g e n t . g e t _ c l i m a t e _ a d a p t a t i o n _ r e c o m m e n d a t i o n s "  
+  
+ [ [ a g e n t . t o o l s . p a r a m e t e r s ] ]  
+ n a m e   =   " f i p s "  
+ t y p e   =   " s t r i n g "  
+ d e s c r i p t i o n   =   " C o u n t y   F I P S   c o d e "  
+ r e q u i r e d   =   t r u e  
+  
+ 
