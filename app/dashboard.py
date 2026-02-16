@@ -345,153 +345,95 @@ def main():
             
             if len(viz.df) > 0:
                 # View selection
-                view_col1, view_col2, view_col3 = st.columns([2, 2, 2])
+                view_col1, view_col2 = st.columns([3, 2])
                 with view_col1:
                     viz_mode = st.selectbox(
                         "Visualization Mode",
-                        ["Topological Manifold", "Multi-Layer Topology", "Gradient Flow Field", 
-                         "Enhanced Towers", "Hexagon Aggregation", "3D Scatter"],
+                        ["County Heatmap", "County Scatter Map", "State Choropleth", "Regional Hexbins"],
                         key="viz_mode"
                     )
                 with view_col2:
-                    if viz_mode == "Topological Manifold":
-                        show_wireframe = st.checkbox("Show Wireframe", value=False, key="show_wireframe")
-                        show_counties = st.checkbox("Show County Markers", value=True, key="show_counties")
-                    elif viz_mode in ["Enhanced Towers", "Hexagon Aggregation"]:
-                        show_heatmap = st.checkbox("Show Heatmap Overlay", value=False, key="show_heatmap")
-                        show_labels = st.checkbox("Show Labels", value=True, key="show_labels")
-                    else:
-                        show_wireframe = False
-                        show_counties = True
-                        show_heatmap = False
-                        show_labels = False
-                with view_col3:
-                    # Height scale control for manifold views
-                    if viz_mode in ["Topological Manifold", "Multi-Layer Topology", "Gradient Flow Field"]:
-                        height_scale = st.slider("Height Scale", 0.1, 0.8, 0.3, 0.05, key="manifold_height")
-                    elif viz_mode == "Enhanced Towers":
-                        height_scale = st.slider("Tower Height", 0.5, 3.0, 1.0, 0.1, key="tower_height")
-                    else:
-                        height_scale = 0.3
-                
-                # Camera controls for PyDeck views
-                if viz_mode in ["Enhanced Towers", "Hexagon Aggregation"]:
-                    st.markdown("##### Camera Controls")
-                    cam_col1, cam_col2, cam_col3 = st.columns(3)
-                    with cam_col1:
-                        pitch = st.slider("Pitch", 0, 85, 50, key="tower_pitch")
-                    with cam_col2:
-                        bearing = st.slider("Rotation", 0, 360, 0, key="tower_bearing")
-                    with cam_col3:
-                        zoom = st.slider("Zoom", 1.0, 8.0, 3.5, key="tower_zoom")
-                else:
-                    pitch, bearing, zoom = 50, 0, 3.5
+                    st.markdown("##### Legend")
+                    st.markdown("🟢 Low Risk (< 0.33)")
+                    st.markdown("🟡 Medium Risk (0.33 - 0.67)")
+                    st.markdown("🔴 High Risk (> 0.67)")
                 
                 st.markdown("---")
                 
                 # Render selected visualization
-                if viz_mode == "Topological Manifold":
-                    # NEW: Smooth topological surface like SGD energy landscape
-                    fig = viz.create_topological_manifold_map(
-                        height_scale=height_scale,
-                        show_surface=True,
-                        show_wireframe=show_wireframe,
-                        show_counties=show_counties
-                    )
-                    if fig:
-                        st.plotly_chart(fig, use_container_width=True, height=700)
-                    else:
-                        st.warning("Could not create topological manifold (requires scipy).")
-                    
-                    # Visual encoding explanation
-                    with st.expander("📊 Topological Manifold Guide", expanded=False):
-                        st.markdown("""
-                        **Energy Landscape Concept**: Like a loss function in SGD optimization
-                        - **Hills (Peaks)** = High risk counties forming elevated terrain
-                        - **Valleys** = Low risk areas forming depressions
-                        - **Continuous Surface**: Smoothly interpolated between counties using RBF (Radial Basis Function)
-                        - **Height Scale**: Controls Z-axis exaggeration for visual clarity
-                        - **County Markers**: White dots showing actual county locations on the surface
-                        
-                        **Interactions**:
-                        - **Click & Drag**: Rotate the 3D view
-                        - **Scroll**: Zoom in/out
-                        - **Right-click + Drag**: Pan the view
-                        - **Hover**: See county details and risk scores
-                        """)
-                        
-                elif viz_mode == "Multi-Layer Topology":
-                    # NEW: Multiple surfaces side by side
-                    fig = viz.create_multi_layer_topology(height_scale=height_scale)
-                    if fig:
-                        st.plotly_chart(fig, use_container_width=True)
-                        st.caption("Comparing Risk, Vulnerability, and Isolation as topological surfaces")
-                    else:
-                        st.warning("Could not create multi-layer topology (requires scipy).")
-                        
-                elif viz_mode == "Gradient Flow Field":
-                    # NEW: Vector field showing risk gradients
-                    fig = viz.create_gradient_flow_field(height_scale=height_scale)
-                    if fig:
-                        st.plotly_chart(fig, use_container_width=True)
-                        st.caption("Cones show direction of steepest risk increase (like gradient vectors in optimization)")
-                    else:
-                        st.warning("Could not create gradient flow field (requires scipy).")
-                        
-                elif viz_mode == "Enhanced Towers":
-                    # Enhanced tower map with multiple layers
-                    viz.config.tower_height_multiplier = 50000 * height_scale
-                    deck = viz.create_enhanced_tower_map(
-                        view_pitch=pitch,
-                        view_bearing=bearing,
-                        view_zoom=zoom,
-                        show_labels=show_labels,
-                        show_heatmap=show_heatmap
-                    )
-                    if deck:
-                        st.pydeck_chart(deck, height=650)
-                    
-                    with st.expander("📊 Tower Map Guide", expanded=False):
-                        st.markdown("""
-                        **Tower Height**: Risk score (scaled by population for visibility)
-                        **Tower Color**: Smooth gradient Green → Yellow → Red → Dark Red
-                        **Tower Radius**: Population size (larger = more populous counties)
-                        **Labels**: High-risk counties (score > 0.6)
-                        """)
-                        
-                elif viz_mode == "Hexagon Aggregation":
-                    deck = viz.create_hexagon_map(
-                        view_pitch=pitch,
-                        view_zoom=zoom
-                    )
-                    if deck:
-                        st.pydeck_chart(deck, height=650)
-                    
-                    with st.expander("📊 Hexagon Map Guide", expanded=False):
-                        st.markdown("""
-                        **Hexagon Elevation**: Average risk score in the region
-                        **Hexagon Color**: Risk level (Green→Yellow→Red)
-                        **Hexagon Size**: 50km radius aggregation areas
-                        """)
-                        
-                elif viz_mode == "3D Scatter":
-                    fig = viz.create_plotly_3d_views().get("scatter_3d")
+                if viz_mode == "County Heatmap":
+                    fig = viz.create_county_heatmap()
                     if fig:
                         st.plotly_chart(fig, use_container_width=True)
                     else:
-                        st.warning("Could not create 3D scatter plot.")
+                        st.warning("Could not create heatmap.")
+                    
+                    with st.expander("📊 Heatmap Guide", expanded=False):
+                        st.markdown("""
+                        **County-Level Risk Heatmap**
+                        - **Color intensity** shows risk concentration
+                        - **Brighter/Redder** = Higher risk areas
+                        - **Zoom in** to see county-level details
+                        - **Hover** for exact risk scores
+                        """)
+                        
+                elif viz_mode == "County Scatter Map":
+                    fig = viz.create_county_scatter_map()
+                    if fig:
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.warning("Could not create scatter map.")
+                    
+                    with st.expander("📊 Scatter Map Guide", expanded=False):
+                        st.markdown("""
+                        **County Scatter Map**
+                        - **Each dot** = one county
+                        - **Color** = Risk score (Green→Yellow→Red)
+                        - **Size** = Population (larger = more populous)
+                        - **State borders** shown as blue lines
+                        """)
+                        
+                elif viz_mode == "State Choropleth":
+                    fig = viz.create_state_choropleth()
+                    if fig:
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.warning("Could not create choropleth.")
+                    
+                    with st.expander("📊 Choropleth Guide", expanded=False):
+                        st.markdown("""
+                        **State-Level Average Risk**
+                        - **Color** = Average risk score across all counties in state
+                        - **Hover** for exact values and county counts
+                        - Good for high-level regional comparison
+                        """)
+                        
+                elif viz_mode == "Regional Hexbins":
+                    fig = viz.create_hexbin_map()
+                    if fig:
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.warning("Could not create hexbin map.")
+                    
+                    with st.expander("📊 Hexbin Guide", expanded=False):
+                        st.markdown("""
+                        **Regional Risk Hexbins**
+                        - **Hexagons** aggregate nearby counties
+                        - **Color** = Average risk in that region
+                        - Good for identifying regional patterns
+                        """)
                 
-                # Legend and stats
+                # Stats summary
                 st.markdown("---")
-                legend_col1, legend_col2, legend_col3, legend_col4 = st.columns(4)
-                with legend_col1:
-                    st.markdown("🟢 **Low Risk** (< 0.33)")
-                with legend_col2:
-                    st.markdown("🟡 **Medium Risk** (0.33 - 0.67)")
-                with legend_col3:
-                    st.markdown("🔴 **High Risk** (0.67 - 0.85)")
-                with legend_col4:
-                    st.markdown("🟥 **Extreme Risk** (> 0.85)")
+                stats_col1, stats_col2, stats_col3 = st.columns(3)
+                with stats_col1:
+                    st.metric("Counties Shown", len(viz.df))
+                with stats_col2:
+                    high_risk_count = len(viz.df[viz.df["risk_score"] > 0.67])
+                    st.metric("High Risk Counties", high_risk_count)
+                with stats_col3:
+                    avg_risk = viz.df["risk_score"].mean()
+                    st.metric("Average Risk", f"{avg_risk:.3f}")
                     
             else:
                 st.warning("No counties with valid coordinates in current filter.")
