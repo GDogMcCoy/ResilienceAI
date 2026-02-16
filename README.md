@@ -1,6 +1,14 @@
 # 🛡️ ResilienceAI - Quick Start Guide
 
-## 🚀 Run the Dashboard (Easiest Way)
+## 🌐 Live Demo (No Installation Required!)
+
+**👉 [Click here to launch the live dashboard](https://ask-resilienceai-dashboardagentquerytab-3f8fqqh5fqjpyhw.streamlit.app/)**
+
+This is the shared team dashboard - bookmark this link!
+
+---
+
+## 🚀 Run Locally (For Development)
 
 ### Option 1: Double-Click Launcher (Recommended)
 ```bash
@@ -76,7 +84,11 @@ python run_dashboard.py
 
 ## 🌐 Access the Dashboard
 
-Once running, open your browser to:
+### Live Demo (Always Available)
+**👉 [https://ask-resilienceai-dashboardagentquerytab-3f8fqqh5fqjpyhw.streamlit.app/](https://ask-resilienceai-dashboardagentquerytab-3f8fqqh5fqjpyhw.streamlit.app/)**
+
+### Local Development
+Once running locally, open your browser to:
 **http://localhost:8501**
 
 ---
