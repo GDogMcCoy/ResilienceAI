@@ -80,6 +80,15 @@ AGENT_CONFIG = {
     "archia_server_url": "http://localhost:8080"
 }
 
+# Climate data sources
+CLIMATE_SOURCES = {
+    "acis": {"url": "https://data.rcc-acis.org/", "cache_hours": 168},
+    "fema_nri": {"url": "https://hazards.fema.gov/nri/data", "cache_hours": 720},
+    "usgs_nwis": {"url": "https://waterservices.usgs.gov/nwis/", "cache_hours": 24},
+    "swdi": {"url": "https://www.ncei.noaa.gov/access/services/search/v1/data", "cache_hours": 168},
+    "drought_monitor": {"url": "https://usdmdataservices.unl.edu/api", "cache_hours": 24},
+}
+
 # Feature groups for analysis
 FEATURE_GROUPS = {
     "demographics": [

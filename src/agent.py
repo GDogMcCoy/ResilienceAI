@@ -994,6 +994,95 @@ def get_mcp_tools():
                 }
             }
         },
+        # ── Climate Intelligence Tools (7 tools) ─────────────────────────
+        {
+            "name": "get_climate_trends",
+            "description": "Get historical temperature and precipitation trends for a county from ACIS/PRISM 4km gridded data. Returns annual records with computed linear trend slopes per decade.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                    "start_year": {"type": "integer", "description": "Start year (default: 2000)"},
+                    "end_year": {"type": "integer", "description": "End year (default: 2025)"},
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "get_hazard_risk_profile",
+            "description": "Get FEMA National Risk Index profile with 18 hazard types including Expected Annual Loss, Social Vulnerability, and Community Resilience scores.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "get_flood_frequency",
+            "description": "Get USGS streamflow data and flood recurrence interval estimates (2/5/10/25/50/100-year floods) for a county based on peak flow records.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "get_severe_weather_history",
+            "description": "Get historical severe weather events (tornadoes, hail, damaging wind) for a county from NOAA SWDI/SPC Storm Events Database.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                    "hazard_type": {"type": "string", "enum": ["all", "tornado", "hail", "wind"], "description": "Filter by event type (default: all)"},
+                    "start_year": {"type": "integer", "description": "Start year (default: 2000)"},
+                    "end_year": {"type": "integer", "description": "End year (default: 2025)"},
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "get_drought_history",
+            "description": "Get US Drought Monitor weekly drought classification (D0-D4) history for a county with summary statistics.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                    "start_date": {"type": "string", "description": "Start date YYYY-MM-DD (default: 2000-01-01)"},
+                    "end_date": {"type": "string", "description": "End date YYYY-MM-DD (default: today)"},
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "compare_climate_trends",
+            "description": "Compare climate trajectories across multiple counties with side-by-side temperature and precipitation trend analysis.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips_list": {"type": "array", "items": {"type": "string"}, "description": "List of FIPS codes to compare"},
+                    "start_year": {"type": "integer", "description": "Start year (default: 2000)"},
+                    "end_year": {"type": "integer", "description": "End year (default: 2025)"},
+                },
+                "required": ["fips_list"]
+            }
+        },
+        {
+            "name": "project_climate_risk_enhanced",
+            "description": "Project future climate risk using real historical ACIS baseline combined with IPCC SSP scenarios (SSP1-1.9, SSP2-4.5, SSP5-8.5).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                    "scenario": {"type": "string", "enum": ["ssp1_19", "ssp2_45", "ssp5_85"], "description": "IPCC SSP scenario"},
+                    "horizon_years": {"type": "integer", "description": "Years into future (default: 30)"},
+                },
+                "required": ["fips"]
+            }
+        },
     ]
 
 
@@ -2209,6 +2298,49 @@ class ResilienceAgent:
             "recommendations": recommendations,
             "priority_actions": [r for r in recommendations if r['priority'] in ['Critical', 'High']]
         }
+
+    # ── Climate Intelligence Methods (delegate to ClimateIntelligenceClient) ──
+
+    def _get_climate_client(self):
+        """Lazy-load climate client."""
+        if not hasattr(self, '_climate_client'):
+            from src.climate_client import ClimateIntelligenceClient
+            self._climate_client = ClimateIntelligenceClient()
+        return self._climate_client
+
+    def get_climate_trends(self, fips: str, start_year: int = 2000, end_year: int = 2025):
+        """Get historical temperature/precipitation trends from ACIS."""
+        return self._get_climate_client().acis.get_climate_trends(fips, start_year, end_year)
+
+    def get_hazard_risk_profile(self, fips: str):
+        """Get FEMA NRI 18-hazard risk profile."""
+        return self._get_climate_client().nri.get_hazard_risk_profile(fips)
+
+    def get_flood_frequency(self, fips: str):
+        """Get USGS peak flow and flood recurrence intervals."""
+        return self._get_climate_client().usgs.get_flood_frequency(fips)
+
+    def get_severe_weather_history(self, fips: str, hazard_type: str = "all",
+                                   start_year: int = 2000, end_year: int = 2025):
+        """Get SPC/SWDI severe weather events."""
+        return self._get_climate_client().severe.get_severe_weather_history(
+            fips, hazard_type, start_year, end_year)
+
+    def get_drought_history(self, fips: str, start_date: str = "2000-01-01",
+                            end_date: str = None):
+        """Get US Drought Monitor history."""
+        return self._get_climate_client().drought.get_drought_history(fips, start_date, end_date)
+
+    def compare_climate_trends(self, fips_list, start_year: int = 2000, end_year: int = 2025):
+        """Compare climate trajectories across counties."""
+        return self._get_climate_client().acis.compare_counties(fips_list, start_year, end_year)
+
+    def project_climate_risk_enhanced(self, fips: str, scenario: str = "ssp2_45",
+                                      horizon_years: int = 30):
+        """Project climate risk using real historical baseline + SSP scenarios."""
+        from src.agents.climate_agent import ClimateAgent
+        ca = ClimateAgent()
+        return ca._project_climate_risk_enhanced(fips, scenario, horizon_years)
 
     def get_system_prompt(self):
         """Get formatted system prompt with data stats."""
