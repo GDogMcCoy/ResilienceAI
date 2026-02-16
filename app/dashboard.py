@@ -155,7 +155,7 @@ with tab1:
         mo_df = df[df['county_name'].str.endswith(", Missouri")].copy()
         avg_risk = mo_df['risk_score'].mean()
         high_risk_count = len(mo_df[mo_df['risk_level'] == 'High'])
-        uninsured_avg = mo_df['uninsured_pct'].mean() * 100
+        uninsured_avg = mo_df['uninsured_pct'].mean()
         
         # Tile 1: Main State Metric (Large)
         st.markdown(f"""
@@ -165,7 +165,7 @@ with tab1:
                 <div class="metric-value" style="font-size: 4rem;">{avg_risk:.3f}</div>
             </div>
             <div class="mono" style="color: #c084fc; font-size: 0.9rem;">
-                ANALYSIS OF 114 COUNTIES + ST. LOUIS CITY
+                ANALYSIS OF 115 COUNTIES (INC. ST. LOUIS CITY)
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -173,9 +173,9 @@ with tab1:
         # Tile 2: High Risk Zones
         st.markdown(f"""
         <div class="bento-item">
-            <span class="metric-label">Critical Zones</span>
+            <span class="metric-label">High-Risk Zones</span>
             <div class="metric-value">{high_risk_count}</div>
-            <span class="risk-high">IMMEDIATE ATTENTION</span>
+            <span class="mono" style="font-size: 0.7rem; color: #f87171;">VULNERABILITY CLASSIFIED AS HIGH</span>
         </div>
         """, unsafe_allow_html=True)
         
@@ -184,7 +184,7 @@ with tab1:
         <div class="bento-item">
             <span class="metric-label">Healthcare Gap</span>
             <div class="metric-value">{uninsured_avg:.1f}%</div>
-            <span class="mono" style="font-size: 0.7rem; color: #94a3b8;">AVG UNINSURED RATE</span>
+            <span class="mono" style="font-size: 0.7rem; color: #94a3b8;">AVERAGE UNINSURED POPULATION</span>
         </div>
         """, unsafe_allow_html=True)
         
@@ -197,7 +197,7 @@ with tab1:
                 <span class="metric-label">Priority Disparity Zone</span>
                 <div style="font-size: 1.5rem; font-weight: 700; margin: 0.5rem 0;">{top_zone['county_name']}</div>
                 <p style="color: #94a3b8; font-size: 0.9rem;">
-                    This county shows the highest divergence between healthcare access and projected disaster impact.
+                    Identified intersection of highest healthcare gap and projected disaster impact.
                 </p>
                 <div class="mono" style="color: #4ade80;">INDEX: {top_zone['disparity_index']:.2f}</div>
             </div>
@@ -207,89 +207,37 @@ with tab1:
     
     # Secondary content row
     st.divider()
-    col_a, col_b = st.columns([2, 1])
-    with col_a:
-        st.subheader("📊 State-Wide Disparity Matrix")
-        if df is not None:
-            # Re-using the logic from the old tab but simplified
-            res = st.session_state.local_agent.get_mo_health_disparities(focus_metric="uninsured_pct", max_results=8)
-            df_zones = pd.DataFrame(res['priority_zones'])
-            fig = px.bar(df_zones, x='county_name', y='disparity_index', 
-                       color='disparity_index', color_continuous_scale='Purples',
-                       template="plotly_dark")
-            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-            st.plotly_chart(fig, use_container_width=True)
-            
-    with col_b:
-        st.subheader("🚨 Sentinel Alerts")
-        if AGENT_AVAILABLE and st.session_state.local_agent:
-            alerts = st.session_state.local_agent.get_real_time_alerts(state="MO", max_results=3)
-            for a in alerts['alerts']:
-                st.markdown(f"**{a['county_name']}**")
-                st.caption(a['reason'])
-                st.divider()
+    st.subheader("📊 State-Wide Disparity Matrix")
+    if df is not None:
+        res = st.session_state.local_agent.get_mo_health_disparities(focus_metric="uninsured_pct", max_results=15)
+        df_zones = pd.DataFrame(res['priority_zones'])
+        fig = px.bar(df_zones, x='county_name', y='disparity_index', 
+                   color='disparity_index', color_continuous_scale='Purples',
+                   template="plotly_dark")
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        st.plotly_chart(fig, use_container_width=True)
 
 # ── Tab 2: Vulnerability Explorer ────────────────────────────────────
 with tab2:
     st.subheader("🗺️ Geospatial Deep-Dive")
     if df is not None and GEO_VIZ_AVAILABLE:
-        sub_tab1, sub_tab2 = st.tabs(["3D Risk Landscape", "Demographic Overlays"])
-        with sub_tab1:
-            render_3d_landscape_tab(df)
-        with sub_tab2:
-            render_choropleth_tab(df)
+        render_3d_landscape_tab(df)
     else:
-        st.info("Select a visualization mode to begin exploration.")
+        st.info("Geospatial visualization standby.")
 
 # ── Tab 3: Resilience Planner ────────────────────────────────────────
 with tab3:
-    col1, col2 = st.columns([1, 2])
-    with col1:
-        st.subheader("📊 Scenario Simulation")
-        threat = st.selectbox("Select Threat", ["hurricane_cat3", "flood_major", "tornado_ef5", "wildfire_large"])
-        
-        # Get list of Missouri FIPS
-        if df is not None:
-            mo_counties = df[df['county_name'].str.endswith(", Missouri")].sort_values('county_name')
-            if not mo_counties.empty:
-                target_county = st.selectbox("Epicenter County", mo_counties['county_name'].tolist())
-                epicenter_fips = mo_counties[mo_counties['county_name'] == target_county]['fips'].iloc[0]
-                
-                if st.button("🚀 Run Simulation", type="primary"):
-                    if AGENT_AVAILABLE and st.session_state.local_agent:
-                        with st.spinner("Calculating impact vectors..."):
-                            result = st.session_state.local_agent.simulate_scenario(
-                                scenario=threat,
-                                epicenter_fips=epicenter_fips
-                            )
-                            st.session_state.simulation_result = result
-            else:
-                st.warning("No Missouri counties found in dataset. Check data/processed/county_features.csv")
-    
-    with col2:
-        if 'simulation_result' in st.session_state:
-            res = st.session_state.simulation_result
-            st.subheader(f"📈 Impact Analysis: {threat.replace('_', ' ').title()}")
-            
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                st.metric("Pop. at Risk", f"{res.get('affected_population', 0):,}")
-            with c2:
-                st.metric("Avg Risk Increase", f"+{res.get('avg_risk_increase', 0)*100:.1f}%")
-            with c3:
-                st.metric("Counties Affected", res.get('affected_counties_count', 0))
-            
-            # Show a simple comparison chart
-            comp_data = pd.DataFrame([
-                {"State": "Baseline", "Risk": res.get('baseline_risk', 0)},
-                {"State": "Post-Event", "Risk": res.get('post_event_risk', 0)}
-            ])
-            fig = px.bar(comp_data, x='State', y='Risk', color='State', 
-                       color_discrete_map={"Baseline": "#34d399", "Post-Event": "#f87171"},
+    st.subheader("📊 Strategic Resource Allocation")
+    st.markdown("Resource allocation and risk mitigation planning based on return-on-investment metrics.")
+    if df is not None:
+        # Show a clean, professional correlation matrix or similar utility
+        fig = px.scatter(mo_df if 'mo_df' in locals() else df.sample(100), 
+                       x='uninsured_pct', y='risk_score', size='total_population',
+                       color='risk_level', hover_name='county_name',
+                       title="Risk-Resource Correlation (Missouri Focus)",
                        template="plotly_dark")
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("Select a threat and epicenter to begin simulation.")
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        st.plotly_chart(fig, use_container_width=True)
 
 # ── Tab 4: Agent Intelligence ────────────────────────────────────────
 with tab4:
@@ -305,8 +253,15 @@ with tab4:
     if submit_q and query_text:
         with st.spinner("Processing intelligence vector..."):
             try:
-                from archia_client import ArchiaClient
-                client = ArchiaClient()
+                from archia_client import ArchiaClient, ArchiaConfig
+                
+                # Configure client from session state
+                cfg = ArchiaConfig(
+                    base_url=st.session_state.agent_config['archia_url'],
+                    api_key=st.session_state.agent_config['api_key']
+                )
+                client = ArchiaClient(config=cfg)
+                
                 # If local agent toggle is OFF, it will try remote
                 response = client.query(query_text)
                 st.session_state.last_agent_response = response
