@@ -623,6 +623,92 @@ def get_mcp_tools():
                 "required": ["alert_id"]
             }
         },
+        # ── Weather Integration Tools ────────────────────────────────────
+        {
+            "name": "get_weather_alerts",
+            "description": "Get active weather alerts from NOAA National Weather Service for a state or county. Returns severe weather warnings, watches, and advisories.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "state": {
+                        "type": "string",
+                        "description": "Two-letter state code (e.g., 'MO', 'CA')"
+                    },
+                    "county_name": {
+                        "type": "string",
+                        "description": "Optional: County name to filter alerts"
+                    },
+                    "severity": {
+                        "type": "string",
+                        "enum": ["Extreme", "Severe", "Moderate", "Minor"],
+                        "description": "Optional: Filter by severity level"
+                    }
+                },
+                "required": ["state"]
+            }
+        },
+        {
+            "name": "correlate_weather_with_vulnerability",
+            "description": "Correlate active weather alerts with county vulnerability scores. Returns enhanced risk assessment combining weather threats and infrastructure vulnerability.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "county_fips": {
+                        "type": "string",
+                        "description": "County FIPS code"
+                    },
+                    "county_name": {
+                        "type": "string",
+                        "description": "County name"
+                    },
+                    "state": {
+                        "type": "string",
+                        "description": "State abbreviation"
+                    }
+                },
+                "required": ["county_fips", "county_name", "state"]
+            }
+        },
+        {
+            "name": "get_high_impact_weather",
+            "description": "Get high-severity weather alerts (Severe/Extreme) across all states. Useful for national situational awareness.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "min_severity": {
+                        "type": "string",
+                        "enum": ["Severe", "Extreme"],
+                        "description": "Minimum severity level (default: Severe)"
+                    }
+                }
+            }
+        },
+        {
+            "name": "should_trigger_weather_alert",
+            "description": "Determine if current weather conditions should trigger an alert for a county. Checks for severe weather and returns trigger recommendation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "county_fips": {
+                        "type": "string",
+                        "description": "County FIPS code"
+                    },
+                    "county_name": {
+                        "type": "string",
+                        "description": "County name"
+                    },
+                    "state": {
+                        "type": "string",
+                        "description": "State abbreviation"
+                    },
+                    "vulnerability_threshold": {
+                        "type": "number",
+                        "description": "Vulnerability threshold for triggering (default: 0.6)"
+                    }
+                },
+                "required": ["county_fips", "county_name", "state"]
+            }
+        },
     ]
 
 
@@ -1214,6 +1300,88 @@ class ResilienceAgent:
             "acknowledged": success,
             "timestamp": pd.Timestamp.now().isoformat()
         }
+
+    # ── Weather Integration Methods ───────────────────────────────────
+    def get_weather_alerts(self, state: str, county_name: str = None, severity: str = None):
+        """
+        Get active weather alerts from NOAA.
+        
+        Args:
+            state: Two-letter state code
+            county_name: Optional county name filter
+            severity: Optional severity filter
+        """
+        from src.weather_client import NOAAWeatherClient
+        client = NOAAWeatherClient()
+        
+        if county_name:
+            alerts = client.get_alerts_for_county(county_name, state)
+        else:
+            alerts = client.get_active_alerts(state=state, severity=severity)
+        
+        return {
+            "state": state,
+            "county": county_name,
+            "alert_count": len(alerts),
+            "alerts": [a.to_dict() for a in alerts[:20]]  # Limit to 20
+        }
+
+    def correlate_weather_with_vulnerability(self, county_fips: str, 
+                                             county_name: str, state: str):
+        """
+        Correlate weather alerts with county vulnerability.
+        
+        Returns enhanced risk assessment.
+        """
+        from src.weather_client import NOAAWeatherClient
+        client = NOAAWeatherClient()
+        
+        # Get county vulnerability score
+        county_data = self.df[self.df['fips'] == county_fips]
+        if county_data.empty:
+            return {"error": f"County {county_fips} not found"}
+        
+        vulnerability_score = county_data.iloc[0].get('risk_score', 0.5)
+        
+        # Get correlation from weather client
+        result = client.correlate_with_vulnerability(
+            county_fips, county_name, state, vulnerability_score
+        )
+        
+        return result
+
+    def get_high_impact_weather(self, min_severity: str = "Severe"):
+        """
+        Get high-severity weather alerts nationwide.
+        
+        Args:
+            min_severity: Minimum severity (Severe or Extreme)
+        """
+        from src.weather_client import NOAAWeatherClient
+        client = NOAAWeatherClient()
+        
+        alerts = client.get_high_impact_alerts(min_severity=min_severity)
+        
+        return {
+            "min_severity": min_severity,
+            "alert_count": len(alerts),
+            "alerts": [a.to_dict() for a in alerts[:20]]
+        }
+
+    def should_trigger_weather_alert(self, county_fips: str, county_name: str,
+                                     state: str, vulnerability_threshold: float = 0.6):
+        """
+        Determine if weather conditions should trigger an alert.
+        
+        Returns trigger decision and recommendations.
+        """
+        from src.weather_client import NOAAWeatherClient
+        client = NOAAWeatherClient()
+        
+        result = client.should_trigger_alert(county_fips, county_name, state, 
+                                            vulnerability_threshold)
+        
+        return result
 
     def self_improve(self, query, response_summary, confidence=None,
                      identified_gaps=None, proposed_improvement=None):
