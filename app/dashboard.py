@@ -248,7 +248,11 @@ def render_status_widget():
         st.success("🚨 Alerts")
     
     with cols[5]:
-        st.info(f"⏱️ {datetime.now().strftime('%H:%M')}")
+        # Real-time stream status
+        if 'pipeline' in st.session_state and hasattr(st.session_state.pipeline, 'is_running') and st.session_state.pipeline.is_running:
+            st.success("📡 Live")
+        else:
+            st.info("⏸️ Live")
 
 # Render status widget at top
 render_status_widget()
@@ -329,7 +333,7 @@ st.markdown('<div class="main-header">🛡️ ResilienceAI</div>', unsafe_allow_
 st.markdown('<div class="sub-header">AI-Powered Disaster Vulnerability Assessment Platform</div>', unsafe_allow_html=True)
 
 # ── Tabs ─────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12, tab13, tab14, tab15 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12, tab13, tab14, tab15, tab16 = st.tabs([
     "📊 Overview",
     "🗺️ Risk Map",
     "🏥 Infrastructure",
@@ -344,7 +348,8 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12, tab13
     "🤖 Agent Query",
     "🚨 Alert Management",
     "🌾 Agricultural Risk",
-    "📈 Activity Monitor"  # Tab 15 - NEW
+    "📈 Activity Monitor",
+    "📡 Real-Time Stream"  # Tab 16 - NEW
 ])
 
 # ── Tab 1: Overview ─────────────────────────────────────────────────
@@ -1286,6 +1291,38 @@ with tab15:
     except Exception as e:
         st.error(f"Could not load activity monitor: {str(e)}")
         st.info("The activity monitor tracks dashboard usage in real-time")
+
+# ── Tab 16: Real-Time Stream ─────────────────────────────────────────
+with tab16:
+    st.header("📡 Real-Time Data Stream")
+    st.markdown("Live streaming of disaster alerts, weather warnings, and seismic activity")
+    
+    try:
+        from src.realtime_pipeline import render_realtime_feed
+        render_realtime_feed()
+    except Exception as e:
+        st.error(f"Could not load real-time stream: {str(e)}")
+        st.info("Real-time streaming requires the realtime_pipeline module")
+        
+        # Show manual refresh option
+        st.subheader("Manual Data Check")
+        if st.button("🔄 Check for New Alerts"):
+            try:
+                from src.weather_client import NOAAWeatherClient
+                client = NOAAWeatherClient()
+                alerts = client.get_high_impact_alerts()
+                
+                if alerts:
+                    st.success(f"Found {len(alerts)} high-impact alerts")
+                    for alert in alerts[:5]:
+                        with st.container():
+                            st.markdown(f"**{alert.event}** - {alert.severity}")
+                            st.caption(alert.headline[:100])
+                            st.divider()
+                else:
+                    st.info("No high-impact alerts currently")
+            except Exception as e2:
+                st.error(f"Error fetching alerts: {str(e2)}")
 
 # ── Footer ───────────────────────────────────────────────────────────
 st.divider()
