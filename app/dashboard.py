@@ -1226,4 +1226,3 @@ st.caption("""
 Powered by AI-driven vulnerability assessment | 
 Data sources: FEMA, HRSA, CDC, Census Bureau, USDA NASS, NOAA
 """)
-""")
