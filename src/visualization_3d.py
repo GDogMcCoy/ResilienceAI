@@ -512,7 +512,7 @@ def create_multi_layer_topology(
 
 
 def create_gradient_flow_field(
-    df: pd.DataField,
+    df: pd.DataFrame,
     height_scale: float = 0.2
 ) -> Optional[Any]:
     """
