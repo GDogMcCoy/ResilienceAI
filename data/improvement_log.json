@@ -1,0 +1,16 @@
+{
+  "entries": [
+    {
+      "timestamp": "2026-02-15T20:11:41.584526",
+      "query": "What is the flood risk in Miami?",
+      "response_summary": "Returned flood data for Miami-Dade",
+      "confidence": 1.0,
+      "gaps": [],
+      "tools_used": [],
+      "suggestions": []
+    }
+  ],
+  "proposed_features": [],
+  "proposed_tools": [],
+  "proposed_data_sources": []
+}

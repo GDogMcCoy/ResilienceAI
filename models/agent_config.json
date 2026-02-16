@@ -1,7 +1,7 @@
 {
   "name": "ResilienceAI",
   "description": "Disaster Vulnerability & Health Infrastructure Gap Assessment Agent",
-  "system_prompt": "You are ResilienceAI, an expert disaster vulnerability assessment agent.\nYou help emergency planners, public health officials, and policymakers understand\ncommunity disaster risk by analyzing infrastructure gaps, demographic vulnerability,\nand historical disaster data across 3222 US counties with 66 features.\n\nData dimensions:\n- **Demographics**: Population, income, elderly %, poverty %, disability %, uninsured %\n- **Infrastructure Access**: Distance to nearest (and 2nd-nearest) hospital, fire station, EMS, nursing home\n- **Infrastructure Density**: Facilities per 10,000 population within 50km\n- **Disaster History**: Total declarations, recent (2015-2025), breakdown by type (flood, hurricane, fire, tornado, severe storms)\n- **Composite Indices**: Vulnerability index, isolation index, risk score (0-1)\n\nAdvanced analytics available:\n- **Compound Risk Clusters**: Counties high on 3+ risk dimensions simultaneously\n- **Risk Contagion**: Neighbor-based overflow risk (if surrounding counties are also high-risk)\n- **Disaster Acceleration**: Whether disaster frequency is increasing (2015-2025 vs 2005-2014)\n- **Infrastructure Redundancy**: Distance to 2nd-nearest facility (zero redundancy = single point of failure)\n- **Population-Weighted Impact**: Risk weighted by population for prioritizing by lives affected\n- **State Rankings**: Percentile rank within own state for contextual comparison\n- **Gap Analysis**: Which single intervention (add hospital, add EMS, reduce poverty, etc.) would most reduce each county's risk\n\nWhen answering:\n1. Use the tools to query real data - always cite specific numbers\n2. Leverage advanced features for deeper insights (e.g., compound risk, gap analysis)\n3. Provide actionable, prioritized recommendations\n4. Compare counties using state percentiles for context\n5. Flag zero-redundancy situations as critical\n",
+  "system_prompt": "You are ResilienceAI, an expert disaster vulnerability assessment agent.\nYou help emergency planners, public health officials, and policymakers understand\ncommunity disaster risk by analyzing infrastructure gaps, demographic vulnerability,\nand historical disaster data across 3222 US counties with 66 features.\n\nData dimensions:\n- **Demographics**: Population, income, elderly %, poverty %, disability %, uninsured %\n- **Infrastructure Access**: Distance to nearest (and 2nd-nearest) hospital, fire station, EMS, nursing home\n- **Infrastructure Density**: Facilities per 10,000 population within 50km\n- **Disaster History**: Total declarations, recent (2015-2025), breakdown by type (flood, hurricane, fire, tornado, severe storms)\n- **Composite Indices**: Vulnerability index, isolation index, risk score (0-1)\n\nAdvanced analytics available:\n- **Compound Risk Clusters**: Counties high on 3+ risk dimensions simultaneously\n- **Risk Contagion**: Neighbor-based overflow risk (if surrounding counties are also high-risk)\n- **Disaster Acceleration**: Whether disaster frequency is increasing (2015-2025 vs 2005-2014)\n- **Infrastructure Redundancy**: Distance to 2nd-nearest facility (zero redundancy = single point of failure)\n- **Population-Weighted Impact**: Risk weighted by population for prioritizing by lives affected\n- **State Rankings**: Percentile rank within own state for contextual comparison\n- **Gap Analysis**: Which single intervention (add hospital, add EMS, reduce poverty, etc.) would most reduce each county's risk\n\nScenario simulation & network analysis:\n- **Scenario Simulation**: What-if disaster scenarios (hurricane, earthquake, flood, wildfire, tornado) with before/after risk comparison\n- **Cascade Analysis**: Model infrastructure as a network graph, identify single points of failure, simulate cascade failures\n- **Intervention ROI**: Cost-effectiveness analysis for 6 intervention types with diminishing returns modeling\n- **Executive Briefings**: Auto-generate PDF/PPTX/text briefings for counties or states\n- **Equity Analysis**: Demographic disparity assessment across risk dimensions\n- **Benchmarking**: Compare counties to demographic peers with radar chart data\n- **Alert Thresholds**: Configurable risk thresholds with severity-based alerting\n- **Self-Improvement**: Meta-tool that evaluates response quality and proposes new capabilities\n\nWhen answering:\n1. Use the tools to query real data - always cite specific numbers\n2. Leverage advanced features for deeper insights (e.g., compound risk, gap analysis)\n3. Provide actionable, prioritized recommendations\n4. Compare counties using state percentiles for context\n5. Flag zero-redundancy situations as critical\n6. Use scenario simulation to illustrate disaster impacts with concrete numbers\n7. Recommend interventions with cost-effectiveness data\n8. After each response, use self_improve to evaluate response quality\n",
   "tools": [
     {
       "name": "query_counties",
@@ -255,6 +255,219 @@
             "description": "Max results (default 20)"
           }
         }
+      }
+    },
+    {
+      "name": "simulate_scenario",
+      "description": "Simulate a disaster scenario (hurricane, earthquake, flood, wildfire, tornado) centered on a county. Returns before/after risk comparison, affected counties, population at risk, and infrastructure damage estimates.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "scenario": {
+            "type": "string",
+            "enum": [
+              "hurricane_cat1",
+              "hurricane_cat3",
+              "hurricane_cat5",
+              "earthquake_m6",
+              "earthquake_m7",
+              "flood_major",
+              "wildfire_large",
+              "tornado_ef3",
+              "tornado_ef5",
+              "winter_storm"
+            ],
+            "description": "Disaster scenario preset"
+          },
+          "epicenter_fips": {
+            "type": "string",
+            "description": "FIPS code of epicenter county"
+          },
+          "custom_radius_km": {
+            "type": "number",
+            "description": "Override default scenario radius (km)"
+          }
+        },
+        "required": [
+          "scenario",
+          "epicenter_fips"
+        ]
+      }
+    },
+    {
+      "name": "analyze_cascade_risk",
+      "description": "Model infrastructure as a network graph and analyze cascade failure risk. Returns network density, articulation points (single points of failure), betweenness centrality, and critical facility identification.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "fips": {
+            "type": "string",
+            "description": "County FIPS code to analyze"
+          },
+          "radius_km": {
+            "type": "number",
+            "description": "Radius for network analysis (default 80km)"
+          }
+        },
+        "required": [
+          "fips"
+        ]
+      }
+    },
+    {
+      "name": "calculate_intervention_roi",
+      "description": "Calculate cost-effectiveness of disaster preparedness interventions for a county. Returns ROI metrics including cost per person helped, risk reduction, and implementation timeline.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "fips": {
+            "type": "string",
+            "description": "County FIPS code"
+          },
+          "intervention": {
+            "type": "string",
+            "enum": [
+              "add_hospital",
+              "add_ems_station",
+              "add_fire_station",
+              "telehealth_infrastructure",
+              "disaster_prep_program",
+              "poverty_reduction"
+            ],
+            "description": "Intervention type (omit to rank all)"
+          }
+        },
+        "required": [
+          "fips"
+        ]
+      }
+    },
+    {
+      "name": "generate_executive_brief",
+      "description": "Generate an executive briefing document (PDF, PPTX, or text) for a county or state with risk overview, key findings, and recommendations.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "fips": {
+            "type": "string",
+            "description": "County FIPS code (for county brief)"
+          },
+          "state": {
+            "type": "string",
+            "description": "State abbreviation (for state brief)"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "pdf",
+              "pptx",
+              "text"
+            ],
+            "description": "Output format (default: text)"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_equity_analysis",
+      "description": "Analyze demographic disparities in disaster vulnerability. Compares risk across poverty levels, elderly populations, and infrastructure access to identify equity gaps.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "description": "Optional state filter"
+          },
+          "dimension": {
+            "type": "string",
+            "enum": [
+              "poverty",
+              "elderly",
+              "disability",
+              "uninsured",
+              "all"
+            ],
+            "description": "Equity dimension to analyze (default: all)"
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Max results (default 20)"
+          }
+        }
+      }
+    },
+    {
+      "name": "benchmark_county",
+      "description": "Compare a county to demographically similar peers. Returns peer group statistics, percentile ranking, and radar chart data for multi-dimensional comparison.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "fips": {
+            "type": "string",
+            "description": "County FIPS code to benchmark"
+          },
+          "peer_count": {
+            "type": "integer",
+            "description": "Number of peer counties (default 20)"
+          }
+        },
+        "required": [
+          "fips"
+        ]
+      }
+    },
+    {
+      "name": "get_real_time_alerts",
+      "description": "Check counties against configurable risk thresholds and generate alerts. Returns counties exceeding thresholds with severity levels (critical, warning, info).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "description": "Optional state filter"
+          },
+          "risk_threshold": {
+            "type": "number",
+            "description": "Risk score threshold for alerts (default 0.7)"
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Max alerts (default 20)"
+          }
+        }
+      }
+    },
+    {
+      "name": "self_improve",
+      "description": "Meta-tool: Agent evaluates its own response quality, identifies knowledge gaps, and proposes improvements to its own tools and features.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The original user query"
+          },
+          "response_summary": {
+            "type": "string",
+            "description": "Summary of the response given"
+          },
+          "confidence": {
+            "type": "number",
+            "description": "0-1 confidence in response quality"
+          },
+          "identified_gaps": {
+            "type": "string",
+            "description": "What data or capabilities were missing"
+          },
+          "proposed_improvement": {
+            "type": "string",
+            "description": "Specific tool/feature/data to add"
+          }
+        },
+        "required": [
+          "query",
+          "response_summary"
+        ]
       }
     }
   ],

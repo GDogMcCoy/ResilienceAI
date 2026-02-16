@@ -1,6 +1,7 @@
 """
 ResilienceAI - Archia Agent Integration
 Provides natural language querying of disaster vulnerability data.
+Includes 19 MCP tools for comprehensive disaster vulnerability assessment.
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -35,12 +36,25 @@ Advanced analytics available:
 - **State Rankings**: Percentile rank within own state for contextual comparison
 - **Gap Analysis**: Which single intervention (add hospital, add EMS, reduce poverty, etc.) would most reduce each county's risk
 
+Scenario simulation & network analysis:
+- **Scenario Simulation**: What-if disaster scenarios (hurricane, earthquake, flood, wildfire, tornado) with before/after risk comparison
+- **Cascade Analysis**: Model infrastructure as a network graph, identify single points of failure, simulate cascade failures
+- **Intervention ROI**: Cost-effectiveness analysis for 6 intervention types with diminishing returns modeling
+- **Executive Briefings**: Auto-generate PDF/PPTX/text briefings for counties or states
+- **Equity Analysis**: Demographic disparity assessment across risk dimensions
+- **Benchmarking**: Compare counties to demographic peers with radar chart data
+- **Alert Thresholds**: Configurable risk thresholds with severity-based alerting
+- **Self-Improvement**: Meta-tool that evaluates response quality and proposes new capabilities
+
 When answering:
 1. Use the tools to query real data - always cite specific numbers
 2. Leverage advanced features for deeper insights (e.g., compound risk, gap analysis)
 3. Provide actionable, prioritized recommendations
 4. Compare counties using state percentiles for context
 5. Flag zero-redundancy situations as critical
+6. Use scenario simulation to illustrate disaster impacts with concrete numbers
+7. Recommend interventions with cost-effectiveness data
+8. After each response, use self_improve to evaluate response quality
 """
 
 
@@ -223,7 +237,158 @@ def get_mcp_tools():
                     "max_results": {"type": "integer", "description": "Max results (default 20)"}
                 }
             }
-        }
+        },
+        # ── New Tools (Phase 2) ───────────────────────────────────────
+        {
+            "name": "simulate_scenario",
+            "description": "Simulate a disaster scenario (hurricane, earthquake, flood, wildfire, tornado) centered on a county. Returns before/after risk comparison, affected counties, population at risk, and infrastructure damage estimates.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "scenario": {
+                        "type": "string",
+                        "enum": ["hurricane_cat1", "hurricane_cat3", "hurricane_cat5",
+                                 "earthquake_m6", "earthquake_m7", "flood_major",
+                                 "wildfire_large", "tornado_ef3", "tornado_ef5", "winter_storm"],
+                        "description": "Disaster scenario preset"
+                    },
+                    "epicenter_fips": {
+                        "type": "string",
+                        "description": "FIPS code of epicenter county"
+                    },
+                    "custom_radius_km": {
+                        "type": "number",
+                        "description": "Override default scenario radius (km)"
+                    }
+                },
+                "required": ["scenario", "epicenter_fips"]
+            }
+        },
+        {
+            "name": "analyze_cascade_risk",
+            "description": "Model infrastructure as a network graph and analyze cascade failure risk. Returns network density, articulation points (single points of failure), betweenness centrality, and critical facility identification.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {
+                        "type": "string",
+                        "description": "County FIPS code to analyze"
+                    },
+                    "radius_km": {
+                        "type": "number",
+                        "description": "Radius for network analysis (default 80km)"
+                    }
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "calculate_intervention_roi",
+            "description": "Calculate cost-effectiveness of disaster preparedness interventions for a county. Returns ROI metrics including cost per person helped, risk reduction, and implementation timeline.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {
+                        "type": "string",
+                        "description": "County FIPS code"
+                    },
+                    "intervention": {
+                        "type": "string",
+                        "enum": ["add_hospital", "add_ems_station", "add_fire_station",
+                                 "telehealth_infrastructure", "disaster_prep_program",
+                                 "poverty_reduction"],
+                        "description": "Intervention type (omit to rank all)"
+                    }
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "generate_executive_brief",
+            "description": "Generate an executive briefing document (PDF, PPTX, or text) for a county or state with risk overview, key findings, and recommendations.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {
+                        "type": "string",
+                        "description": "County FIPS code (for county brief)"
+                    },
+                    "state": {
+                        "type": "string",
+                        "description": "State abbreviation (for state brief)"
+                    },
+                    "format": {
+                        "type": "string",
+                        "enum": ["pdf", "pptx", "text"],
+                        "description": "Output format (default: text)"
+                    }
+                }
+            }
+        },
+        {
+            "name": "get_equity_analysis",
+            "description": "Analyze demographic disparities in disaster vulnerability. Compares risk across poverty levels, elderly populations, and infrastructure access to identify equity gaps.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "state": {"type": "string", "description": "Optional state filter"},
+                    "dimension": {
+                        "type": "string",
+                        "enum": ["poverty", "elderly", "disability", "uninsured", "all"],
+                        "description": "Equity dimension to analyze (default: all)"
+                    },
+                    "max_results": {"type": "integer", "description": "Max results (default 20)"}
+                }
+            }
+        },
+        {
+            "name": "benchmark_county",
+            "description": "Compare a county to demographically similar peers. Returns peer group statistics, percentile ranking, and radar chart data for multi-dimensional comparison.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {
+                        "type": "string",
+                        "description": "County FIPS code to benchmark"
+                    },
+                    "peer_count": {
+                        "type": "integer",
+                        "description": "Number of peer counties (default 20)"
+                    }
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "get_real_time_alerts",
+            "description": "Check counties against configurable risk thresholds and generate alerts. Returns counties exceeding thresholds with severity levels (critical, warning, info).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "state": {"type": "string", "description": "Optional state filter"},
+                    "risk_threshold": {
+                        "type": "number",
+                        "description": "Risk score threshold for alerts (default 0.7)"
+                    },
+                    "max_results": {"type": "integer", "description": "Max alerts (default 20)"}
+                }
+            }
+        },
+        {
+            "name": "self_improve",
+            "description": "Meta-tool: Agent evaluates its own response quality, identifies knowledge gaps, and proposes improvements to its own tools and features.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "The original user query"},
+                    "response_summary": {"type": "string", "description": "Summary of the response given"},
+                    "confidence": {"type": "number", "description": "0-1 confidence in response quality"},
+                    "identified_gaps": {"type": "string", "description": "What data or capabilities were missing"},
+                    "proposed_improvement": {"type": "string", "description": "Specific tool/feature/data to add"}
+                },
+                "required": ["query", "response_summary"]
+            }
+        },
     ]
 
 
@@ -405,6 +570,215 @@ class ResilienceAgent:
         cols = ["fips", "county_name", "total_population", "risk_score", "pop_weighted_risk",
                 "pop_weighted_risk_norm", "top_intervention", "compound_risk_flag"]
         return result[[c for c in cols if c in result.columns]].to_dict(orient="records")
+
+    # ── New Tool Implementations (Phase 2) ──────────────────────────
+    def simulate_scenario(self, scenario, epicenter_fips, custom_radius_km=None):
+        """Simulate a disaster scenario."""
+        from src.scenario_simulator import ScenarioSimulator
+        sim = ScenarioSimulator(self.df)
+        result = sim.simulate(scenario, epicenter_fips=epicenter_fips,
+                              custom_radius_km=custom_radius_km)
+        if "affected_df" in result:
+            del result["affected_df"]
+        if "unaffected_df" in result:
+            del result["unaffected_df"]
+        return result
+
+    def analyze_cascade_risk(self, fips, radius_km=80):
+        """Analyze infrastructure network cascade risk."""
+        from src.network_analysis import InfrastructureNetwork
+        net = InfrastructureNetwork()
+        return net.analyze_county(fips)
+
+    def calculate_intervention_roi(self, fips, intervention=None):
+        """Calculate intervention ROI for a county."""
+        from src.intervention_roi import InterventionROICalculator
+        calc = InterventionROICalculator(self.df)
+        if intervention:
+            return calc.calculate_roi(fips, intervention)
+        else:
+            return calc.rank_interventions(fips)
+
+    def generate_executive_brief(self, fips=None, state=None, format="text"):
+        """Generate executive briefing."""
+        from src.briefing_generator import BriefingGenerator
+        gen = BriefingGenerator(self.df)
+        if fips:
+            return gen.generate_county_brief(fips, output_format=format)
+        elif state:
+            return gen.generate_state_brief(state, output_format=format)
+        return {"error": "Provide fips or state"}
+
+    def get_equity_analysis(self, state=None, dimension="all", max_results=20):
+        """Analyze demographic disparities in disaster vulnerability."""
+        if self.df is None:
+            return {"error": "Data not loaded"}
+
+        result = self.df.copy()
+        if state:
+            result = result[result["county_name"].str.contains(f", {state}", case=False, na=False)]
+
+        dimensions = {
+            "poverty": ("poverty_pct", "Poverty Rate (%)"),
+            "elderly": ("elderly_pct", "Elderly Population (%)"),
+            "disability": ("disability_pct", "Disability Rate (%)"),
+            "uninsured": ("uninsured_pct", "Uninsured Rate (%)"),
+        }
+
+        if dimension != "all":
+            dimensions = {dimension: dimensions[dimension]} if dimension in dimensions else dimensions
+
+        analysis = {}
+        for dim_key, (col, label) in dimensions.items():
+            if col not in result.columns:
+                continue
+            # Split into quartiles
+            quartiles = pd.qcut(result[col], 4, labels=["Q1 (Low)", "Q2", "Q3", "Q4 (High)"],
+                                duplicates="drop")
+            quartile_risk = result.groupby(quartiles, observed=False)["risk_score"].agg(["mean", "median", "count"])
+            disparity_ratio = quartile_risk["mean"].max() / (quartile_risk["mean"].min() + 1e-10)
+
+            # Most disparate counties
+            high_vuln = result[result[col] >= result[col].quantile(0.75)]
+            top_disparate = high_vuln.nlargest(max_results, "risk_score")
+
+            analysis[dim_key] = {
+                "dimension": label,
+                "disparity_ratio": round(float(disparity_ratio), 3),
+                "quartile_risk_scores": quartile_risk["mean"].round(3).to_dict(),
+                "highest_risk_counties": top_disparate[
+                    ["county_name", col, "risk_score", "total_population"]
+                ].head(max_results).to_dict(orient="records"),
+            }
+
+        return analysis
+
+    def benchmark_county(self, fips, peer_count=20):
+        """Benchmark county against demographic peers."""
+        if self.df is None:
+            return {"error": "Data not loaded"}
+
+        match = self.df[self.df["fips"] == str(fips)]
+        if match.empty:
+            return {"error": f"County {fips} not found"}
+
+        county = match.iloc[0]
+        pop = county["total_population"]
+
+        # Find peers by similar population (0.5x to 2x)
+        peers = self.df[
+            (self.df["total_population"] >= pop * 0.5) &
+            (self.df["total_population"] <= pop * 2.0) &
+            (self.df["fips"] != str(fips))
+        ].head(peer_count)
+
+        if len(peers) < 3:
+            return {"error": "Too few peer counties found"}
+
+        # Compare across dimensions
+        compare_cols = ["risk_score", "vulnerability_index", "isolation_index",
+                        "disaster_count", "poverty_pct", "elderly_pct", "redundancy_score"]
+        compare_cols = [c for c in compare_cols if c in self.df.columns]
+
+        radar_data = {}
+        for col in compare_cols:
+            peer_mean = peers[col].mean()
+            peer_std = peers[col].std()
+            county_val = county[col]
+            z_score = (county_val - peer_mean) / (peer_std + 1e-10)
+            percentile = (peers[col] < county_val).mean() * 100
+
+            radar_data[col] = {
+                "county_value": round(float(county_val), 4),
+                "peer_mean": round(float(peer_mean), 4),
+                "peer_std": round(float(peer_std), 4),
+                "z_score": round(float(z_score), 3),
+                "percentile": round(float(percentile), 1),
+            }
+
+        return {
+            "county_fips": fips,
+            "county_name": county.get("county_name", "Unknown"),
+            "peer_count": len(peers),
+            "radar_data": radar_data,
+            "overall_peer_percentile": round(float(
+                np.mean([v["percentile"] for v in radar_data.values()])
+            ), 1),
+        }
+
+    def get_real_time_alerts(self, state=None, risk_threshold=0.7, max_results=20):
+        """Generate threshold-based alerts for high-risk counties."""
+        if self.df is None:
+            return {"error": "Data not loaded"}
+
+        result = self.df.copy()
+        if state:
+            result = result[result["county_name"].str.contains(f", {state}", case=False, na=False)]
+
+        alerts = []
+
+        # Critical alerts: risk > threshold AND compound risk
+        critical = result[
+            (result["risk_score"] >= risk_threshold) &
+            (result.get("compound_risk_flag", pd.Series(0, index=result.index)) == 1)
+        ]
+        for _, row in critical.head(max_results).iterrows():
+            alerts.append({
+                "severity": "critical",
+                "county_name": row.get("county_name", "Unknown"),
+                "fips": row.get("fips", ""),
+                "risk_score": round(float(row.get("risk_score", 0)), 3),
+                "reason": f"Risk score {row.get('risk_score', 0):.3f} with {row.get('compound_risk_count', 0)} compound risk dimensions",
+                "action": "Immediate review recommended",
+            })
+
+        # Warning alerts: risk > threshold OR zero redundancy
+        warning = result[
+            (result["risk_score"] >= risk_threshold) |
+            (result.get("zero_redundancy_flag", pd.Series(0, index=result.index)) == 1)
+        ]
+        warning = warning[~warning["fips"].isin([a["fips"] for a in alerts])]
+        for _, row in warning.head(max_results - len(alerts)).iterrows():
+            reasons = []
+            if row.get("risk_score", 0) >= risk_threshold:
+                reasons.append(f"Risk score {row.get('risk_score', 0):.3f}")
+            if row.get("zero_redundancy_flag", 0) == 1:
+                reasons.append("Zero hospital redundancy")
+            alerts.append({
+                "severity": "warning",
+                "county_name": row.get("county_name", "Unknown"),
+                "fips": row.get("fips", ""),
+                "risk_score": round(float(row.get("risk_score", 0)), 3),
+                "reason": "; ".join(reasons),
+                "action": "Enhanced monitoring recommended",
+            })
+
+        return {
+            "total_alerts": len(alerts),
+            "critical_count": sum(1 for a in alerts if a["severity"] == "critical"),
+            "warning_count": sum(1 for a in alerts if a["severity"] == "warning"),
+            "threshold": risk_threshold,
+            "alerts": alerts[:max_results],
+        }
+
+    def self_improve(self, query, response_summary, confidence=None,
+                     identified_gaps=None, proposed_improvement=None):
+        """Self-improvement meta-tool."""
+        from src.self_improve import SelfImproveEngine
+        engine = SelfImproveEngine()
+        result = engine.evaluate_and_log(
+            query=query,
+            response_summary=response_summary,
+            tools_used=[],  # Would be populated by the calling context
+            data_available=self.df is not None,
+        )
+        if proposed_improvement:
+            engine.logger.propose_feature(
+                name=proposed_improvement,
+                description=identified_gaps or "Agent-proposed improvement",
+                rationale=f"Confidence: {confidence}, Query: {query[:100]}",
+            )
+        return result
 
     def get_system_prompt(self):
         """Get formatted system prompt with data stats."""

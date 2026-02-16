@@ -16,6 +16,12 @@ import joblib
 from pathlib import Path
 from config import PROCESSED_DIR, MODELS_DIR, FIGURES_DIR
 
+try:
+    import pydeck as pdk
+    HAS_PYDECK = True
+except ImportError:
+    HAS_PYDECK = False
+
 # ── Page Config ───────────────────────────────────────────────────────
 st.set_page_config(
     page_title="ResilienceAI - Disaster Vulnerability Assessment",
@@ -23,6 +29,102 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# ── Custom CSS ────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+/* Branded header */
+.main-header {
+    background: linear-gradient(135deg, #0D1B2A 0%, #1B2838 50%, #0D1B2A 100%);
+    border-left: 4px solid #4FC3F7;
+    padding: 1.5rem 2rem;
+    border-radius: 0 8px 8px 0;
+    margin-bottom: 1.5rem;
+}
+.main-header h1 {
+    color: #4FC3F7;
+    font-size: 2.2rem;
+    margin: 0 0 0.3rem 0;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+.main-header p {
+    color: #B0BEC5;
+    margin: 0;
+    font-size: 0.95rem;
+}
+.main-header .subtitle {
+    color: #E0E0E0;
+    font-size: 1.1rem;
+    margin-bottom: 0.2rem;
+}
+
+/* Metric cards */
+div[data-testid="stMetric"] {
+    background: linear-gradient(135deg, #1A1F2E, #151A28);
+    border-left: 3px solid #4FC3F7;
+    padding: 0.8rem 1rem;
+    border-radius: 0 6px 6px 0;
+}
+div[data-testid="stMetric"] label {
+    text-transform: uppercase;
+    font-size: 0.75rem !important;
+    letter-spacing: 0.5px;
+    color: #90A4AE !important;
+}
+div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
+    color: #E0E0E0 !important;
+    font-weight: 600;
+}
+
+/* Tab styling */
+button[data-baseweb="tab"] {
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+}
+button[data-baseweb="tab"][aria-selected="true"] {
+    border-bottom: 3px solid #4FC3F7 !important;
+    color: #4FC3F7 !important;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background-color: #0D1117 !important;
+}
+section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3 {
+    color: #4FC3F7 !important;
+}
+
+/* Dataframes */
+div[data-testid="stDataFrame"] {
+    border: 1px solid #1E293B;
+    border-radius: 6px;
+}
+
+/* Footer */
+.footer-badge {
+    text-align: center;
+    padding: 1.5rem;
+    margin-top: 2rem;
+    border-top: 1px solid #1E293B;
+    color: #546E7A;
+    font-size: 0.8rem;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ── Global Plotly Layout ──────────────────────────────────────────────
+PLOTLY_LAYOUT = dict(
+    template="plotly_dark",
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
+    font=dict(family="Inter, sans-serif", color="#E0E0E0"),
+    hoverlabel=dict(bgcolor="#1A1F2E", font_size=13, font_color="#E0E0E0"),
+    margin=dict(l=40, r=20, t=50, b=40),
+)
+
+MAPBOX_CONFIG = {"scrollZoom": True}
 
 
 @st.cache_data
@@ -47,11 +149,49 @@ def load_model():
     return model, scaler, le, features
 
 
+def style_risk_table(df, columns=None):
+    """Apply conditional formatting to risk-related tables."""
+    if columns is None:
+        columns = df.columns.tolist()
+    styler = df.style
+
+    # Color risk_level cells
+    if "risk_level" in columns:
+        risk_colors = {"Low": "#27ae60", "Medium": "#f39c12", "High": "#e74c3c"}
+        styler = styler.map(
+            lambda v: f"background-color: {risk_colors.get(v, 'transparent')}; color: white; font-weight: 600; border-radius: 3px; padding: 2px 6px"
+            if v in risk_colors else "",
+            subset=["risk_level"]
+        )
+
+    # Gradient on risk_score
+    if "risk_score" in columns:
+        styler = styler.background_gradient(subset=["risk_score"], cmap="RdYlGn_r", vmin=0, vmax=1)
+
+    # Format numeric columns
+    float_cols = [c for c in columns if c in df.columns and df[c].dtype in ['float64', 'float32']]
+    for col in float_cols:
+        if "pct" in col or "pctile" in col:
+            styler = styler.format({col: "{:.1f}"})
+        elif "score" in col or "index" in col or "acceleration" in col:
+            styler = styler.format({col: "{:.3f}"})
+        elif "population" in col:
+            styler = styler.format({col: "{:,.0f}"})
+        elif col.startswith("dist_"):
+            styler = styler.format({col: "{:.1f}"})
+
+    return styler
+
+
 def main():
-    # Header
-    st.title("ResilienceAI")
-    st.markdown("### Disaster Vulnerability & Health Infrastructure Gap Assessment")
-    st.markdown("---")
+    # ── Branded Header ────────────────────────────────────────────────
+    st.markdown("""
+    <div class="main-header">
+        <h1>ResilienceAI</h1>
+        <p class="subtitle">Disaster Vulnerability & Health Infrastructure Gap Assessment</p>
+        <p>MUIDSI 2026 &nbsp;|&nbsp; 3,222 US Counties &nbsp;|&nbsp; 66 Features &nbsp;|&nbsp; 19 MCP Tools &nbsp;|&nbsp; 7 Federal Data Sources</p>
+    </div>
+    """, unsafe_allow_html=True)
 
     df = load_data()
     if df is None:
@@ -60,8 +200,10 @@ def main():
 
     model, scaler, le, feature_names = load_model()
 
-    # Sidebar filters
-    st.sidebar.header("Filters")
+    # ── Sidebar ───────────────────────────────────────────────────────
+    st.sidebar.markdown("### ResilienceAI")
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("**Filters**")
 
     # State filter
     if "county_name" in df.columns:
@@ -95,15 +237,21 @@ def main():
 
     st.sidebar.markdown(f"**Showing {len(df_filtered):,} of {len(df):,} counties**")
 
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("**Data Sources**")
+    st.sidebar.caption("FEMA OpenData | CMS Medicare | US Census ACS | FEMA ArcGIS Hub")
+
     # ── Tabs ──────────────────────────────────────────────────────────
-    tab1, tab2, tab3, tab6, tab7, tab4, tab5 = st.tabs([
-        "Overview", "Risk Map", "Infrastructure",
-        "Advanced Insights", "Gap Analysis",
+    (tab_overview, tab_map, tab_3d, tab_scenario, tab_infra, tab_insights,
+     tab_gaps, tab_alerts, tab_benchmark, tab_model, tab_agent) = st.tabs([
+        "Overview", "Risk Map", "3D Tower Map", "Scenario Sim",
+        "Infrastructure", "Advanced Insights", "Gap Analysis",
+        "Alert Center", "Benchmarking",
         "Model Performance", "Agent Query"
     ])
 
-    # ── Tab 1: Overview ───────────────────────────────────────────────
-    with tab1:
+    # ── Tab: Overview ─────────────────────────────────────────────────
+    with tab_overview:
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("Counties Analyzed", f"{len(df_filtered):,}")
@@ -128,6 +276,7 @@ def main():
                                    color="risk_level",
                                    color_discrete_map={"Low": "#27ae60", "Medium": "#f39c12", "High": "#e74c3c"},
                                    title="Risk Score Distribution")
+                fig.update_layout(**PLOTLY_LAYOUT)
                 st.plotly_chart(fig, use_container_width=True)
 
         with col2:
@@ -137,6 +286,7 @@ def main():
                              color=counts.index,
                              color_discrete_map={"Low": "#27ae60", "Medium": "#f39c12", "High": "#e74c3c"},
                              title="Risk Level Distribution")
+                fig.update_layout(**PLOTLY_LAYOUT)
                 st.plotly_chart(fig, use_container_width=True)
 
         # Top risk counties table
@@ -145,10 +295,10 @@ def main():
                         "poverty_pct", "elderly_pct", "disaster_count", "vulnerability_index"]
         display_cols = [c for c in display_cols if c in df_filtered.columns]
         top_risk = df_filtered.nlargest(20, "risk_score")[display_cols] if "risk_score" in df_filtered.columns else df_filtered.head(20)
-        st.dataframe(top_risk, use_container_width=True, hide_index=True)
+        st.dataframe(style_risk_table(top_risk, display_cols), use_container_width=True, hide_index=True)
 
-    # ── Tab 2: Risk Map ───────────────────────────────────────────────
-    with tab2:
+    # ── Tab: Risk Map ─────────────────────────────────────────────────
+    with tab_map:
         st.subheader("Geographic Risk Map")
 
         if "latitude" in df_filtered.columns and "longitude" in df_filtered.columns:
@@ -167,20 +317,158 @@ def main():
                     hover_name="county_name" if "county_name" in map_df.columns else None,
                     hover_data={"risk_score": ":.3f", "risk_level": True,
                                 "disaster_count": True, "poverty_pct": ":.1f"},
-                    mapbox_style="carto-positron",
+                    mapbox_style="carto-darkmatter",
                     zoom=3, center={"lat": 39.5, "lon": -98.35},
                     title="County-Level Disaster Vulnerability",
                     height=600,
                     size_max=15,
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                fig.update_layout(**PLOTLY_LAYOUT)
+                st.plotly_chart(fig, use_container_width=True, config=MAPBOX_CONFIG)
             else:
                 st.warning("No counties with valid coordinates in current filter.")
         else:
             st.warning("Geographic data not available.")
 
-    # ── Tab 3: Infrastructure ─────────────────────────────────────────
-    with tab3:
+    # ── Tab: 3D Tower Map ──────────────────────────────────────────────
+    with tab_3d:
+        st.subheader("3D Vulnerability Tower Map")
+        if HAS_PYDECK and "latitude" in df_filtered.columns:
+            map_df = df_filtered.dropna(subset=["latitude", "longitude", "risk_score"]).copy()
+            map_df = map_df[
+                (map_df["latitude"] > 24) & (map_df["latitude"] < 50) &
+                (map_df["longitude"] > -130) & (map_df["longitude"] < -65)
+            ]
+
+            if len(map_df) > 0:
+                # Color: green(low) -> yellow(med) -> red(high)
+                def risk_to_rgb(score):
+                    if score < 0.33:
+                        t = score / 0.33
+                        return [int(39 + (255-39)*t), int(174 + (235-174)*t), int(96 + (59-96)*t), 200]
+                    elif score < 0.67:
+                        t = (score - 0.33) / 0.34
+                        return [int(255 + (231-255)*t), int(235 + (76-235)*t), int(59 + (60-59)*t), 200]
+                    else:
+                        return [231, 76, 60, 200]
+
+                map_df["color"] = map_df["risk_score"].apply(risk_to_rgb)
+                map_df["elevation"] = map_df["risk_score"] * 50000
+
+                col1, col2 = st.columns([3, 1])
+                with col2:
+                    pitch = st.slider("View Pitch", 0, 80, 45, key="pydeck_pitch")
+                    bearing = st.slider("Rotation", 0, 360, 0, key="pydeck_bearing")
+                    elev_scale = st.slider("Height Scale", 1, 10, 5, key="pydeck_elev")
+                    map_df["elevation"] = map_df["risk_score"] * 10000 * elev_scale
+
+                with col1:
+                    layer = pdk.Layer(
+                        "ColumnLayer",
+                        data=map_df,
+                        get_position=["longitude", "latitude"],
+                        get_elevation="elevation",
+                        elevation_scale=1,
+                        radius=8000,
+                        get_fill_color="color",
+                        pickable=True,
+                        auto_highlight=True,
+                    )
+                    view = pdk.ViewState(
+                        latitude=39.5, longitude=-98.35,
+                        zoom=3.5, pitch=pitch, bearing=bearing,
+                    )
+                    deck = pdk.Deck(
+                        layers=[layer],
+                        initial_view_state=view,
+                        tooltip={
+                            "html": "<b>{county_name}</b><br/>Risk: {risk_score}<br/>Pop: {total_population}",
+                            "style": {"backgroundColor": "#1A1F2E", "color": "#E0E0E0"},
+                        },
+                        map_style="mapbox://styles/mapbox/dark-v10",
+                    )
+                    st.pydeck_chart(deck, height=600)
+
+                st.markdown("*Tower height represents risk score. Green = Low, Yellow = Medium, Red = High risk.*")
+            else:
+                st.warning("No counties with valid coordinates in current filter.")
+        elif not HAS_PYDECK:
+            st.info("Install `pydeck` for 3D visualization: `pip install pydeck`")
+        else:
+            st.warning("Geographic data not available.")
+
+    # ── Tab: Scenario Simulation ──────────────────────────────────────
+    with tab_scenario:
+        st.subheader("Disaster Scenario Simulation")
+        st.markdown("Simulate what-if disaster scenarios and see before/after risk impact.")
+
+        from src.scenario_simulator import ScenarioSimulator, SCENARIO_PRESETS
+        sim = ScenarioSimulator(df)
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            scenario_key = st.selectbox("Scenario Type",
+                list(SCENARIO_PRESETS.keys()),
+                format_func=lambda k: SCENARIO_PRESETS[k]["label"])
+        with col2:
+            # Pick epicenter county
+            county_options = df_filtered.sort_values("risk_score", ascending=False)["county_name"].head(200).tolist()
+            epicenter_county = st.selectbox("Epicenter County", county_options)
+        with col3:
+            custom_radius = st.number_input("Custom Radius (km)", min_value=10, max_value=500,
+                                             value=SCENARIO_PRESETS[scenario_key]["radius_km"])
+
+        if st.button("Run Simulation", type="primary"):
+            # Find FIPS for selected county
+            epic_match = df[df["county_name"] == epicenter_county]
+            if not epic_match.empty:
+                epic_fips = epic_match.iloc[0]["fips"]
+                result = sim.simulate(scenario_key, epicenter_fips=epic_fips,
+                                       custom_radius_km=custom_radius)
+
+                if "error" in result:
+                    st.error(result["error"])
+                else:
+                    s = result["summary"]
+
+                    # Summary metrics
+                    mc1, mc2, mc3, mc4 = st.columns(4)
+                    with mc1:
+                        st.metric("Counties Affected", f"{s['counties_affected']:,}")
+                    with mc2:
+                        st.metric("Population at Risk", f"{s['total_population_at_risk']:,}")
+                    with mc3:
+                        st.metric("Avg Risk Before", f"{s['avg_risk_before']:.3f}")
+                    with mc4:
+                        st.metric("Avg Risk After", f"{s['avg_risk_after']:.3f}",
+                                  delta=f"+{s['risk_increase_pct']:.1f}%")
+
+                    st.markdown(f"**{s['counties_escalated']}** counties escalated to higher risk level. "
+                                f"Max infrastructure damage: **{s['max_infrastructure_damage_pct']:.1f}%**")
+
+                    # Affected counties table
+                    st.markdown("#### Most Affected Counties")
+                    top_df = pd.DataFrame(result["top_affected_counties"])
+                    if len(top_df) > 0:
+                        st.dataframe(style_risk_table(top_df), use_container_width=True, hide_index=True)
+
+                    # Before/after visualization
+                    affected = result.get("affected_df")
+                    if affected is not None and len(affected) > 0:
+                        fig = go.Figure()
+                        top_vis = affected.nlargest(20, "impact_factor")
+                        fig.add_trace(go.Bar(name="Before", x=top_vis["county_name"],
+                                             y=top_vis["risk_score_before"],
+                                             marker_color="#4FC3F7"))
+                        fig.add_trace(go.Bar(name="After", x=top_vis["county_name"],
+                                             y=top_vis["risk_score_after"],
+                                             marker_color="#e74c3c"))
+                        fig.update_layout(barmode="group", title="Before vs After Risk Scores",
+                                          xaxis_tickangle=-45, **PLOTLY_LAYOUT)
+                        st.plotly_chart(fig, use_container_width=True)
+
+    # ── Tab: Infrastructure ───────────────────────────────────────────
+    with tab_infra:
         st.subheader("Infrastructure Access Analysis")
 
         dist_cols = [c for c in df_filtered.columns if c.startswith("dist_nearest_")]
@@ -196,6 +484,7 @@ def main():
                     fig = px.histogram(df_filtered, x=col_name, nbins=50,
                                        title=f"Distance to Nearest {selected_facility}",
                                        labels={col_name: "Distance (km)"})
+                    fig.update_layout(**PLOTLY_LAYOUT)
                     st.plotly_chart(fig, use_container_width=True)
 
             with col2:
@@ -205,8 +494,9 @@ def main():
                     st.metric(f"Counties > 50km from {selected_facility}", len(gaps))
 
                     if len(gaps) > 0:
+                        gap_display = gaps.nlargest(10, col_name)[["county_name", col_name, "total_population", "risk_score"]]
                         st.dataframe(
-                            gaps.nlargest(10, col_name)[["county_name", col_name, "total_population", "risk_score"]],
+                            style_risk_table(gap_display),
                             use_container_width=True, hide_index=True
                         )
 
@@ -224,10 +514,11 @@ def main():
                 labels={"isolation_index": "Infrastructure Isolation Index",
                         "vulnerability_index": "Demographic Vulnerability Index"},
             )
+            fig.update_layout(**PLOTLY_LAYOUT)
             st.plotly_chart(fig, use_container_width=True)
 
-    # ── Tab 6: Advanced Insights ──────────────────────────────────────
-    with tab6:
+    # ── Tab: Advanced Insights ────────────────────────────────────────
+    with tab_insights:
         st.subheader("Advanced Risk Analytics")
 
         # Compound Risk Clusters
@@ -240,11 +531,28 @@ def main():
                 st.metric("Compound Risk Counties", len(compound))
                 st.metric("Avg Population (compound)", f"{compound['total_population'].mean():,.0f}" if len(compound) > 0 else "N/A")
 
-                # Distribution of compound risk counts
-                fig = px.histogram(df_filtered, x="compound_risk_count",
-                                   title="Risk Dimensions per County",
-                                   labels={"compound_risk_count": "# High-Risk Dimensions"},
-                                   color_discrete_sequence=["#e74c3c"])
+                # Green-to-red gradient bar chart for compound risk
+                risk_counts = df_filtered["compound_risk_count"].value_counts().sort_index()
+                max_dims = risk_counts.index.max() if len(risk_counts) > 0 else 4
+                colors = []
+                for dim in risk_counts.index:
+                    t = dim / max(max_dims, 1)
+                    r = int(39 + (231 - 39) * t)   # green(39) -> red(231)
+                    g = int(174 + (76 - 174) * t)   # green(174) -> red(76)
+                    b = int(96 + (60 - 96) * t)     # green(96) -> red(60)
+                    colors.append(f"rgb({r},{g},{b})")
+
+                fig = go.Figure(go.Bar(
+                    x=risk_counts.index, y=risk_counts.values,
+                    marker_color=colors,
+                    hovertemplate="Dimensions: %{x}<br>Counties: %{y}<extra></extra>"
+                ))
+                fig.update_layout(
+                    title="Risk Dimensions per County",
+                    xaxis_title="# High-Risk Dimensions",
+                    yaxis_title="Number of Counties",
+                    **PLOTLY_LAYOUT
+                )
                 st.plotly_chart(fig, use_container_width=True)
 
             with col2:
@@ -259,12 +567,13 @@ def main():
                         color_continuous_scale="YlOrRd",
                         hover_name="county_name",
                         hover_data={"compound_risk_count": True, "risk_score": ":.3f"},
-                        mapbox_style="carto-positron",
+                        mapbox_style="carto-darkmatter",
                         zoom=3, center={"lat": 39.5, "lon": -98.35},
                         title="Compound Risk Clusters (3+ dimensions = critical)",
                         height=500, size_max=12,
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    fig.update_layout(**PLOTLY_LAYOUT)
+                    st.plotly_chart(fig, use_container_width=True, config=MAPBOX_CONFIG)
 
         st.markdown("---")
 
@@ -280,7 +589,9 @@ def main():
                                    x="disaster_acceleration", nbins=50,
                                    title="Disaster Acceleration Ratio Distribution",
                                    labels={"disaster_acceleration": "Acceleration Ratio (>1 = increasing)"})
-                fig.add_vline(x=1.0, line_dash="dash", line_color="red", annotation_text="No change")
+                fig.add_vline(x=1.0, line_dash="dash", line_color="#e74c3c", annotation_text="No change",
+                              annotation_font_color="#E0E0E0")
+                fig.update_layout(**PLOTLY_LAYOUT)
                 st.plotly_chart(fig, use_container_width=True)
             with col2:
                 # Top accelerating counties
@@ -289,7 +600,7 @@ def main():
                            "disasters_2005_2014", "risk_score"]
                 display = [c for c in display if c in top_accel.columns]
                 st.markdown("**Top 15 Accelerating Counties:**")
-                st.dataframe(top_accel[display], use_container_width=True, hide_index=True)
+                st.dataframe(style_risk_table(top_accel[display], display), use_container_width=True, hide_index=True)
 
         st.markdown("---")
 
@@ -305,14 +616,15 @@ def main():
                     display = ["county_name", "dist_nearest_hospitals_km", "dist_2nd_nearest_hospitals_km",
                                "redundancy_score", "total_population"]
                     display = [c for c in display if c in zero_red.columns]
-                    st.dataframe(zero_red.nlargest(15, "dist_2nd_nearest_hospitals_km")[display],
+                    st.dataframe(style_risk_table(zero_red.nlargest(15, "dist_2nd_nearest_hospitals_km")[display], display),
                                  use_container_width=True, hide_index=True)
             with col2:
                 if "redundancy_score" in df_filtered.columns:
                     fig = px.histogram(df_filtered, x="redundancy_score", nbins=50,
                                        title="Infrastructure Redundancy Score Distribution",
                                        labels={"redundancy_score": "Redundancy Score (0=none, 1=high)"},
-                                       color_discrete_sequence=["#3498db"])
+                                       color_discrete_sequence=["#4FC3F7"])
+                    fig.update_layout(**PLOTLY_LAYOUT)
                     st.plotly_chart(fig, use_container_width=True)
 
         st.markdown("---")
@@ -331,12 +643,13 @@ def main():
                 opacity=0.6,
             )
             fig.add_shape(type="line", x0=0, y0=0, x1=1, y1=1,
-                          line=dict(dash="dash", color="gray"))
+                          line=dict(dash="dash", color="#546E7A"))
+            fig.update_layout(**PLOTLY_LAYOUT)
             st.plotly_chart(fig, use_container_width=True)
             st.markdown("*Points above the diagonal: neighbors are higher-risk than the county itself (contagion risk)*")
 
-    # ── Tab 7: Gap Analysis ────────────────────────────────────────────
-    with tab7:
+    # ── Tab: Gap Analysis ─────────────────────────────────────────────
+    with tab_gaps:
         st.subheader("Intervention Gap Analysis")
         st.markdown("Which single intervention would most reduce each county's risk?")
 
@@ -349,6 +662,7 @@ def main():
                              title="Top Recommended Interventions Across Counties",
                              labels={"x": "Intervention Type", "y": "Number of Counties"},
                              color=intervention_counts.index)
+                fig.update_layout(**PLOTLY_LAYOUT)
                 st.plotly_chart(fig, use_container_width=True)
 
             with col2:
@@ -362,12 +676,13 @@ def main():
                         color="top_intervention",
                         hover_name="county_name",
                         hover_data={"top_intervention_score": ":.3f", "risk_score": ":.3f"},
-                        mapbox_style="carto-positron",
+                        mapbox_style="carto-darkmatter",
                         zoom=3, center={"lat": 39.5, "lon": -98.35},
                         title="Geographic Distribution of Recommended Interventions",
                         height=500,
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    fig.update_layout(**PLOTLY_LAYOUT)
+                    st.plotly_chart(fig, use_container_width=True, config=MAPBOX_CONFIG)
 
             st.markdown("---")
 
@@ -381,6 +696,7 @@ def main():
                              title="Average Gap Scores by Dimension",
                              labels={"x": "Gap Dimension", "y": "Average Gap Score (0-1)"},
                              color=avg_gaps.index)
+                fig.update_layout(**PLOTLY_LAYOUT)
                 st.plotly_chart(fig, use_container_width=True)
 
             # Filterable table
@@ -392,7 +708,7 @@ def main():
             display = ["county_name", "top_intervention", "top_intervention_score",
                         "risk_score", "total_population"] + gap_cols
             display = [c for c in display if c in table_df.columns]
-            st.dataframe(table_df[display], use_container_width=True, hide_index=True)
+            st.dataframe(style_risk_table(table_df[display], display), use_container_width=True, hide_index=True)
 
         # State rankings
         st.markdown("---")
@@ -407,10 +723,117 @@ def main():
                             "vulnerability_index_state_pctile", "compound_risk_count",
                             "top_intervention", "total_population"]
                 display = [c for c in display if c in state_df.columns]
-                st.dataframe(state_df[display], use_container_width=True, hide_index=True)
+                st.dataframe(style_risk_table(state_df[display], display), use_container_width=True, hide_index=True)
 
-    # ── Tab 4: Model Performance ──────────────────────────────────────
-    with tab4:
+    # ── Tab: Alert Center ─────────────────────────────────────────────
+    with tab_alerts:
+        st.subheader("Alert Command Center")
+        st.markdown("Monitor counties exceeding risk thresholds.")
+
+        alert_col1, alert_col2 = st.columns([1, 3])
+        with alert_col1:
+            risk_thresh = st.slider("Risk Threshold", 0.0, 1.0, 0.7, 0.05, key="alert_thresh")
+            show_critical_only = st.checkbox("Critical Only", value=False)
+
+        with alert_col2:
+            from src.agent import ResilienceAgent
+            _agent = ResilienceAgent()
+            alerts_result = _agent.get_real_time_alerts(
+                state=selected_states[0] if selected_states else None,
+                risk_threshold=risk_thresh,
+            )
+
+            ac1, ac2, ac3 = st.columns(3)
+            with ac1:
+                st.metric("Total Alerts", alerts_result["total_alerts"])
+            with ac2:
+                st.metric("Critical", alerts_result["critical_count"])
+            with ac3:
+                st.metric("Warning", alerts_result["warning_count"])
+
+            for alert in alerts_result["alerts"]:
+                if show_critical_only and alert["severity"] != "critical":
+                    continue
+                severity_colors = {"critical": "#DC2626", "warning": "#F59E0B", "info": "#3B82F6"}
+                color = severity_colors.get(alert["severity"], "#3B82F6")
+                st.markdown(
+                    f'<div style="border-left: 4px solid {color}; padding: 8px 12px; '
+                    f'margin: 4px 0; background: rgba(0,0,0,0.2); border-radius: 0 4px 4px 0;">'
+                    f'<strong style="color: {color};">[{alert["severity"].upper()}]</strong> '
+                    f'<strong>{alert["county_name"]}</strong> '
+                    f'(Risk: {alert["risk_score"]:.3f})<br/>'
+                    f'<span style="color: #90A4AE;">{alert["reason"]}</span>'
+                    f'</div>', unsafe_allow_html=True
+                )
+
+    # ── Tab: Benchmarking ─────────────────────────────────────────────
+    with tab_benchmark:
+        st.subheader("County Benchmarking & Peer Comparison")
+        st.markdown("Compare a county against demographically similar peers.")
+
+        bench_counties = df_filtered.sort_values("risk_score", ascending=False)["county_name"].head(200).tolist()
+        bench_county = st.selectbox("Select County to Benchmark", bench_counties, key="bench_select")
+
+        if bench_county:
+            bench_match = df[df["county_name"] == bench_county]
+            if not bench_match.empty:
+                from src.agent import ResilienceAgent
+                _bench_agent = ResilienceAgent()
+                bench_result = _bench_agent.benchmark_county(bench_match.iloc[0]["fips"])
+
+                if "error" in bench_result:
+                    st.error(bench_result["error"])
+                else:
+                    st.markdown(f"**{bench_result['county_name']}** vs **{bench_result['peer_count']}** similar-population peers")
+                    st.metric("Overall Peer Percentile", f"{bench_result['overall_peer_percentile']:.1f}%")
+
+                    # Radar chart
+                    radar = bench_result["radar_data"]
+                    categories = list(radar.keys())
+                    county_vals = [radar[c]["percentile"] / 100 for c in categories]
+                    peer_vals = [0.5] * len(categories)  # Peer mean = 50th percentile
+
+                    labels = [c.replace("_", " ").title() for c in categories]
+
+                    fig = go.Figure()
+                    fig.add_trace(go.Scatterpolar(
+                        r=county_vals + [county_vals[0]],
+                        theta=labels + [labels[0]],
+                        fill="toself", name=bench_county,
+                        fillcolor="rgba(79, 195, 247, 0.2)",
+                        line_color="#4FC3F7",
+                    ))
+                    fig.add_trace(go.Scatterpolar(
+                        r=peer_vals + [peer_vals[0]],
+                        theta=labels + [labels[0]],
+                        fill="toself", name="Peer Average",
+                        fillcolor="rgba(144, 164, 174, 0.1)",
+                        line_color="#546E7A",
+                    ))
+                    fig.update_layout(
+                        polar=dict(
+                            radialaxis=dict(visible=True, range=[0, 1]),
+                            bgcolor="rgba(0,0,0,0)",
+                        ),
+                        title=f"Peer Comparison: {bench_county}",
+                        **PLOTLY_LAYOUT,
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+
+                    # Detail table
+                    detail_rows = []
+                    for col, data in radar.items():
+                        detail_rows.append({
+                            "Metric": col.replace("_", " ").title(),
+                            "County Value": f"{data['county_value']:.3f}",
+                            "Peer Mean": f"{data['peer_mean']:.3f}",
+                            "Z-Score": f"{data['z_score']:+.2f}",
+                            "Percentile": f"{data['percentile']:.1f}%",
+                        })
+                    st.dataframe(pd.DataFrame(detail_rows), use_container_width=True, hide_index=True)
+
+    # ── Tab: Model Performance ────────────────────────────────────────
+    with tab_model:
         st.subheader("Model Performance")
 
         # Show saved figures
@@ -434,8 +857,8 @@ def main():
             st.subheader("Model Comparison Summary")
             st.dataframe(results, use_container_width=True, hide_index=True)
 
-    # ── Tab 5: Agent Query ────────────────────────────────────────────
-    with tab5:
+    # ── Tab: Agent Query ──────────────────────────────────────────────
+    with tab_agent:
         st.subheader("Ask ResilienceAI")
         st.markdown("""
         Ask questions about disaster vulnerability in natural language.
@@ -448,6 +871,10 @@ def main():
         - "Which counties have zero hospital redundancy?"
         - "Where are disasters accelerating fastest?"
         - "What intervention does Jackson County need most?"
+        - "Simulate a Category 3 hurricane hitting Miami-Dade"
+        - "What's the ROI of building a hospital in rural Kansas?"
+        - "Show me equity gaps in disaster vulnerability"
+        - "Benchmark Cook County against its peers"
         """)
 
         query = st.text_input("Your question:", placeholder="e.g., Show me high-risk counties in Missouri")
@@ -457,6 +884,13 @@ def main():
             # Simple keyword-based query processing (demo mode)
             response = process_demo_query(query, df)
             st.markdown(response)
+
+    # ── Footer ────────────────────────────────────────────────────────
+    st.markdown("""
+    <div class="footer-badge">
+        ResilienceAI &nbsp;|&nbsp; MUIDSI 2026 &nbsp;|&nbsp; Built on 100% real federal data
+    </div>
+    """, unsafe_allow_html=True)
 
 
 def process_demo_query(query, df):

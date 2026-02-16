@@ -100,3 +100,14 @@ COL_LON = "longitude"
 COL_POPULATION = "total_population"
 COL_RISK_SCORE = "risk_score"
 COL_RISK_LEVEL = "risk_level"
+
+# ── Additional Data Sources (Phase 2) ─────────────────────────────
+# CDC Social Vulnerability Index (SVI)
+CDC_SVI_URL = "https://data.cdc.gov/resource/4d8n-kk8a.json"
+
+# NOAA Storm Events
+NOAA_STORM_EVENTS_URL = "https://www.ncdc.noaa.gov/stormevents/csv"
+
+# ── Self-Improvement Config ───────────────────────────────────────
+IMPROVEMENT_LOG_PATH = DATA_DIR / "improvement_log.json"
+SELF_IMPROVE_CONFIDENCE_THRESHOLD = 0.5  # Below this triggers auto-proposals
