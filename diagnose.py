@@ -26,6 +26,17 @@ for port in range(8501, 8511):
         result = s.connect_ex(('localhost', port))
         if result == 0:
             print(f"   ⚠️  Port {port} is IN USE")
+            if port == 8501:
+                print(f"      💡 Found potential conflict (defunct project?)")
+                # Command to find PID on Windows
+                try:
+                    cmd = f"netstat -ano | findstr :{port}"
+                    out = subprocess.check_output(cmd, shell=True).decode()
+                    pid = out.strip().split()[-1]
+                    print(f"      👉 Process PID: {pid}")
+                    print(f"      🛠️  To kill: Taskkill /PID {pid} /F")
+                except:
+                    pass
         else:
             print(f"   ✅ Port {port} is FREE")
 
