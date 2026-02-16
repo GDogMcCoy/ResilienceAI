@@ -37,6 +37,25 @@ Advanced analytics available:
 - **State Rankings**: Percentile rank within own state for contextual comparison
 - **Gap Analysis**: Which single intervention (add hospital, add EMS, reduce poverty, etc.) would most reduce each county's risk
 
+Real-time alert system:
+- **Alert Subscriptions**: Subscribe counties to real-time vulnerability monitoring
+- **Threshold-Based Alerts**: Configurable risk thresholds trigger notifications
+- **Multi-Channel Dispatch**: Webhook, email, and SMS notification support
+- **Active Alert Management**: View, acknowledge, and manage active alerts
+- **Emergency Broadcasting**: Dispatch alerts to all subscribers during disasters
+
+Weather integration:
+- **NOAA Weather Alerts**: Real-time severe weather warnings and watches
+- **Vulnerability Correlation**: Cross-reference weather with county risk scores
+- **Auto-Trigger Logic**: Automatic alert recommendations based on conditions
+- **National Monitoring**: High-impact weather across all states
+
+Agricultural vulnerability:
+- **USDA Crop Data**: Historical yields and production statistics
+- **Crop Vulnerability Scoring**: Yield stability and risk assessment
+- **Food Security Risk**: Local production vs. population needs
+- **Import Dependency**: Identify counties reliant on food imports
+
 Scenario simulation & network analysis:
 - **Scenario Simulation**: What-if disaster scenarios (hurricane, earthquake, flood, wildfire, tornado) with before/after risk comparison
 - **Cascade Analysis**: Model infrastructure as a network graph, identify single points of failure, simulate cascade failures
@@ -624,6 +643,327 @@ name = "max_results"
 type = "integer"
 description = "Maximum hotspots to return (default: 20)"
 default = 20
+required = false
+
+# ── Real-Time Alert System Tools (6 tools) ───────────────────────────
+[[agent.tools]]
+name = "subscribe_to_alerts"
+description = "Subscribe to real-time vulnerability alerts for a specific county. Receive notifications when risk thresholds are exceeded."
+handler = "ResilienceAgent.subscribe_to_alerts"
+
+[[agent.tools.parameters]]
+name = "county_fips"
+type = "string"
+description = "5-digit county FIPS code to monitor"
+required = true
+
+[[agent.tools.parameters]]
+name = "threshold"
+type = "number"
+description = "Risk score threshold (0-1) that triggers alerts (default: 0.7)"
+default = 0.7
+required = false
+
+[[agent.tools.parameters]]
+name = "alert_types"
+type = "array"
+description = "Alert types to monitor: flood, storm, drought, wildfire (default: all)"
+required = false
+
+[[agent.tools.parameters]]
+name = "webhook_url"
+type = "string"
+description = "Optional webhook URL for push notifications"
+required = false
+
+[[agent.tools.parameters]]
+name = "email"
+type = "string"
+description = "Optional email address for notifications"
+required = false
+
+[[agent.tools]]
+name = "unsubscribe_from_alerts"
+description = "Deactivate an alert subscription by ID."
+handler = "ResilienceAgent.unsubscribe_from_alerts"
+
+[[agent.tools.parameters]]
+name = "subscription_id"
+type = "string"
+description = "Subscription ID to deactivate"
+required = true
+
+[[agent.tools]]
+name = "list_alert_subscriptions"
+description = "List all active alert subscriptions with optional filtering by county or state."
+handler = "ResilienceAgent.list_alert_subscriptions"
+
+[[agent.tools.parameters]]
+name = "county_fips"
+type = "string"
+description = "Optional: Filter by county FIPS code"
+required = false
+
+[[agent.tools.parameters]]
+name = "state"
+type = "string"
+description = "Optional: Filter by state abbreviation"
+required = false
+
+[[agent.tools]]
+name = "dispatch_alert"
+description = "Dispatch an alert to all subscribers in a county. Used for emergency notifications during active disasters."
+handler = "ResilienceAgent.dispatch_alert"
+
+[[agent.tools.parameters]]
+name = "county_fips"
+type = "string"
+description = "Target county FIPS code"
+required = true
+
+[[agent.tools.parameters]]
+name = "alert_type"
+type = "string"
+enum = ["flood", "storm", "drought", "wildfire", "tornado", "hurricane"]
+description = "Type of disaster alert"
+required = true
+
+[[agent.tools.parameters]]
+name = "severity"
+type = "string"
+enum = ["low", "medium", "high", "critical"]
+description = "Alert severity level"
+required = true
+
+[[agent.tools.parameters]]
+name = "message"
+type = "string"
+description = "Alert message content"
+required = true
+
+[[agent.tools.parameters]]
+name = "affected_population"
+type = "integer"
+description = "Optional: Estimated population affected"
+required = false
+
+[[agent.tools]]
+name = "get_active_alerts"
+description = "Get all active (unacknowledged) alerts with optional filtering by county or alert type."
+handler = "ResilienceAgent.get_active_alerts"
+
+[[agent.tools.parameters]]
+name = "county_fips"
+type = "string"
+description = "Optional: Filter by county FIPS code"
+required = false
+
+[[agent.tools.parameters]]
+name = "alert_type"
+type = "string"
+description = "Optional: Filter by alert type (flood, storm, etc.)"
+required = false
+
+[[agent.tools]]
+name = "acknowledge_alert"
+description = "Mark an alert as acknowledged by its ID."
+handler = "ResilienceAgent.acknowledge_alert"
+
+[[agent.tools.parameters]]
+name = "alert_id"
+type = "string"
+description = "Alert event ID to acknowledge"
+required = true
+
+# ── Weather Integration Tools (4 tools) ──────────────────────────────
+[[agent.tools]]
+name = "get_weather_alerts"
+description = "Get active weather alerts from NOAA National Weather Service for a state or county. Returns severe weather warnings, watches, and advisories."
+handler = "ResilienceAgent.get_weather_alerts"
+
+[[agent.tools.parameters]]
+name = "state"
+type = "string"
+description = "Two-letter state code (e.g., 'MO', 'CA')"
+required = true
+
+[[agent.tools.parameters]]
+name = "county_name"
+type = "string"
+description = "Optional: County name to filter alerts"
+required = false
+
+[[agent.tools.parameters]]
+name = "severity"
+type = "string"
+enum = ["Extreme", "Severe", "Moderate", "Minor"]
+description = "Optional: Filter by severity level"
+required = false
+
+[[agent.tools]]
+name = "correlate_weather_with_vulnerability"
+description = "Correlate active weather alerts with county vulnerability scores. Returns enhanced risk assessment combining weather threats and infrastructure vulnerability."
+handler = "ResilienceAgent.correlate_weather_with_vulnerability"
+
+[[agent.tools.parameters]]
+name = "county_fips"
+type = "string"
+description = "County FIPS code"
+required = true
+
+[[agent.tools.parameters]]
+name = "county_name"
+type = "string"
+description = "County name"
+required = true
+
+[[agent.tools.parameters]]
+name = "state"
+type = "string"
+description = "State abbreviation"
+required = true
+
+[[agent.tools]]
+name = "get_high_impact_weather"
+description = "Get high-severity weather alerts (Severe/Extreme) across all states. Useful for national situational awareness."
+handler = "ResilienceAgent.get_high_impact_weather"
+
+[[agent.tools.parameters]]
+name = "min_severity"
+type = "string"
+enum = ["Severe", "Extreme"]
+description = "Minimum severity level (default: Severe)"
+default = "Severe"
+required = false
+
+[[agent.tools]]
+name = "should_trigger_weather_alert"
+description = "Determine if current weather conditions should trigger an alert for a county. Checks for severe weather and returns trigger recommendation."
+handler = "ResilienceAgent.should_trigger_weather_alert"
+
+[[agent.tools.parameters]]
+name = "county_fips"
+type = "string"
+description = "County FIPS code"
+required = true
+
+[[agent.tools.parameters]]
+name = "county_name"
+type = "string"
+description = "County name"
+required = true
+
+[[agent.tools.parameters]]
+name = "state"
+type = "string"
+description = "State abbreviation"
+required = true
+
+[[agent.tools.parameters]]
+name = "vulnerability_threshold"
+type = "number"
+description = "Vulnerability threshold for triggering (default: 0.6)"
+default = 0.6
+required = false
+
+# ── Agricultural Vulnerability Tools (4 tools) ─────────────────────
+[[agent.tools]]
+name = "get_crop_yield"
+description = "Get USDA crop yield data for a county or state. Returns historical yield data for corn, soybeans, wheat, and other major crops."
+handler = "ResilienceAgent.get_crop_yield"
+
+[[agent.tools.parameters]]
+name = "state"
+type = "string"
+description = "Two-letter state code (e.g., 'MO', 'IA')"
+required = true
+
+[[agent.tools.parameters]]
+name = "county_name"
+type = "string"
+description = "Optional: County name to filter"
+required = false
+
+[[agent.tools.parameters]]
+name = "commodity"
+type = "string"
+description = "Crop commodity (CORN, SOYBEANS, WHEAT, COTTON, RICE)"
+default = "CORN"
+required = false
+
+[[agent.tools.parameters]]
+name = "year"
+type = "integer"
+description = "Optional: Specific year (default: most recent)"
+required = false
+
+[[agent.tools]]
+name = "calculate_agricultural_vulnerability"
+description = "Calculate agricultural vulnerability score for a county based on crop yield stability, diversity, and drought exposure. Returns vulnerability assessment."
+handler = "ResilienceAgent.calculate_agricultural_vulnerability"
+
+[[agent.tools.parameters]]
+name = "county_fips"
+type = "string"
+description = "County FIPS code"
+required = true
+
+[[agent.tools.parameters]]
+name = "county_name"
+type = "string"
+description = "County name"
+required = true
+
+[[agent.tools.parameters]]
+name = "state"
+type = "string"
+description = "State abbreviation"
+required = true
+
+[[agent.tools]]
+name = "assess_food_security_risk"
+description = "Assess food security risk based on local agricultural production capacity vs population. Identifies counties dependent on food imports."
+handler = "ResilienceAgent.assess_food_security_risk"
+
+[[agent.tools.parameters]]
+name = "county_fips"
+type = "string"
+description = "County FIPS code"
+required = true
+
+[[agent.tools.parameters]]
+name = "county_name"
+type = "string"
+description = "County name"
+required = true
+
+[[agent.tools.parameters]]
+name = "state"
+type = "string"
+description = "State abbreviation"
+required = true
+
+[[agent.tools.parameters]]
+name = "population"
+type = "integer"
+description = "County population (if known)"
+required = false
+
+[[agent.tools]]
+name = "get_state_crop_summary"
+description = "Get summary of all major crops for a state including average yields, top producing counties, and production trends."
+handler = "ResilienceAgent.get_state_crop_summary"
+
+[[agent.tools.parameters]]
+name = "state"
+type = "string"
+description = "Two-letter state code"
+required = true
+
+[[agent.tools.parameters]]
+name = "year"
+type = "integer"
+description = "Optional: Specific year"
 required = false
 
 # Server Configuration
