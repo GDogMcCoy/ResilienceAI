@@ -57,11 +57,52 @@ class ArchiaClient:
               session_id: Optional[str] = None,
               stream: bool = False) -> Dict[str, Any]:
         """
-        Processes a query using the local ResilienceAgent by default.
-        Remote connectivity is disabled until a valid deployment endpoint is confirmed.
+        Processes a query. Uses local agent if in 'YOLO/Local' mode,
+        otherwise attempts remote Archia API call.
         """
-        # Always fallback to local for development/hackathon stability
-        return self._fallback_to_local(query)
+        import streamlit as st
+        
+        # Check if dashboard has explicitly requested remote mode
+        use_local = True
+        if 'agent_config' in st.session_state:
+            use_local = st.session_state.agent_config.get('use_local_agent', True)
+            
+        if use_local:
+            return self._fallback_to_local(query)
+            
+        # Remote Logic
+        payload = {
+            "query": query,
+            "agent": "resilienceai",
+            "stream": stream
+        }
+        
+        try:
+            # Note: 464 error might be due to user-agent or missing headers
+            headers = {
+                "Authorization": f"Bearer {self.config.api_key}",
+                "Content-Type": "application/json",
+                "User-Agent": "ResilienceAI-Dashboard/2.0"
+            }
+            
+            response = requests.post(
+                f"{self.config.base_url}/query",
+                json=payload,
+                headers=headers,
+                timeout=self.config.timeout
+            )
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                return {
+                    "error": f"Remote API Error ({response.status_code}): {response.text}",
+                    "fallback_triggered": True,
+                    "local_data": self._fallback_to_local(query)
+                }
+                
+        except Exception as e:
+            return {"error": str(e), "local_data": self._fallback_to_local(query)}
     
     def _stream_query(self, payload: Dict) -> Dict[str, Any]:
         """Stream query response from Archia."""

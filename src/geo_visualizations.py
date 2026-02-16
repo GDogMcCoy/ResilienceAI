@@ -146,46 +146,58 @@ class GeoVisualizer:
     
     def create_3d_risk_landscape(self, value_column: str = 'risk_score') -> go.Figure:
         """
-        Create a 3D surface plot of risk across geographic space
+        Create a 3D scatter plot of risk dots on a 2D map base.
+        Ensures a grounded horizontal axis and high-resolution representation.
         """
         if 'latitude' not in self.df.columns or 'longitude' not in self.df.columns:
             return None
         
-        # Create grid for surface plot
-        from scipy.interpolate import griddata
+        plot_df = self.df.copy()
         
-        # Sample data for performance
-        sample_df = self.df.sample(min(1000, len(self.df)))
-        
-        # Create grid
-        xi = np.linspace(sample_df['longitude'].min(), sample_df['longitude'].max(), 50)
-        yi = np.linspace(sample_df['latitude'].min(), sample_df['latitude'].max(), 50)
-        xi, yi = np.meshgrid(xi, yi)
-        
-        # Interpolate values
-        zi = griddata(
-            (sample_df['longitude'], sample_df['latitude']),
-            sample_df[value_column],
-            (xi, yi),
-            method='cubic'
-        )
-        
-        fig = go.Figure(data=[go.Surface(
-            x=xi,
-            y=yi,
-            z=zi,
-            colorscale='RdYlGn_r',
-            colorbar=dict(title=value_column.replace('_', ' ').title())
+        # Create 3D Scatter
+        fig = go.Figure(data=[go.Scatter3d(
+            x=plot_df['longitude'],
+            y=plot_df['latitude'],
+            z=plot_df[value_column],
+            mode='markers',
+            marker=dict(
+                size=4,
+                color=plot_df[value_column],
+                colorscale='RdYlGn_r',
+                opacity=0.8,
+                showscale=True,
+                colorbar=dict(title=value_column.replace('_', ' ').title())
+            ),
+            text=plot_df['county_name'],
+            hoverinfo='text+z'
         )])
+
+        # Add an opaque base layer (flat map)
+        fig.add_trace(go.Scatter3d(
+            x=plot_df['longitude'],
+            y=plot_df['latitude'],
+            z=np.zeros(len(plot_df)),
+            mode='markers',
+            marker=dict(
+                size=2,
+                color='rgba(100, 100, 100, 0.2)',
+                opacity=0.2
+            ),
+            hoverinfo='skip'
+        ))
         
         fig.update_layout(
-            title=f'3D Risk Landscape - {value_column.replace("_", " ").title()}',
+            title=f'County Risk Landscape (3D Projection)',
             scene=dict(
                 xaxis_title='Longitude',
                 yaxis_title='Latitude',
-                zaxis_title=value_column.replace('_', ' ').title()
+                zaxis_title='Risk Level',
+                aspectratio=dict(x=1, y=1, z=0.5),
+                bgcolor='rgba(0,0,0,0)'
             ),
-            height=800
+            margin=dict(l=0, r=0, b=0, t=50),
+            height=800,
+            template="plotly_dark"
         )
         
         return fig

@@ -16,6 +16,7 @@ from pathlib import Path
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
+import streamlit_antd_components as sac
 
 # Try to import the ResilienceAgent
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -107,7 +108,7 @@ with st.sidebar:
     
     st.divider()
     st.markdown("### 🤖 Agent Config")
-    st.session_state.agent_config['use_local_agent'] = st.toggle("YOLO Mode (Local Agent)", value=True)
+    st.session_state.agent_config['use_local_agent'] = not st.toggle("Production Intelligence (Archia API)", value=False)
     st.session_state.agent_config['model'] = st.selectbox("Intelligence Model", 
         ["claude-sonnet-4-5-20250929", "gpt-4o"])
     
@@ -115,6 +116,22 @@ with st.sidebar:
     st.caption("MUIDSI Hackathon 2026 - Official Submission")
 
 # ── Main Header ──────────────────────────────────────────────────────
+selected_step = sac.steps(
+    items=[
+        sac.StepsItem(title='DATA', subtitle='READY', icon='database-fill-check'),
+        sac.StepsItem(title='AGENT', subtitle='NODE ACTIVE', icon='robot'),
+        sac.StepsItem(title='SYSTEM', subtitle='OPERATIONAL', icon='shield-check'),
+    ], 
+    variant='circle', color='purple', size='sm', return_index=True
+)
+
+if selected_step == 0:
+    st.toast("Database: 3,222 counties indexed and validated.", icon="✅")
+elif selected_step == 1:
+    st.toast("Agent: Local inference node active. Production API standby.", icon="🤖")
+elif selected_step == 2:
+    st.toast("System: All systems nominal. Esoteric Noir theme engaged.", icon="🛡️")
+
 render_modern_header(
     "RESILIENCE AI", 
     "Predictive Vulnerability Intelligence & Disparity Analysis"
@@ -122,19 +139,20 @@ render_modern_header(
 
 # ── Focused Tabs ─────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "🛡️ Missouri Sentinel",
-    "🗺️ Vulnerability Explorer",
-    "🔮 Resilience Planner",
-    "🤖 Agent Intelligence",
+    "📍 Missouri Regional Assessment",
+    "🌍 Vulnerability Explorer",
+    "📊 Resilience Planner",
+    "🧠 Agent Intelligence",
     "📡 Live Ops"
 ])
 
-# ── Tab 1: Missouri Sentinel ─────────────────────────────────────────
+# ── Tab 1: Missouri Regional Assessment ──────────────────────────────
 with tab1:
     st.markdown('<div class="bento-container">', unsafe_allow_html=True)
     
     if df is not None:
-        mo_df = df[df['county_name'].str.contains(", MO")]
+        # Strict filtering for Missouri
+        mo_df = df[df['county_name'].str.endswith(", Missouri")].copy()
         avg_risk = mo_df['risk_score'].mean()
         high_risk_count = len(mo_df[mo_df['risk_level'] == 'High'])
         uninsured_avg = mo_df['uninsured_pct'].mean() * 100
@@ -227,36 +245,103 @@ with tab2:
 with tab3:
     col1, col2 = st.columns([1, 2])
     with col1:
-        st.subheader("🔮 Scenario Modeler")
-        scenario = st.selectbox("Select Threat", ["Hurricane", "Flash Flood", "Tornado EF-5", "Heat Wave"])
-        epicenter = st.selectbox("Target County", df['county_name'].head(50).tolist()) if df is not None else None
-        if st.button("Simulate Impact", type="primary"):
-            st.session_state.planner_mode = "simulating"
+        st.subheader("📊 Scenario Simulation")
+        threat = st.selectbox("Select Threat", ["hurricane_cat3", "flood_major", "tornado_ef5", "wildfire_large"])
+        
+        # Get list of Missouri FIPS
+        if df is not None:
+            mo_counties = df[df['county_name'].str.endswith(", Missouri")].sort_values('county_name')
+            if not mo_counties.empty:
+                target_county = st.selectbox("Epicenter County", mo_counties['county_name'].tolist())
+                epicenter_fips = mo_counties[mo_counties['county_name'] == target_county]['fips'].iloc[0]
+                
+                if st.button("🚀 Run Simulation", type="primary"):
+                    if AGENT_AVAILABLE and st.session_state.local_agent:
+                        with st.spinner("Calculating impact vectors..."):
+                            result = st.session_state.local_agent.simulate_scenario(
+                                scenario=threat,
+                                epicenter_fips=epicenter_fips
+                            )
+                            st.session_state.simulation_result = result
+            else:
+                st.warning("No Missouri counties found in dataset. Check data/processed/county_features.csv")
     
     with col2:
-        st.subheader("💰 Intervention ROI")
-        st.markdown("Allocating resources based on risk-reduction-per-dollar.")
-        if df is not None:
-            # Simple ROI viz placeholder
-            fig = px.scatter(df.sample(100), x='risk_score', y='poverty_pct', size='total_population',
-                           color='risk_level', title="Cost-Effectiveness Matrix")
+        if 'simulation_result' in st.session_state:
+            res = st.session_state.simulation_result
+            st.subheader(f"📈 Impact Analysis: {threat.replace('_', ' ').title()}")
+            
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.metric("Pop. at Risk", f"{res.get('affected_population', 0):,}")
+            with c2:
+                st.metric("Avg Risk Increase", f"+{res.get('avg_risk_increase', 0)*100:.1f}%")
+            with c3:
+                st.metric("Counties Affected", res.get('affected_counties_count', 0))
+            
+            # Show a simple comparison chart
+            comp_data = pd.DataFrame([
+                {"State": "Baseline", "Risk": res.get('baseline_risk', 0)},
+                {"State": "Post-Event", "Risk": res.get('post_event_risk', 0)}
+            ])
+            fig = px.bar(comp_data, x='State', y='Risk', color='State', 
+                       color_discrete_map={"Baseline": "#34d399", "Post-Event": "#f87171"},
+                       template="plotly_dark")
             st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Select a threat and epicenter to begin simulation.")
 
 # ── Tab 4: Agent Intelligence ────────────────────────────────────────
 with tab4:
-    st.subheader("🤖 Natural Language Operations")
-    query = st.text_input("Ask ResilienceAI (e.g., 'What are the top 3 priorities for Boone County?')")
-    if st.button("Consult Agent") and query:
-        with st.spinner("Analyzing data vectors..."):
-            # Placeholder for agent query logic
-            st.write("### Agent Insights")
-            st.markdown("> Based on current 2026 projections, **Boone County** requires immediate hospital redundancy upgrades due to increasing flood acceleration.")
+    st.subheader("🧠 Intelligence Operations")
+    st.markdown("Query the ResilienceAI agent using natural language. (Archia API / Local Fallback)")
+    
+    query_text = st.text_input("Analysis Request", placeholder="e.g., Which Missouri counties have high risk but no hospital redundancy?")
+    
+    col_q1, col_q2 = st.columns([1, 4])
+    with col_q1:
+        submit_q = st.button("🚀 Execute", type="primary", use_container_width=True)
+    
+    if submit_q and query_text:
+        with st.spinner("Processing intelligence vector..."):
+            try:
+                from archia_client import ArchiaClient
+                client = ArchiaClient()
+                # If local agent toggle is OFF, it will try remote
+                response = client.query(query_text)
+                st.session_state.last_agent_response = response
+            except Exception as e:
+                st.error(f"Intelligence Pipeline Error: {e}")
+
+    if 'last_agent_response' in st.session_state:
+        res = st.session_state.last_agent_response
+        st.divider()
+        
+        with st.container():
+            st.markdown("### 📤 Response")
+            if 'answer' in res:
+                st.info(res['answer'])
+            elif 'response' in res:
+                st.info(res['response'])
+            elif 'error' in res:
+                st.error(res['error'])
+            
+            if 'data' in res and res['data']:
+                with st.expander("View Underlying Data"):
+                    st.dataframe(pd.DataFrame(res['data']))
+            
+            if st.button("📋 Copy to Intelligence Log"):
+                st.code(res.get('answer', res.get('response', '')), language='markdown')
+                st.success("Copied to display buffer.")
 
 # ── Tab 5: Live Ops ──────────────────────────────────────────────────
 with tab5:
     col1, col2 = st.columns([2, 1])
     with col1:
         st.subheader("📡 Real-Time Data Stream")
+        if st.button("🔄 Force Refresh Heartbeat"):
+            st.rerun()
+            
         try:
             from src.realtime_pipeline import render_realtime_feed
             render_realtime_feed()

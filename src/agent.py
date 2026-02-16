@@ -2133,7 +2133,7 @@ class ResilienceAgent:
             return {"error": "Data not loaded"}
 
         # Filter for Missouri
-        mo_df = self.df[self.df["county_name"].str.contains(", MO", case=False, na=False)].copy()
+        mo_df = self.df[self.df["county_name"].str.endswith(", Missouri")].copy()
         if mo_df.empty:
             return {"error": "No Missouri data found"}
 
