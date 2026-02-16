@@ -1,6 +1,6 @@
 """
-ResilienceAI - Streamlit Dashboard with Agent Query Integration
-Comprehensive disaster vulnerability assessment dashboard with Archia agent capabilities.
+ResilienceAI - Modern Streamlit Dashboard
+Comprehensive disaster vulnerability assessment with state-of-the-art visualizations.
 """
 
 import sys
@@ -25,6 +25,25 @@ try:
 except ImportError:
     AGENT_AVAILABLE = False
 
+# Import modern UI components
+try:
+    from modern_ui import (
+        apply_modern_theme, render_modern_header, render_metric_card,
+        render_status_indicator, apply_plotly_theme, COLORS
+    )
+    MODERN_UI_AVAILABLE = True
+except ImportError:
+    MODERN_UI_AVAILABLE = False
+
+# Import geospatial visualizations
+try:
+    from geo_visualizations import (
+        GeoVisualizer, render_choropleth_tab, render_hexbin_tab, render_3d_landscape_tab
+    )
+    GEO_VIZ_AVAILABLE = True
+except ImportError:
+    GEO_VIZ_AVAILABLE = False
+
 # ── Page Configuration ───────────────────────────────────────────────
 st.set_page_config(
     page_title="ResilienceAI - Disaster Vulnerability Assessment",
@@ -32,6 +51,10 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Apply modern theme if available
+if MODERN_UI_AVAILABLE:
+    apply_modern_theme()
 
 # ── Custom CSS ───────────────────────────────────────────────────────
 st.markdown("""
@@ -364,24 +387,69 @@ with tab1:
 
 # ── Tab 2: Risk Map ──────────────────────────────────────────────────
 with tab2:
-    st.header("Geographic Risk Map")
-    if st.session_state.data_loaded and 'latitude' in df.columns and 'longitude' in df.columns:
-        fig = px.scatter_mapbox(
-            df,
-            lat='latitude',
-            lon='longitude',
-            color='risk_score' if 'risk_score' in df.columns else None,
-            size='total_population' if 'total_population' in df.columns else None,
-            hover_name='county_name' if 'county_name' in df.columns else None,
-            color_continuous_scale='RdYlGn_r',
-            zoom=3,
-            height=600,
-            title="County Risk Scores"
-        )
-        fig.update_layout(mapbox_style="carto-positron")
-        st.plotly_chart(fig, use_container_width=True)
+    st.header("🗺️ Geographic Risk Visualization")
+    
+    if st.session_state.data_loaded:
+        # Sub-tabs for different map types
+        map_tab1, map_tab2, map_tab3, map_tab4 = st.tabs([
+            "🗺️ Choropleth Map",
+            "⬡ Hexbin Aggregation",
+            "🔥 Heatmap",
+            "🏔️ 3D Landscape"
+        ])
+        
+        with map_tab1:
+            if GEO_VIZ_AVAILABLE:
+                render_choropleth_tab(df)
+            else:
+                # Fallback to basic scatter
+                if 'latitude' in df.columns and 'longitude' in df.columns:
+                    fig = px.scatter_mapbox(
+                        df,
+                        lat='latitude',
+                        lon='longitude',
+                        color='risk_score' if 'risk_score' in df.columns else None,
+                        size='total_population' if 'total_population' in df.columns else None,
+                        hover_name='county_name' if 'county_name' in df.columns else None,
+                        color_continuous_scale='RdYlGn_r',
+                        zoom=3,
+                        height=600,
+                        title="County Risk Scores"
+                    )
+                    fig.update_layout(mapbox_style="carto-positron")
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("Geographic data not available")
+        
+        with map_tab2:
+            if GEO_VIZ_AVAILABLE:
+                render_hexbin_tab(df)
+            else:
+                st.info("Hexbin visualization requires geo_visualizations module")
+        
+        with map_tab3:
+            if GEO_VIZ_AVAILABLE and 'latitude' in df.columns and 'longitude' in df.columns:
+                viz = GeoVisualizer(df)
+                fig = viz.create_heatmap()
+                if fig:
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.error("Could not create heatmap")
+            else:
+                st.info("Heatmap requires latitude/longitude data")
+        
+        with map_tab4:
+            if GEO_VIZ_AVAILABLE and 'latitude' in df.columns and 'longitude' in df.columns:
+                viz = GeoVisualizer(df)
+                fig = viz.create_3d_risk_landscape()
+                if fig:
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.error("Could not create 3D landscape")
+            else:
+                st.info("3D landscape requires latitude/longitude data")
     else:
-        st.info("Geographic data not available")
+        st.info("Load data to see geographic visualizations")
 
 # ── Tab 3: Infrastructure ────────────────────────────────────────────
 with tab3:
