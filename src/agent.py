@@ -709,6 +709,100 @@ def get_mcp_tools():
                 "required": ["county_fips", "county_name", "state"]
             }
         },
+        # ── Agricultural Vulnerability Tools ────────────────────────────
+        {
+            "name": "get_crop_yield",
+            "description": "Get USDA crop yield data for a county or state. Returns historical yield data for corn, soybeans, wheat, and other major crops.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "state": {
+                        "type": "string",
+                        "description": "Two-letter state code (e.g., 'MO', 'IA')"
+                    },
+                    "county_name": {
+                        "type": "string",
+                        "description": "Optional: County name to filter"
+                    },
+                    "commodity": {
+                        "type": "string",
+                        "description": "Crop commodity (CORN, SOYBEANS, WHEAT, COTTON, RICE)",
+                        "default": "CORN"
+                    },
+                    "year": {
+                        "type": "integer",
+                        "description": "Optional: Specific year (default: most recent)"
+                    }
+                },
+                "required": ["state"]
+            }
+        },
+        {
+            "name": "calculate_agricultural_vulnerability",
+            "description": "Calculate agricultural vulnerability score for a county based on crop yield stability, diversity, and drought exposure. Returns vulnerability assessment.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "county_fips": {
+                        "type": "string",
+                        "description": "County FIPS code"
+                    },
+                    "county_name": {
+                        "type": "string",
+                        "description": "County name"
+                    },
+                    "state": {
+                        "type": "string",
+                        "description": "State abbreviation"
+                    }
+                },
+                "required": ["county_fips", "county_name", "state"]
+            }
+        },
+        {
+            "name": "assess_food_security_risk",
+            "description": "Assess food security risk based on local agricultural production capacity vs population. Identifies counties dependent on food imports.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "county_fips": {
+                        "type": "string",
+                        "description": "County FIPS code"
+                    },
+                    "county_name": {
+                        "type": "string",
+                        "description": "County name"
+                    },
+                    "state": {
+                        "type": "string",
+                        "description": "State abbreviation"
+                    },
+                    "population": {
+                        "type": "integer",
+                        "description": "County population (if known)"
+                    }
+                },
+                "required": ["county_fips", "county_name", "state"]
+            }
+        },
+        {
+            "name": "get_state_crop_summary",
+            "description": "Get summary of all major crops for a state including average yields, top producing counties, and production trends.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "state": {
+                        "type": "string",
+                        "description": "Two-letter state code"
+                    },
+                    "year": {
+                        "type": "integer",
+                        "description": "Optional: Specific year"
+                    }
+                },
+                "required": ["state"]
+            }
+        },
     ]
 
 
@@ -1382,6 +1476,84 @@ class ResilienceAgent:
                                             vulnerability_threshold)
         
         return result
+
+    # ── Agricultural Vulnerability Methods ────────────────────────────
+    def get_crop_yield(self, state: str, county_name: str = None, 
+                       commodity: str = 'CORN', year: int = None):
+        """
+        Get USDA crop yield data.
+        
+        Args:
+            state: Two-letter state code
+            county_name: Optional county name filter
+            commodity: Crop type (CORN, SOYBEANS, WHEAT, etc.)
+            year: Specific year
+        """
+        from src.agriculture_client import USDANASSClient
+        client = USDANASSClient()
+        
+        data = client.get_crop_yield(state, county_name, commodity, year)
+        
+        return {
+            "state": state,
+            "county": county_name,
+            "commodity": commodity,
+            "year": year or "latest",
+            "record_count": len(data),
+            "yields": [d.to_dict() for d in data[:20]]
+        }
+
+    def calculate_agricultural_vulnerability(self, county_fips: str, 
+                                             county_name: str,
+                                             state: str):
+        """
+        Calculate agricultural vulnerability score.
+        
+        Combines crop yield stability, diversity, and drought exposure.
+        """
+        from src.agriculture_client import AgriculturalVulnerabilityScorer
+        scorer = AgriculturalVulnerabilityScorer()
+        
+        result = scorer.calculate_crop_vulnerability(county_fips, county_name, state)
+        
+        return result
+
+    def assess_food_security_risk(self, county_fips: str,
+                                  county_name: str,
+                                  state: str,
+                                  population: int = None):
+        """
+        Assess food security risk based on agricultural capacity.
+        
+        Identifies counties dependent on food imports.
+        """
+        from src.agriculture_client import AgriculturalVulnerabilityScorer
+        scorer = AgriculturalVulnerabilityScorer()
+        
+        # Get population from dataframe if not provided
+        if population is None and self.df is not None:
+            county_data = self.df[self.df['fips'] == county_fips]
+            if not county_data.empty:
+                population = county_data.iloc[0].get('total_population')
+        
+        result = scorer.assess_food_security_risk(
+            county_fips, county_name, state, population
+        )
+        
+        return result
+
+    def get_state_crop_summary(self, state: str, year: int = None):
+        """
+        Get summary of all major crops for a state.
+        
+        Returns average yields, top counties, production trends.
+        """
+        from src.agriculture_client import USDANASSClient
+        client = USDANASSClient()
+        
+        summary = client.get_state_crop_summary(state, year)
+        
+        return summary
 
     def self_improve(self, query, response_summary, confidence=None,
                      identified_gaps=None, proposed_improvement=None):
