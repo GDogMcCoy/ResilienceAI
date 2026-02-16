@@ -1,6 +1,7 @@
 """
 ResilienceAI Configuration
 """
+import os
 from pathlib import Path
 
 # Base directories
@@ -8,11 +9,13 @@ BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "data"
 RAW_DIR = DATA_DIR / "raw"
 PROCESSED_DIR = DATA_DIR / "processed"
+CACHE_DIR = DATA_DIR / "cache"
 MODELS_DIR = BASE_DIR / "models"
 REPORTS_DIR = BASE_DIR / "reports"
+FIGURES_DIR = BASE_DIR / "outputs" / "figures"
 
 # Ensure directories exist
-for dir_path in [DATA_DIR, RAW_DIR, PROCESSED_DIR, MODELS_DIR, REPORTS_DIR]:
+for dir_path in [DATA_DIR, RAW_DIR, PROCESSED_DIR, CACHE_DIR, MODELS_DIR, REPORTS_DIR, FIGURES_DIR]:
     dir_path.mkdir(parents=True, exist_ok=True)
 
 # Data source URLs and configurations
@@ -35,6 +38,23 @@ DATA_SOURCES = {
     }
 }
 
+# HIFLD ArcGIS endpoints
+HIFLD_URLS = {
+    "hospitals": "https://services1.arcgis.com/Hp6G80Pky0om7QvQ/arcgis/rest/services/Hospitals_1/FeatureServer/0/query",
+    "fire_stations": "https://services1.arcgis.com/Hp6G80Pky0om7QvQ/arcgis/rest/services/Fire_Stations/FeatureServer/0/query",
+    "ems_stations": "https://services1.arcgis.com/Hp6G80Pky0om7QvQ/arcgis/rest/services/EMS_Stations/FeatureServer/0/query",
+}
+CMS_NURSING_HOME_URL = "https://data.cms.gov/provider-data/sites/default/files/resources/6c77e8398f0e0bba2ded0a4e590a2b46/NH_ProviderInfo.csv"
+
+# Census API
+CENSUS_BASE_URL = "https://api.census.gov/data/2022/acs/acs5"
+CENSUS_VARIABLES = "B01003_001E,B19013_001E,B17001_002E,B09020_001E,B18101_001E,B27010_001E"
+CENSUS_API_KEY = os.environ.get("CENSUS_API_KEY", "")
+
+# Geographic scope
+FOCUS_STATES = ["29"]  # Missouri FIPS
+COL_FIPS = "fips"
+
 # Model configuration
 MODEL_CONFIG = {
     "test_size": 0.2,
@@ -46,6 +66,11 @@ MODEL_CONFIG = {
         "high": 1.0
     }
 }
+
+# Convenience aliases from MODEL_CONFIG
+RANDOM_STATE = MODEL_CONFIG["random_state"]
+TEST_SIZE = MODEL_CONFIG["test_size"]
+CV_FOLDS = MODEL_CONFIG["cv_folds"]
 
 # Agent configuration
 AGENT_CONFIG = {

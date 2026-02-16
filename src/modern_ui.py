@@ -223,7 +223,6 @@ MODERN_CSS = """
     });
 </script>
 """
-"""
 
 
 def apply_modern_theme():
