@@ -1,38 +1,31 @@
 # 🛡️ ResilienceAI - Quick Start Guide
 
-## 🌐 Live Demo (No Installation Required!)
+## 🚀 Run the Dashboard (Recommended)
 
-**👉 [Click here to launch the live dashboard](https://ask-resilienceai-dashboardagentquerytab-3f8fqqh5fqjpyhw.streamlit.app/)**
-
-This is the shared team dashboard - bookmark this link!
-
----
-
-## 🚀 Run Locally (For Development)
-
-### Option 1: Double-Click Launcher (Recommended)
+### Option 1: One-Click Launcher ⭐ EASIEST
 ```bash
-# In VS Code terminal or command line:
 python run_dashboard.py
 ```
+Auto-opens browser at http://localhost:8501
 
-This will:
-- ✅ Check dependencies
-- ✅ Launch Streamlit
-- ✅ Open browser automatically
-- ✅ Start at http://localhost:8501
+### Option 2: VS Code (F5)
+Press **F5** and select "🚀 Launch ResilienceAI Dashboard"
 
-### Option 2: Manual Streamlit Command
+### Option 3: Manual
 ```bash
-# From the project root folder:
 streamlit run app/dashboard.py
 ```
 
-### Option 3: Python Module
-```bash
-# From the project root folder:
-python -m streamlit run app/dashboard.py
-```
+---
+
+## ⚠️ Streamlit Cloud Status
+
+The cloud deployment has access restrictions. **Run locally for best experience.**
+
+If you need cloud access:
+1. Fork this repository to your GitHub account
+2. Go to [share.streamlit.io](https://share.streamlit.io/)
+3. Deploy your fork
 
 ---
 
@@ -40,17 +33,9 @@ python -m streamlit run app/dashboard.py
 
 ```
 ResilienceAI/
-├── 🚀 run_dashboard.py          ← START HERE (launcher script)
-├── 📊 app/
-│   └── dashboard.py             ← Main dashboard (16 tabs)
-├── 🔧 src/
-│   ├── agent.py                 ← 38 MCP tools
-│   ├── alert_manager.py         ← Real-time alerts
-│   ├── weather_client.py        ← NOAA integration
-│   ├── agriculture_client.py    ← USDA integration
-│   ├── realtime_pipeline.py     ← Live streaming
-│   ├── geo_visualizations.py    ← Maps & 3D
-│   └── modern_ui.py             ← Visual styling
+├── 🚀 run_dashboard.py          ← START HERE
+├── 📊 app/dashboard.py          ← Main dashboard (16 tabs)
+├── 🔧 src/                      ← All modules
 ├── 📖 demo_materials/           ← Hackathon presentation
 ├── ⚙️  archia/                   ← Deployment config
 └── 📋 docs/                     ← Documentation
@@ -62,34 +47,24 @@ ResilienceAI/
 
 | Feature | Description |
 |---------|-------------|
-| **38 MCP Tools** | AI-powered vulnerability analysis |
+| **45 MCP Tools** | AI-powered vulnerability analysis |
 | **16 Dashboard Tabs** | Complete assessment platform |
 | **Real-Time Streaming** | Live NOAA/USGS data |
 | **Geospatial Maps** | Choropleth, hexbin, 3D |
+| **Predictive Modeling** | Prophet/ARIMA forecasting |
 | **Modern UI** | Gradient themes, animations |
 
 ---
 
-## 🔧 Setup (If First Time)
+## 🔧 First Time Setup
 
 ```bash
-# 1. Install dependencies
+# Install dependencies
 pip install -r requirements.txt
 
-# 2. Run the dashboard
+# Run the dashboard
 python run_dashboard.py
 ```
-
----
-
-## 🌐 Access the Dashboard
-
-### Live Demo (Always Available)
-**👉 [https://ask-resilienceai-dashboardagentquerytab-3f8fqqh5fqjpyhw.streamlit.app/](https://ask-resilienceai-dashboardagentquerytab-3f8fqqh5fqjpyhw.streamlit.app/)**
-
-### Local Development
-Once running locally, open your browser to:
-**http://localhost:8501**
 
 ---
 
@@ -97,20 +72,20 @@ Once running locally, open your browser to:
 
 | Problem | Solution |
 |---------|----------|
-| "streamlit not found" | Run: `pip install streamlit` |
-| "module not found" | Run: `pip install -r requirements.txt` |
-| Port already in use | Change port: `streamlit run app/dashboard.py --server.port 8502` |
-| Data not loading | Check that `data/processed/county_features.csv` exists |
+| "streamlit not found" | `pip install streamlit` |
+| "module not found" | `pip install -r requirements.txt` |
+| Port 8501 in use | Use `--server.port 8502` |
+| Data not loading | Check `data/processed/county_features.csv` |
+| Cloud access denied | Run locally instead |
 
 ---
 
 ## 📞 Need Help?
 
-Check these files:
-- `docs/VISUAL_MONITORING_GUIDE.md` - How to track activity
-- `demo_materials/README.md` - Hackathon submission guide
-- `BUG_REPORT.md` - Known issues and fixes
+- `docs/STREAMLIT_CLOUD_TROUBLESHOOTING.md` - Cloud access help
+- `demo_materials/README.md` - Hackathon guide
+- `BUG_REPORT.md` - Known issues
 
 ---
 
-**Ready to launch? Run: `python run_dashboard.py`** 🚀
+**Ready? Run: `python run_dashboard.py`** 🚀
