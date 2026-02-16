@@ -333,7 +333,7 @@ st.markdown('<div class="main-header">🛡️ ResilienceAI</div>', unsafe_allow_
 st.markdown('<div class="sub-header">AI-Powered Disaster Vulnerability Assessment Platform</div>', unsafe_allow_html=True)
 
 # ── Tabs ─────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12, tab13, tab14, tab15, tab16 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12, tab13, tab14, tab15, tab16, tab17 = st.tabs([
     "📊 Overview",
     "🗺️ Risk Map",
     "🏥 Infrastructure",
@@ -349,7 +349,8 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12, tab13
     "🚨 Alert Management",
     "🌾 Agricultural Risk",
     "📈 Activity Monitor",
-    "📡 Real-Time Stream"  # Tab 16 - NEW
+    "📡 Real-Time Stream",
+    "🏥 MO Health Gaps"  # Tab 17 - NEW
 ])
 
 # ── Tab 1: Overview ─────────────────────────────────────────────────
@@ -1323,6 +1324,95 @@ with tab16:
                     st.info("No high-impact alerts currently")
             except Exception as e2:
                 st.error(f"Error fetching alerts: {str(e2)}")
+
+# ── Tab 17: Missouri Health Disparities ──────────────────────────────
+with tab17:
+    st.header("🏥 Missouri Health Disparity Analysis")
+    st.markdown("""
+    This analysis identifies the intersection of socioeconomic vulnerability and disaster risk 
+    specifically for Missouri counties. Strategic focus for MUIDSI 2026.
+    """)
+    
+    if not AGENT_AVAILABLE:
+        st.warning("⚠️ Agent not available. This tab requires the ResilienceAgent.")
+    else:
+        # Configuration
+        col1, col2 = st.columns([1, 3])
+        
+        with col1:
+            st.subheader("Analysis Focus")
+            focus_metric = st.selectbox(
+                "Select Focus Metric",
+                ["uninsured_pct", "poverty_pct", "elderly_pct", "disability_pct", "risk_score"],
+                help="The primary socioeconomic factor to correlate with disaster risk."
+            )
+            
+            max_results = st.slider("Number of Priority Counties", 5, 25, 10)
+            
+            if st.button("📊 Run Disparity Analysis", type="primary"):
+                try:
+                    agent = st.session_state.local_agent
+                    result = agent.get_mo_health_disparities(
+                        focus_metric=focus_metric,
+                        max_results=max_results
+                    )
+                    st.session_state.disparity_result = result
+                except Exception as e:
+                    st.error(f"Error running analysis: {str(e)}")
+        
+        with col2:
+            if 'disparity_result' in st.session_state:
+                res = st.session_state.disparity_result
+                
+                if 'error' in res:
+                    st.error(res['error'])
+                else:
+                    # Summary Metrics
+                    m1, m2, m3 = st.columns(3)
+                    with m1:
+                        st.metric("State Avg Metric", f"{res['state_average_metric']:.3f}")
+                    with m2:
+                        st.metric("State Avg Risk", f"{res['state_average_risk']:.3f}")
+                    with m3:
+                        st.metric("Priority Zones", len(res['priority_zones']))
+                    
+                    st.divider()
+                    
+                    # Data Table
+                    df_zones = pd.DataFrame(res['priority_zones'])
+                    
+                    # Chart: Disparity Index vs Population
+                    fig = px.scatter(
+                        df_zones,
+                        x=focus_metric,
+                        y='risk_score',
+                        size='population',
+                        color='disparity_index',
+                        hover_name='county_name',
+                        text='county_name',
+                        title=f"MO Health Disparity: {focus_metric} vs Disaster Risk",
+                        color_continuous_scale='Reds'
+                    )
+                    fig.update_traces(textposition='top center')
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # List of Priority Zones
+                    st.subheader("📍 Priority Intervention Zones")
+                    for zone in res['priority_zones']:
+                        with st.expander(f"{zone['county_name']} (Index: {zone['disparity_index']:.2f})"):
+                            st.write(f"**Risk Score:** {zone['risk_score']:.3f} (State Pctile: {zone['state_percentile']})")
+                            st.write(f"**{focus_metric}:** {zone[focus_metric]:.3f}")
+                            st.write(f"**Population:** {zone['population']:,}")
+                            
+                            # Recommended Action based on metric
+                            if focus_metric == 'uninsured_pct':
+                                st.info("💡 Recommendation: Mobile health clinics and insurance enrollment support.")
+                            elif focus_metric == 'poverty_pct':
+                                st.info("💡 Recommendation: Economic resilience grants and resource pre-positioning.")
+                            else:
+                                st.info("💡 Recommendation: Targeted infrastructure hardening and community outreach.")
+            else:
+                st.info("👈 Select a metric and run the analysis to identify priority zones.")
 
 # ── Footer ───────────────────────────────────────────────────────────
 st.divider()
