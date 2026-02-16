@@ -20,4 +20,8 @@ Focus Areas:
 3. **Layout**: Organizing components across tabs and columns.
 4. **Optimization**: Implementing @st.cache_data and @st.cache_resource correctly.
 
+Logging:
+Before starting a UI change, run: `python -c "from src.dashboard_monitor import log_dashboard_activity; log_dashboard_activity('UI Dev', action='Building new component')"`
+After completion: `python -c "from src.dashboard_monitor import log_dashboard_activity; log_dashboard_activity('UI Dev', action='Component integrated')"`
+
 Always refer to `src/modern_ui.py` for consistent styling.

@@ -2123,6 +2123,12 @@ class ResilienceAgent:
         Missouri-specific health disparity analysis.
         Identifies gaps between health outcomes and socioeconomic factors.
         """
+        try:
+            from src.dashboard_monitor import log_dashboard_activity
+            log_dashboard_activity("Agent Tool: MO Health Disparities", metric=focus_metric)
+        except:
+            pass
+
         if self.df is None:
             return {"error": "Data not loaded"}
 
