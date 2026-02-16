@@ -3,6 +3,8 @@
 ### Disaster Vulnerability & Health Infrastructure Gap Assessment Agent
 
 > **MUIDSI Hackathon 2026** | Theme: *Agentic AI for Real-World Impact*
+>
+> **Live Demo:** [resiliencea-he3ymacsegj4rb6bldxq4t.streamlit.app](https://resiliencea-he3ymacsegj4rb6bldxq4t.streamlit.app/)
 
 ---
 
@@ -35,7 +37,7 @@ When natural disasters strike, the damage is not distributed equally. Communitie
 
 1. **Engineers 66 features** including 7 advanced differentiator analytics for agentic AI insight exploration
 2. **Trains and evaluates 4 classification models** to predict county-level disaster risk (Low / Medium / High)
-3. **Deploys an agentic AI interface** with 11 MCP tools where emergency planners ask questions in natural language and receive data-backed answers with interactive maps
+3. **Deploys an agentic AI interface** with 19 MCP-compatible tools where emergency planners ask questions in natural language and receive data-backed answers with interactive maps
 
 **Example queries the agent handles:**
 - *"Which Missouri counties are most vulnerable to flooding?"*
@@ -191,7 +193,7 @@ ResilienceAI includes a natural language query interface designed for deployment
 
 The agent is configured with:
 - A **system prompt** establishing the agent as a disaster vulnerability advisor with knowledge of all 66 features
-- **11 MCP-compatible tools** for structured data access and advanced analytics
+- **19 MCP-compatible tools** for structured data access, advanced analytics, scenario simulation, and reporting
 - **Temperature 0.3** for factual, consistent responses
 
 ### MCP Tool Definitions
@@ -209,33 +211,46 @@ The agent is configured with:
 | `find_zero_redundancy` | Locate single-point-of-failure communities |
 | `get_state_rankings` | Rank counties within a state by risk percentile |
 | `prioritize_by_impact` | Rank by population-weighted risk for maximum-impact interventions |
+| `simulate_scenario` | What-if disaster simulation with 10 preset types |
+| `analyze_cascade_risk` | Infrastructure network cascade/dependency analysis |
+| `calculate_intervention_roi` | Cost-effectiveness analysis for proposed interventions |
+| `generate_executive_brief` | PDF/PPTX/text executive briefing generation |
+| `get_equity_analysis` | Disparity ratios across poverty/elderly/disability/uninsured |
+| `benchmark_county` | Peer comparison with Z-scores and percentiles |
+| `get_real_time_alerts` | Threshold-based monitoring with severity levels |
+| `self_improve` | Autonomous capability enhancement meta-tool |
 
 Agent configuration is exported to `models/agent_config.json` for direct import into Archia.
 
 ### Demo Mode
 
-The Streamlit dashboard includes a keyword-based query processor (Tab 7: "Agent Query") that demonstrates the agent's intended functionality including advanced feature queries (compound risk, gap analysis, disaster acceleration, redundancy).
+The Streamlit dashboard includes a keyword-based query processor (Tab 11: "Agent Query") that demonstrates the agent's intended functionality including advanced feature queries (compound risk, gap analysis, disaster acceleration, redundancy, equity, benchmarking).
 
 ---
 
 ## Interactive Dashboard
 
-The Streamlit dashboard (`app/dashboard.py`) provides 7 interactive tabs:
+The Streamlit dashboard (`app/dashboard.py`) provides **11 interactive tabs**:
 
 | Tab | Contents |
 |-----|----------|
 | **Overview** | Key metrics, risk distribution charts, top 20 highest-risk counties |
 | **Risk Map** | Interactive Plotly Mapbox scatter map colored by risk score |
+| **Geographic Analysis** | 5 visualization modes: density heatmap, scatter map, 3D risk landscape, state choropleth, regional hexbins |
 | **Infrastructure** | Facility distance distributions, infrastructure gap identification, vulnerability vs. isolation scatter |
+| **Scenario Sim** | What-if disaster simulation with 10 preset types and before/after comparison |
 | **Advanced Insights** | Compound risk hotspot map, disaster acceleration trends, infrastructure redundancy analysis, neighbor risk contagion scatter |
 | **Gap Analysis** | Intervention recommendation map, gap score breakdown by dimension, state-level county rankings with percentiles |
+| **Alert Center** | Threshold-based risk monitoring with critical/warning severity alerts |
+| **Benchmarking** | County peer comparison with radar charts, Z-scores, and percentiles |
 | **Model Performance** | Model comparison, confusion matrices, ROC curves, feature importance |
-| **Agent Query** | Natural language query interface supporting advanced feature queries |
+| **Agent Query** | Natural language query interface supporting 15+ query patterns |
 
 ### Sidebar Filters
 - State multi-select
 - Risk level filter (Low / Medium / High)
 - Population range slider
+- Reset Filters button
 
 ---
 
@@ -253,10 +268,16 @@ resilienceai/
 |   |-- feature_engineering.py   # 66 features: 37 core + 29 advanced differentiator analytics
 |   |-- eda.py                   # 7 static visualizations (matplotlib/seaborn)
 |   |-- train_models.py          # 4 ML models with cross-validation and full evaluation suite
-|   |-- agent.py                 # Archia agent: system prompt, 11 MCP tools, 7 advanced query methods
+|   |-- agent.py                 # Archia agent: system prompt, 19 MCP tools, advanced query methods
+|   |-- scenario_simulator.py    # What-if disaster simulation engine with 10 preset types
+|   |-- network_analysis.py      # Infrastructure dependency and cascade risk modeling
+|   |-- intervention_roi.py      # Cost-effectiveness analysis for proposed interventions
+|   |-- briefing_generator.py    # Executive briefing generation (PDF/PPTX/text)
+|   |-- self_improve.py          # Self-recursive improvement and capability enhancement
+|   |-- visualization_3d.py      # Geographic visualizations: heatmaps, scatter, 3D landscape, choropleth
 |
 |-- app/
-|   |-- dashboard.py             # Streamlit dashboard with 7 interactive tabs incl. advanced insights
+|   |-- dashboard.py             # Streamlit dashboard with 11 interactive tabs
 |
 |-- data/
 |   |-- raw/                     # Downloaded CSVs from federal APIs (gitignored, regenerated by pipeline)
@@ -323,10 +344,10 @@ Open [http://localhost:8503](http://localhost:8503) in your browser.
 |----------|:------:|-----------------|
 | **Model Development** | 30% | 4 classifiers (RF, GBM, LR, MLP), 5-fold stratified CV, ROC-AUC, confusion matrices, feature importance, best F1=0.983 |
 | **Feature Engineering** | 20% | 66 features from 7 sources: KD-tree spatial distances, infrastructure density/redundancy, FEMA disaster history + acceleration trends, Census vulnerability composites, compound risk clusters, gap analysis matrix, risk contagion, population-weighted impact, state rankings |
-| **EDA** | 10% | 7 static visualizations + 7-tab interactive Plotly/Mapbox dashboard with advanced insight overlays |
+| **EDA** | 10% | 7 static visualizations + 11-tab interactive Plotly/Mapbox dashboard with 3D risk landscape, scenario simulation, and advanced insight overlays |
 | **Evaluation Metrics** | 10% | Accuracy, F1 (macro), precision/recall per class, 5-fold CV with standard deviation, micro-average ROC curves |
-| **Novelty** | 10% | Multi-agency federal data fusion, 7 advanced differentiator features (compound risk, contagion, acceleration, redundancy, gap analysis), 11 MCP tools for agentic AI |
-| **Presentation** | 10% | 7-tab interactive Streamlit dashboard: Mapbox risk maps, compound risk overlays, gap analysis maps, disaster acceleration charts, state ranking tables |
+| **Novelty** | 10% | Multi-agency federal data fusion, 7 advanced differentiator features (compound risk, contagion, acceleration, redundancy, gap analysis), 19 MCP tools for agentic AI, what-if scenario simulation, executive briefing generation |
+| **Presentation** | 10% | 11-tab interactive Streamlit dashboard: Mapbox risk maps, 3D risk landscape, scenario simulation, compound risk overlays, gap analysis maps, alert center, benchmarking, peer comparison radar charts |
 | **Problem + Social Good** | 10% | Disaster preparedness for vulnerable communities, actionable gap analysis for FEMA/state emergency management, 100% real federal data |
 
 ---

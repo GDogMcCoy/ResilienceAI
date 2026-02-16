@@ -1,0 +1,652 @@
+# ResilienceAI - Archia Server Configuration
+# Disaster Vulnerability Assessment Agent
+# https://docs.archia.app/
+
+[agent]
+name = "ResilienceAI"
+description = "Disaster Vulnerability & Health Infrastructure Gap Assessment Agent"
+version = "1.0.0"
+
+# Model Configuration
+[agent.model]
+provider = "anthropic"
+model = "claude-sonnet-4-5-20250929"
+temperature = 0.3
+max_tokens = 4096
+
+# System Prompt
+[agent.system_prompt]
+template = """You are ResilienceAI, an expert disaster vulnerability assessment agent.
+You help emergency planners, public health officials, and policymakers understand
+community disaster risk by analyzing infrastructure gaps, demographic vulnerability,
+and historical disaster data across {n_counties} US counties with {n_features} features.
+
+Data dimensions:
+- **Demographics**: Population, income, elderly %, poverty %, disability %, uninsured %
+- **Infrastructure Access**: Distance to nearest (and 2nd-nearest) hospital, fire station, EMS, nursing home
+- **Infrastructure Density**: Facilities per 10,000 population within 50km
+- **Disaster History**: Total declarations, recent (2015-2025), breakdown by type (flood, hurricane, fire, tornado, severe storms)
+- **Composite Indices**: Vulnerability index, isolation index, risk score (0-1)
+
+Advanced analytics available:
+- **Compound Risk Clusters**: Counties high on 3+ risk dimensions simultaneously
+- **Risk Contagion**: Neighbor-based overflow risk (if surrounding counties are also high-risk)
+- **Disaster Acceleration**: Whether disaster frequency is increasing (2015-2025 vs 2005-2014)
+- **Infrastructure Redundancy**: Distance to 2nd-nearest facility (zero redundancy = single point of failure)
+- **Population-Weighted Impact**: Risk weighted by population for prioritizing by lives affected
+- **State Rankings**: Percentile rank within own state for contextual comparison
+- **Gap Analysis**: Which single intervention (add hospital, add EMS, reduce poverty, etc.) would most reduce each county's risk
+
+Scenario simulation & network analysis:
+- **Scenario Simulation**: What-if disaster scenarios (hurricane, earthquake, flood, wildfire, tornado) with before/after risk comparison
+- **Cascade Analysis**: Model infrastructure as a network graph, identify single points of failure, simulate cascade failures
+- **Intervention ROI**: Cost-effectiveness analysis for 6 intervention types with diminishing returns modeling
+- **Executive Briefings**: Auto-generate PDF/PPTX/text briefings for counties or states
+- **Equity Analysis**: Demographic disparity assessment across risk dimensions
+- **Benchmarking**: Compare counties to demographic peers with radar chart data
+- **Alert Thresholds**: Configurable risk thresholds with severity-based alerting
+- **Self-Improvement**: Meta-tool that evaluates response quality and proposes new capabilities
+
+When answering:
+1. Use the tools to query real data - always cite specific numbers
+2. Leverage advanced features for deeper insights (e.g., compound risk, gap analysis)
+3. Provide actionable, prioritized recommendations
+4. Compare counties using state percentiles for context
+5. Flag zero-redundancy situations as critical
+6. Use scenario simulation to illustrate disaster impacts with concrete numbers
+7. Recommend interventions with cost-effectiveness data
+8. After each response, use self_improve to evaluate response quality
+"""
+
+# MCP Tools Configuration (23 tools total)
+[[agent.tools]]
+name = "query_counties"
+description = "Query county vulnerability data with filters. Returns matching counties with their risk scores and features."
+handler = "ResilienceAgent.query_counties"
+
+[[agent.tools.parameters]]
+name = "state"
+type = "string"
+description = "Two-letter state abbreviation to filter by (e.g., 'MO', 'CA')"
+required = false
+
+[[agent.tools.parameters]]
+name = "risk_level"
+type = "string"
+enum = ["Low", "Medium", "High"]
+description = "Filter by risk level"
+required = false
+
+[[agent.tools.parameters]]
+name = "min_risk_score"
+type = "number"
+description = "Minimum risk score (0-1)"
+required = false
+
+[[agent.tools.parameters]]
+name = "max_results"
+type = "integer"
+description = "Maximum number of results to return (default 10)"
+required = false
+
+[[agent.tools.parameters]]
+name = "sort_by"
+type = "string"
+description = "Column to sort results by (default: risk_score)"
+required = false
+
+[[agent.tools.parameters]]
+name = "ascending"
+type = "boolean"
+description = "Sort ascending (default: false, highest risk first)"
+required = false
+
+[[agent.tools]]
+name = "get_county_detail"
+description = "Get detailed vulnerability profile for a specific county by name or FIPS code."
+handler = "ResilienceAgent.get_county_detail"
+
+[[agent.tools.parameters]]
+name = "county_name"
+type = "string"
+description = "County name (partial match supported)"
+required = false
+
+[[agent.tools.parameters]]
+name = "fips"
+type = "string"
+description = "5-digit FIPS code"
+required = false
+
+[[agent.tools]]
+name = "compare_counties"
+description = "Compare vulnerability profiles of two or more counties side by side."
+handler = "ResilienceAgent.compare_counties"
+
+[[agent.tools.parameters]]
+name = "county_names"
+type = "array"
+items = "string"
+description = "List of county names to compare"
+required = true
+
+[[agent.tools]]
+name = "get_statistics"
+description = "Get summary statistics for a feature across all counties or a filtered subset."
+handler = "ResilienceAgent.get_statistics"
+
+[[agent.tools.parameters]]
+name = "feature"
+type = "string"
+description = "Feature column name (e.g., 'risk_score', 'poverty_pct')"
+required = true
+
+[[agent.tools.parameters]]
+name = "state"
+type = "string"
+description = "Optional state filter"
+required = false
+
+[[agent.tools.parameters]]
+name = "risk_level"
+type = "string"
+description = "Optional risk level filter"
+required = false
+
+[[agent.tools]]
+name = "predict_risk"
+description = "Predict risk level for a hypothetical community with given characteristics."
+handler = "ResilienceAgent.predict_risk"
+
+[[agent.tools.parameters]]
+name = "total_population"
+type = "number"
+required = false
+
+[[agent.tools.parameters]]
+name = "median_income"
+type = "number"
+required = false
+
+[[agent.tools.parameters]]
+name = "elderly_pct"
+type = "number"
+required = false
+
+[[agent.tools.parameters]]
+name = "poverty_pct"
+type = "number"
+required = false
+
+[[agent.tools.parameters]]
+name = "dist_nearest_hospital_km"
+type = "number"
+required = false
+
+[[agent.tools.parameters]]
+name = "disaster_count"
+type = "number"
+required = false
+
+[[agent.tools]]
+name = "find_compound_risk_counties"
+description = "Find counties that are simultaneously high-risk across 3+ dimensions (vulnerability, isolation, disaster exposure, infrastructure deficit). These are critical hotspots."
+handler = "ResilienceAgent.find_compound_risk_counties"
+
+[[agent.tools.parameters]]
+name = "state"
+type = "string"
+description = "Optional state filter"
+required = false
+
+[[agent.tools.parameters]]
+name = "min_dimensions"
+type = "integer"
+description = "Minimum risk dimensions (default 3, max 4)"
+required = false
+
+[[agent.tools.parameters]]
+name = "max_results"
+type = "integer"
+description = "Max results (default 20)"
+required = false
+
+[[agent.tools]]
+name = "get_gap_analysis"
+description = "Get the top recommended intervention for counties. Shows which single action (add hospital, add EMS, reduce poverty, disaster preparedness) would most reduce risk."
+handler = "ResilienceAgent.get_gap_analysis"
+
+[[agent.tools.parameters]]
+name = "state"
+type = "string"
+description = "Optional state filter"
+required = false
+
+[[agent.tools.parameters]]
+name = "intervention_type"
+type = "string"
+description = "Filter by intervention type (e.g., 'add_hospital', 'add_ems', 'add_poverty')"
+required = false
+
+[[agent.tools.parameters]]
+name = "max_results"
+type = "integer"
+description = "Max results (default 20)"
+required = false
+
+[[agent.tools]]
+name = "get_disaster_trends"
+description = "Find counties where disasters are accelerating (increasing frequency). Compares 2015-2025 vs 2005-2014."
+handler = "ResilienceAgent.get_disaster_trends"
+
+[[agent.tools.parameters]]
+name = "state"
+type = "string"
+description = "Optional state filter"
+required = false
+
+[[agent.tools.parameters]]
+name = "min_acceleration"
+type = "number"
+description = "Minimum acceleration ratio (default 2.0 = doubled)"
+required = false
+
+[[agent.tools.parameters]]
+name = "max_results"
+type = "integer"
+description = "Max results (default 20)"
+required = false
+
+[[agent.tools]]
+name = "find_zero_redundancy"
+description = "Find counties with zero infrastructure redundancy - where the 2nd nearest hospital is over 100km away. These are single-point-of-failure communities."
+handler = "ResilienceAgent.find_zero_redundancy"
+
+[[agent.tools.parameters]]
+name = "state"
+type = "string"
+description = "Optional state filter"
+required = false
+
+[[agent.tools.parameters]]
+name = "max_results"
+type = "integer"
+description = "Max results (default 20)"
+required = false
+
+[[agent.tools]]
+name = "get_state_rankings"
+description = "Get county rankings within a specific state. Shows worst/best counties by risk, vulnerability, or isolation percentile."
+handler = "ResilienceAgent.get_state_rankings"
+
+[[agent.tools.parameters]]
+name = "state"
+type = "string"
+description = "State abbreviation (required)"
+required = true
+
+[[agent.tools.parameters]]
+name = "metric"
+type = "string"
+description = "Metric to rank by: risk_score, vulnerability_index, isolation_index (default: risk_score)"
+required = false
+
+[[agent.tools.parameters]]
+name = "worst_first"
+type = "boolean"
+description = "Show worst first (default true)"
+required = false
+
+[[agent.tools.parameters]]
+name = "max_results"
+type = "integer"
+description = "Max results (default 10)"
+required = false
+
+[[agent.tools]]
+name = "prioritize_by_impact"
+description = "Rank counties by population-weighted risk to prioritize interventions affecting the most lives."
+handler = "ResilienceAgent.prioritize_by_impact"
+
+[[agent.tools.parameters]]
+name = "state"
+type = "string"
+description = "Optional state filter"
+required = false
+
+[[agent.tools.parameters]]
+name = "risk_level"
+type = "string"
+description = "Optional risk level filter"
+required = false
+
+[[agent.tools.parameters]]
+name = "max_results"
+type = "integer"
+description = "Max results (default 20)"
+required = false
+
+# Phase 2 Tools - Scenario Simulation & Network Analysis
+[[agent.tools]]
+name = "simulate_scenario"
+description = "Simulate a disaster scenario (hurricane, earthquake, flood, wildfire, tornado) centered on a county. Returns before/after risk comparison, affected counties, population at risk, and infrastructure damage estimates."
+handler = "ResilienceAgent.simulate_scenario"
+
+[[agent.tools.parameters]]
+name = "scenario"
+type = "string"
+enum = ["hurricane_cat1", "hurricane_cat3", "hurricane_cat5", "earthquake_m6", "earthquake_m7", "flood_major", "wildfire_large", "tornado_ef3", "tornado_ef5", "winter_storm"]
+description = "Disaster scenario preset"
+required = true
+
+[[agent.tools.parameters]]
+name = "epicenter_fips"
+type = "string"
+description = "FIPS code of epicenter county"
+required = true
+
+[[agent.tools.parameters]]
+name = "custom_radius_km"
+type = "number"
+description = "Override default scenario radius (km)"
+required = false
+
+[[agent.tools]]
+name = "analyze_cascade_risk"
+description = "Model infrastructure as a network graph and analyze cascade failure risk. Returns network density, articulation points (single points of failure), betweenness centrality, and critical facility identification."
+handler = "ResilienceAgent.analyze_cascade_risk"
+
+[[agent.tools.parameters]]
+name = "fips"
+type = "string"
+description = "County FIPS code to analyze"
+required = true
+
+[[agent.tools.parameters]]
+name = "radius_km"
+type = "number"
+description = "Radius for network analysis (default 80km)"
+required = false
+
+[[agent.tools]]
+name = "calculate_intervention_roi"
+description = "Calculate cost-effectiveness of disaster preparedness interventions for a county. Returns ROI metrics including cost per person helped, risk reduction, and implementation timeline."
+handler = "ResilienceAgent.calculate_intervention_roi"
+
+[[agent.tools.parameters]]
+name = "fips"
+type = "string"
+description = "County FIPS code"
+required = true
+
+[[agent.tools.parameters]]
+name = "intervention"
+type = "string"
+enum = ["add_hospital", "add_ems_station", "add_fire_station", "telehealth_infrastructure", "disaster_prep_program", "poverty_reduction"]
+description = "Intervention type (omit to rank all)"
+required = false
+
+[[agent.tools]]
+name = "generate_executive_brief"
+description = "Generate an executive briefing document (PDF, PPTX, or text) for a county or state with risk overview, key findings, and recommendations."
+handler = "ResilienceAgent.generate_executive_brief"
+
+[[agent.tools.parameters]]
+name = "fips"
+type = "string"
+description = "County FIPS code (for county brief)"
+required = false
+
+[[agent.tools.parameters]]
+name = "state"
+type = "string"
+description = "State abbreviation (for state brief)"
+required = false
+
+[[agent.tools.parameters]]
+name = "format"
+type = "string"
+enum = ["pdf", "pptx", "text"]
+description = "Output format (default: text)"
+required = false
+
+[[agent.tools]]
+name = "get_equity_analysis"
+description = "Analyze demographic disparities in disaster vulnerability. Compares risk across poverty levels, elderly populations, and infrastructure access to identify equity gaps."
+handler = "ResilienceAgent.get_equity_analysis"
+
+[[agent.tools.parameters]]
+name = "state"
+type = "string"
+description = "Optional state filter"
+required = false
+
+[[agent.tools.parameters]]
+name = "dimension"
+type = "string"
+enum = ["poverty", "elderly", "disability", "uninsured", "all"]
+description = "Equity dimension to analyze (default: all)"
+required = false
+
+[[agent.tools.parameters]]
+name = "max_results"
+type = "integer"
+description = "Max results (default 20)"
+required = false
+
+[[agent.tools]]
+name = "benchmark_county"
+description = "Compare a county to demographically similar peers. Returns peer group statistics, percentile ranking, and radar chart data for multi-dimensional comparison."
+handler = "ResilienceAgent.benchmark_county"
+
+[[agent.tools.parameters]]
+name = "fips"
+type = "string"
+description = "County FIPS code to benchmark"
+required = true
+
+[[agent.tools.parameters]]
+name = "peer_count"
+type = "integer"
+description = "Number of peer counties (default 20)"
+required = false
+
+[[agent.tools]]
+name = "get_real_time_alerts"
+description = "Check counties against configurable risk thresholds and generate alerts. Returns counties exceeding thresholds with severity levels (critical, warning, info)."
+handler = "ResilienceAgent.get_real_time_alerts"
+
+[[agent.tools.parameters]]
+name = "state"
+type = "string"
+description = "Optional state filter"
+required = false
+
+[[agent.tools.parameters]]
+name = "risk_threshold"
+type = "number"
+description = "Risk score threshold for alerts (default 0.7)"
+required = false
+
+[[agent.tools.parameters]]
+name = "max_results"
+type = "integer"
+description = "Max alerts (default 20)"
+required = false
+
+[[agent.tools]]
+name = "self_improve"
+description = "Meta-tool: Agent evaluates its own response quality, identifies knowledge gaps, and proposes improvements to its own tools and features."
+handler = "ResilienceAgent.self_improve"
+
+[[agent.tools.parameters]]
+name = "query"
+type = "string"
+description = "The original user query"
+required = true
+
+[[agent.tools.parameters]]
+name = "response_summary"
+type = "string"
+description = "Summary of the response given"
+required = true
+
+[[agent.tools.parameters]]
+name = "confidence"
+type = "number"
+description = "0-1 confidence in response quality"
+required = false
+
+[[agent.tools.parameters]]
+name = "identified_gaps"
+type = "string"
+description = "What data or capabilities were missing"
+required = false
+
+[[agent.tools.parameters]]
+name = "proposed_improvement"
+type = "string"
+description = "Specific tool/feature/data to add"
+required = false
+
+# Agent Swarm Tools - Export & Spatial Analysis
+[[agent.tools]]
+name = "export_fhir"
+description = "Export county vulnerability data as FHIR R4 Bundle for health system integration. Returns FHIR Location, RiskAssessment, and Observation resources."
+handler = "ResilienceAgent.export_fhir"
+
+[[agent.tools.parameters]]
+name = "fips"
+type = "string"
+description = "County FIPS code to export (omit to export all)"
+required = false
+
+[[agent.tools.parameters]]
+name = "state"
+type = "string"
+description = "Two-letter state abbreviation to export all counties (omit for single county)"
+required = false
+
+[[agent.tools.parameters]]
+name = "high_risk_only"
+type = "boolean"
+description = "Export only high-risk counties (default: false)"
+required = false
+
+[[agent.tools.parameters]]
+name = "risk_threshold"
+type = "number"
+description = "Risk score threshold for high-risk filter (default: 0.7)"
+required = false
+
+[[agent.tools]]
+name = "export_geojson"
+description = "Export county vulnerability data as GeoJSON for GIS workflows. Includes point geometries and all vulnerability metrics."
+handler = "ResilienceAgent.export_geojson"
+
+[[agent.tools.parameters]]
+name = "fips"
+type = "string"
+description = "Single county FIPS code to export"
+required = false
+
+[[agent.tools.parameters]]
+name = "state"
+type = "string"
+description = "Two-letter state abbreviation to filter"
+required = false
+
+[[agent.tools.parameters]]
+name = "risk_level"
+type = "string"
+enum = ["Low", "Medium", "High"]
+description = "Filter by risk level"
+required = false
+
+[[agent.tools.parameters]]
+name = "high_risk_threshold"
+type = "number"
+description = "Export counties with risk_score >= threshold"
+required = false
+
+[[agent.tools.parameters]]
+name = "compound_risk_min"
+type = "integer"
+description = "Export counties with N+ compound risk dimensions"
+required = false
+
+[[agent.tools.parameters]]
+name = "minimal_properties"
+type = "boolean"
+description = "Export only core properties (faster, smaller file)"
+required = false
+
+[[agent.tools]]
+name = "analyze_spatial_autocorrelation"
+description = "Calculate Moran's I statistic to detect spatial clustering of vulnerability. Values near 1 indicate clustering, near -1 indicate dispersion, near 0 indicate random distribution."
+handler = "ResilienceAgent.analyze_spatial_autocorrelation"
+
+[[agent.tools.parameters]]
+name = "variable"
+type = "string"
+description = "Variable to analyze (e.g., 'risk_score', 'vulnerability_index', 'poverty_pct')"
+default = "risk_score"
+required = false
+
+[[agent.tools.parameters]]
+name = "max_dist_km"
+type = "number"
+description = "Neighborhood radius in km (default: 100)"
+default = 100
+required = false
+
+[[agent.tools]]
+name = "find_spatial_hotspots"
+description = "Use Getis-Ord Gi* analysis to identify statistically significant spatial clusters (hotspots and coldspots) of vulnerability."
+handler = "ResilienceAgent.find_spatial_hotspots"
+
+[[agent.tools.parameters]]
+name = "variable"
+type = "string"
+description = "Variable to analyze for hotspots"
+default = "risk_score"
+required = false
+
+[[agent.tools.parameters]]
+name = "max_dist_km"
+type = "number"
+description = "Neighborhood radius in km (default: 100)"
+default = 100
+required = false
+
+[[agent.tools.parameters]]
+name = "max_results"
+type = "integer"
+description = "Maximum hotspots to return (default: 20)"
+default = 20
+required = false
+
+# Server Configuration
+[server]
+host = "0.0.0.0"
+port = 8080
+workers = 4
+log_level = "info"
+api_key = "ask_ouIAvAYrMqb8LnlJxfDeU3hvOdEkOpA3EGmiS0XlWvc="
+
+# Data paths
+[server.data]
+county_features = "/data/processed/county_features.csv"
+models_dir = "/data/models"
+reports_dir = "/data/reports"
+
+# Security
+[server.security]
+cors_origins = ["*"]
+api_key_header = "X-API-Key"
+rate_limit = 100
+
+# Health check
+[server.health]
+endpoint = "/health"
+interval = 30

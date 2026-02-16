@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 import joblib
 from pathlib import Path
-from config import PROCESSED_DIR, MODELS_DIR
+from config import PROCESSED_DIR, MODELS_DIR, REPORTS_DIR
 
 
 # ── System Prompt for Archia Agent ────────────────────────────────────
@@ -389,6 +389,109 @@ def get_mcp_tools():
                 "required": ["query", "response_summary"]
             }
         },
+        # ── New Export & Analysis Tools (Agent Swarm) ───────────────────
+        {
+            "name": "export_fhir",
+            "description": "Export county vulnerability data as FHIR R4 Bundle for health system integration. Returns FHIR Location, RiskAssessment, and Observation resources.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {
+                        "type": "string",
+                        "description": "County FIPS code to export (omit to export all)"
+                    },
+                    "state": {
+                        "type": "string",
+                        "description": "Two-letter state abbreviation to export all counties (omit for single county)"
+                    },
+                    "high_risk_only": {
+                        "type": "boolean",
+                        "description": "Export only high-risk counties (default: false)"
+                    },
+                    "risk_threshold": {
+                        "type": "number",
+                        "description": "Risk score threshold for high-risk filter (default: 0.7)"
+                    }
+                }
+            }
+        },
+        {
+            "name": "export_geojson",
+            "description": "Export county vulnerability data as GeoJSON for GIS workflows. Includes point geometries and all vulnerability metrics.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {
+                        "type": "string",
+                        "description": "Single county FIPS code to export"
+                    },
+                    "state": {
+                        "type": "string",
+                        "description": "Two-letter state abbreviation to filter"
+                    },
+                    "risk_level": {
+                        "type": "string",
+                        "enum": ["Low", "Medium", "High"],
+                        "description": "Filter by risk level"
+                    },
+                    "high_risk_threshold": {
+                        "type": "number",
+                        "description": "Export counties with risk_score >= threshold"
+                    },
+                    "compound_risk_min": {
+                        "type": "integer",
+                        "description": "Export counties with N+ compound risk dimensions"
+                    },
+                    "minimal_properties": {
+                        "type": "boolean",
+                        "description": "Export only core properties (faster, smaller file)"
+                    }
+                }
+            }
+        },
+        {
+            "name": "analyze_spatial_autocorrelation",
+            "description": "Calculate Moran's I statistic to detect spatial clustering of vulnerability. Values near 1 indicate clustering, near -1 indicate dispersion, near 0 indicate random distribution.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "variable": {
+                        "type": "string",
+                        "description": "Variable to analyze (e.g., 'risk_score', 'vulnerability_index', 'poverty_pct')",
+                        "default": "risk_score"
+                    },
+                    "max_dist_km": {
+                        "type": "number",
+                        "description": "Neighborhood radius in km (default: 100)",
+                        "default": 100
+                    }
+                }
+            }
+        },
+        {
+            "name": "find_spatial_hotspots",
+            "description": "Use Getis-Ord Gi* analysis to identify statistically significant spatial clusters (hotspots and coldspots) of vulnerability.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "variable": {
+                        "type": "string",
+                        "description": "Variable to analyze for hotspots",
+                        "default": "risk_score"
+                    },
+                    "max_dist_km": {
+                        "type": "number",
+                        "description": "Neighborhood radius in km (default: 100)",
+                        "default": 100
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum hotspots to return (default: 20)",
+                        "default": 20
+                    }
+                }
+            }
+        },
     ]
 
 
@@ -759,6 +862,92 @@ class ResilienceAgent:
             "warning_count": sum(1 for a in alerts if a["severity"] == "warning"),
             "threshold": risk_threshold,
             "alerts": alerts[:max_results],
+        }
+
+    # ── New Export & Analysis Tools (Agent Swarm) ─────────────────────
+    def export_fhir(self, fips=None, state=None, high_risk_only=False, risk_threshold=0.7):
+        """Export vulnerability data as FHIR R4 Bundle."""
+        from src.fhir_export import FHIRExporter
+        exporter = FHIRExporter(self.df)
+
+        if fips:
+            result = exporter.export_county(fips, format="file")
+        elif state:
+            result = exporter.export_state(state, format="file")
+        elif high_risk_only:
+            result = exporter.export_high_risk(risk_threshold, format="file")
+        else:
+            return {"error": "Specify fips, state, or high_risk_only"}
+
+        return result
+
+    def export_geojson(self, fips=None, state=None, risk_level=None,
+                       high_risk_threshold=None, compound_risk_min=None,
+                       minimal_properties=False):
+        """Export vulnerability data as GeoJSON."""
+        from src.geojson_export import GeoJSONExporter
+        exporter = GeoJSONExporter(self.df)
+
+        include_props = not minimal_properties
+
+        if fips:
+            data = exporter.export_county(fips, include_props)
+            filename = f"resilienceai-county-{fips}.geojson"
+        elif state:
+            data = exporter.export_state(state, include_props)
+            filename = f"resilienceai-{state}.geojson"
+        elif risk_level:
+            data = exporter.export_by_risk_level(risk_level, include_props)
+            filename = f"resilienceai-risk-{risk_level.lower()}.geojson"
+        elif high_risk_threshold is not None:
+            data = exporter.export_high_risk(high_risk_threshold, include_props)
+            filename = f"resilienceai-high-risk-{high_risk_threshold}.geojson"
+        elif compound_risk_min is not None:
+            data = exporter.export_compound_risk(compound_risk_min, include_props)
+            filename = f"resilienceai-compound-risk-{compound_risk_min}.geojson"
+        else:
+            data = exporter.export_all(include_props)
+            filename = "resilienceai-all-counties.geojson"
+
+        if "error" in data:
+            return data
+
+        output_path = exporter.export_to_file(data, filename)
+        return {
+            "output_path": output_path,
+            "feature_count": len(data["features"]),
+            "summary": exporter.get_summary()
+        }
+
+    def analyze_spatial_autocorrelation(self, variable="risk_score", max_dist_km=100):
+        """Calculate Moran's I for spatial autocorrelation."""
+        from src.spatial_stats import SpatialAnalyzer
+        analyzer = SpatialAnalyzer(self.df)
+        return analyzer.morans_i(variable, max_dist_km)
+
+    def find_spatial_hotspots(self, variable="risk_score", max_dist_km=100, max_results=20):
+        """Find spatial hotspots using Getis-Ord Gi*."""
+        from src.spatial_stats import SpatialAnalyzer
+        analyzer = SpatialAnalyzer(self.df)
+        result = analyzer.getis_ord_gi(variable, max_dist_km)
+
+        if isinstance(result, dict) and "error" in result:
+            return result
+
+        # Filter to significant hotspots and coldspots
+        hotspots = result[result["is_hotspot"]].head(max_results)
+        coldspots = result[result["is_coldspot"]].head(max_results)
+
+        return {
+            "variable": variable,
+            "hotspots": hotspots.to_dict("records"),
+            "coldspots": coldspots.to_dict("records"),
+            "total_hotspots": len(result[result["is_hotspot"]]),
+            "total_coldspots": len(result[result["is_coldspot"]]),
+            "analysis_parameters": {
+                "neighborhood_radius_km": max_dist_km,
+                "max_results": max_results
+            }
         }
 
     def self_improve(self, query, response_summary, confidence=None,

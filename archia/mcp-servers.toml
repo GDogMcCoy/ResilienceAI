@@ -1,0 +1,249 @@
+# ResilienceAI - MCP Server Configuration
+# Model Context Protocol server definitions
+# https://docs.archia.app/mcp/
+
+# Local Data Source - Primary vulnerability data
+[[mcp.servers]]
+name = "resilienceai-local"
+type = "local"
+description = "Local county vulnerability database with disaster risk assessments"
+enabled = true
+
+[mcp.servers.config]
+# Data source paths
+data_path = "/data/processed/county_features.csv"
+model_path = "/data/models/best_model.pkl"
+scaler_path = "/data/models/scaler.pkl"
+label_encoder_path = "/data/models/label_encoder.pkl"
+feature_names_path = "/data/models/feature_names.pkl"
+
+# Data schema reference
+[mcp.servers.schema]
+primary_key = "fips"
+county_name = "county_name"
+total_population = "total_population"
+risk_score = "risk_score"
+risk_level = "risk_level"
+vulnerability_index = "vulnerability_index"
+isolation_index = "isolation_index"
+disaster_count = "disaster_count"
+poverty_pct = "poverty_pct"
+elderly_pct = "elderly_pct"
+disability_pct = "disability_pct"
+uninsured_pct = "uninsured_pct"
+median_income = "median_income"
+dist_nearest_hospitals_km = "dist_nearest_hospitals_km"
+dist_2nd_nearest_hospitals_km = "dist_2nd_nearest_hospitals_km"
+dist_nearest_fire_stations_km = "dist_nearest_fire_stations_km"
+dist_nearest_ems_km = "dist_nearest_ems_km"
+dist_nearest_nursing_homes_km = "dist_nearest_nursing_homes_km"
+hospitals_per_10k_50km = "hospitals_per_10k_50km"
+fire_stations_per_10k_50km = "fire_stations_per_10k_50km"
+ems_per_10k_50km = "ems_per_10k_50km"
+nursing_homes_per_10k_50km = "nursing_homes_per_10k_50km"
+disasters_2015_2025 = "disasters_2015_2025"
+disasters_2005_2014 = "disasters_2005_2014"
+disaster_acceleration = "disaster_acceleration"
+flood_count = "flood_count"
+hurricane_count = "hurricane_count"
+fire_count = "fire_count"
+tornado_count = "tornado_count"
+severe_storm_count = "severe_storm_count"
+compound_risk_count = "compound_risk_count"
+compound_risk_flag = "compound_risk_flag"
+zero_redundancy_flag = "zero_redundancy_flag"
+redundancy_score = "redundancy_score"
+pop_weighted_risk = "pop_weighted_risk"
+top_intervention = "top_intervention"
+top_intervention_score = "top_intervention_score"
+
+# Census API - Optional external data source
+[[mcp.servers]]
+name = "census-api"
+type = "http"
+description = "US Census Bureau API for demographic and geographic data"
+enabled = false  # Set to true to enable
+
+[mcp.servers.config]
+base_url = "https://api.census.gov/data/2022/acs/acs5"
+api_key_env = "CENSUS_API_KEY"
+timeout = 30
+
+[mcp.servers.endpoints]
+get_demographics = "/"
+get_poverty = "/?get=NAME,B17001_001E,B17001_002E&for=county:*"
+get_population = "/?get=NAME,B01003_001E&for=county:*"
+get_income = "/?get=NAME,B19013_001E&for=county:*"
+
+# FEMA API - Optional disaster declarations data
+[[mcp.servers]]
+name = "fema-api"
+type = "http"
+description = "FEMA Open Data API for disaster declarations and hazard mitigation"
+enabled = false  # Set to true to enable
+
+[mcp.servers.config]
+base_url = "https://www.fema.gov/api/open"
+timeout = 30
+rate_limit_per_second = 10
+
+[mcp.servers.endpoints]
+get_disaster_declarations = "/v2/DisasterDeclarationsSummaries"
+get_hazard_mitigation = "/v2/HazardMitigationGrants"
+get_public_assistance = "/v2/PublicAssistanceFundedProjects"
+get_individual_assistance = "/v2/IndividualAssistanceApplicants"
+
+# Tool-to-Function Mappings
+# Maps MCP tool calls to ResilienceAgent methods
+[[mcp.mappings]]
+tool = "query_counties"
+server = "resilienceai-local"
+function = "ResilienceAgent.query_counties"
+description = "Query counties with filters"
+
+[[mcp.mappings]]
+tool = "get_county_detail"
+server = "resilienceai-local"
+function = "ResilienceAgent.get_county_detail"
+description = "Get detailed county profile"
+
+[[mcp.mappings]]
+tool = "compare_counties"
+server = "resilienceai-local"
+function = "ResilienceAgent.compare_counties"
+description = "Compare multiple counties"
+
+[[mcp.mappings]]
+tool = "get_statistics"
+server = "resilienceai-local"
+function = "ResilienceAgent.get_statistics"
+description = "Get feature statistics"
+
+[[mcp.mappings]]
+tool = "predict_risk"
+server = "resilienceai-local"
+function = "ResilienceAgent.predict_risk"
+description = "Predict risk for hypothetical community"
+
+[[mcp.mappings]]
+tool = "find_compound_risk_counties"
+server = "resilienceai-local"
+function = "ResilienceAgent.find_compound_risk_counties"
+description = "Find multi-dimensional risk hotspots"
+
+[[mcp.mappings]]
+tool = "get_gap_analysis"
+server = "resilienceai-local"
+function = "ResilienceAgent.get_gap_analysis"
+description = "Get intervention recommendations"
+
+[[mcp.mappings]]
+tool = "get_disaster_trends"
+server = "resilienceai-local"
+function = "ResilienceAgent.get_disaster_trends"
+description = "Find accelerating disaster counties"
+
+[[mcp.mappings]]
+tool = "find_zero_redundancy"
+server = "resilienceai-local"
+function = "ResilienceAgent.find_zero_redundancy"
+description = "Find single-point-of-failure counties"
+
+[[mcp.mappings]]
+tool = "get_state_rankings"
+server = "resilienceai-local"
+function = "ResilienceAgent.get_state_rankings"
+description = "Get state-level rankings"
+
+[[mcp.mappings]]
+tool = "prioritize_by_impact"
+server = "resilienceai-local"
+function = "ResilienceAgent.prioritize_by_impact"
+description = "Population-weighted prioritization"
+
+[[mcp.mappings]]
+tool = "simulate_scenario"
+server = "resilienceai-local"
+function = "ResilienceAgent.simulate_scenario"
+description = "Disaster scenario simulation"
+
+[[mcp.mappings]]
+tool = "analyze_cascade_risk"
+server = "resilienceai-local"
+function = "ResilienceAgent.analyze_cascade_risk"
+description = "Network cascade failure analysis"
+
+[[mcp.mappings]]
+tool = "calculate_intervention_roi"
+server = "resilienceai-local"
+function = "ResilienceAgent.calculate_intervention_roi"
+description = "Intervention cost-effectiveness"
+
+[[mcp.mappings]]
+tool = "generate_executive_brief"
+server = "resilienceai-local"
+function = "ResilienceAgent.generate_executive_brief"
+description = "Generate briefing documents"
+
+[[mcp.mappings]]
+tool = "get_equity_analysis"
+server = "resilienceai-local"
+function = "ResilienceAgent.get_equity_analysis"
+description = "Demographic disparity analysis"
+
+[[mcp.mappings]]
+tool = "benchmark_county"
+server = "resilienceai-local"
+function = "ResilienceAgent.benchmark_county"
+description = "Peer county benchmarking"
+
+[[mcp.mappings]]
+tool = "get_real_time_alerts"
+server = "resilienceai-local"
+function = "ResilienceAgent.get_real_time_alerts"
+description = "Risk threshold alerts"
+
+[[mcp.mappings]]
+tool = "self_improve"
+server = "resilienceai-local"
+function = "ResilienceAgent.self_improve"
+description = "Self-evaluation meta-tool"
+
+[[mcp.mappings]]
+tool = "export_fhir"
+server = "resilienceai-local"
+function = "ResilienceAgent.export_fhir"
+description = "Export FHIR R4 Bundle"
+
+[[mcp.mappings]]
+tool = "export_geojson"
+server = "resilienceai-local"
+function = "ResilienceAgent.export_geojson"
+description = "Export GeoJSON for GIS"
+
+[[mcp.mappings]]
+tool = "analyze_spatial_autocorrelation"
+server = "resilienceai-local"
+function = "ResilienceAgent.analyze_spatial_autocorrelation"
+description = "Moran's I spatial analysis"
+
+[[mcp.mappings]]
+tool = "find_spatial_hotspots"
+server = "resilienceai-local"
+function = "ResilienceAgent.find_spatial_hotspots"
+description = "Getis-Ord Gi* hotspot analysis"
+
+# External API mappings (when enabled)
+[[mcp.mappings]]
+tool = "census_get_demographics"
+server = "census-api"
+function = "get_demographics"
+description = "Fetch Census demographic data"
+enabled = false
+
+[[mcp.mappings]]
+tool = "fema_get_disasters"
+server = "fema-api"
+function = "get_disaster_declarations"
+description = "Fetch FEMA disaster declarations"
+enabled = false

@@ -1,0 +1,436 @@
+# ResilienceAI - Kubernetes Deployment Configuration
+# Hackathon Demo Deployment
+# Apply with: kubectl apply -f deployment.yaml
+
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: resilienceai
+  labels:
+    app: resilienceai
+    version: v1.0.0
+
+---
+# ConfigMap for application configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: resilienceai-config
+  namespace: resilienceai
+data:
+  # Archia server configuration
+  ARCHIA_HOST: "0.0.0.0"
+  ARCHIA_PORT: "8080"
+  ARCHIA_LOG_LEVEL: "info"
+  ARCHIA_WORKERS: "4"
+  
+  # Model configuration
+  MODEL_PROVIDER: "anthropic"
+  MODEL_NAME: "claude-sonnet-4-5-20250929"
+  MODEL_TEMPERATURE: "0.3"
+  MODEL_MAX_TOKENS: "4096"
+  
+  # Data paths
+  DATA_PATH: "/data/processed/county_features.csv"
+  MODELS_DIR: "/data/models"
+  REPORTS_DIR: "/data/reports"
+  
+  # Feature flags
+  ENABLE_FHIR_EXPORT: "true"
+  ENABLE_GEOJSON_EXPORT: "true"
+  ENABLE_SCENARIO_SIMULATION: "true"
+  ENABLE_NETWORK_ANALYSIS: "true"
+  ENABLE_SPATIAL_ANALYSIS: "true"
+  
+  # MCP server settings
+  MCP_LOCAL_ENABLED: "true"
+  MCP_CENSUS_ENABLED: "false"
+  MCP_FEMA_ENABLED: "false"
+
+---
+# Secret for API keys (base64 encoded values)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: resilienceai-secrets
+  namespace: resilienceai
+type: Opaque
+stringData:
+  # Add your API keys here (base64 encode before applying)
+  ANTHROPIC_API_KEY: ""
+  CENSUS_API_KEY: ""
+  # For production, use: echo -n 'your-key' | base64
+
+data:
+  # Placeholder - replace with actual base64-encoded values
+  ANTHROPIC_API_KEY: ""
+  CENSUS_API_KEY: ""
+
+---
+# Persistent Volume Claim for data storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: resilienceai-data-pvc
+  namespace: resilienceai
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard
+
+---
+# Persistent Volume Claim for models
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: resilienceai-models-pvc
+  namespace: resilienceai
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard
+
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resilienceai-agent
+  namespace: resilienceai
+  labels:
+    app: resilienceai
+    component: agent
+    version: v1.0.0
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: resilienceai
+      component: agent
+  template:
+    metadata:
+      labels:
+        app: resilienceai
+        component: agent
+        version: v1.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: archia-server
+          image: archia/resilienceai:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: resilienceai-secrets
+                  key: ANTHROPIC_API_KEY
+            - name: CENSUS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: resilienceai-secrets
+                  key: CENSUS_API_KEY
+          envFrom:
+            - configMapRef:
+                name: resilienceai-config
+          volumeMounts:
+            - name: data-volume
+              mountPath: /data/processed
+            - name: models-volume
+              mountPath: /data/models
+            - name: config-volume
+              mountPath: /app/config
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "1000m"
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 30
+      volumes:
+        - name: data-volume
+          persistentVolumeClaim:
+            claimName: resilienceai-data-pvc
+        - name: models-volume
+          persistentVolumeClaim:
+            claimName: resilienceai-models-pvc
+        - name: config-volume
+          configMap:
+            name: resilienceai-config
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - resilienceai
+                topologyKey: kubernetes.io/hostname
+
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: resilienceai-service
+  namespace: resilienceai
+  labels:
+    app: resilienceai
+    component: agent
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: resilienceai
+    component: agent
+
+---
+# Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: resilienceai-hpa
+  namespace: resilienceai
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: resilienceai-agent
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 15
+        - type: Pods
+          value: 4
+          periodSeconds: 15
+      selectPolicy: Max
+
+---
+# Ingress (for external access)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: resilienceai-ingress
+  namespace: resilienceai
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - resilienceai.hackathon.io
+      secretName: resilienceai-tls
+  rules:
+    - host: resilienceai.hackathon.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: resilienceai-service
+                port:
+                  number: 80
+
+---
+# Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: resilienceai-network-policy
+  namespace: resilienceai
+spec:
+  podSelector:
+    matchLabels:
+      app: resilienceai
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+
+---
+# Pod Disruption Budget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: resilienceai-pdb
+  namespace: resilienceai
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: resilienceai
+      component: agent
+
+---
+# Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: resilienceai-sa
+  namespace: resilienceai
+  labels:
+    app: resilienceai
+
+---
+# Role for ConfigMap/Secret access
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: resilienceai-role
+  namespace: resilienceai
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get", "list", "watch"]
+
+---
+# RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: resilienceai-rolebinding
+  namespace: resilienceai
+subjects:
+  - kind: ServiceAccount
+    name: resilienceai-sa
+    namespace: resilienceai
+roleRef:
+  kind: Role
+  name: resilienceai-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# CronJob for data refresh (optional)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: resilienceai-data-refresh
+  namespace: resilienceai
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: data-refresh
+              image: archia/resilienceai:latest
+              command: ["python", "-m", "src.data_refresh"]
+              envFrom:
+                - configMapRef:
+                    name: resilienceai-config
+              volumeMounts:
+                - name: data-volume
+                  mountPath: /data/processed
+                - name: models-volume
+                  mountPath: /data/models
+          volumes:
+            - name: data-volume
+              persistentVolumeClaim:
+                claimName: resilienceai-data-pvc
+            - name: models-volume
+              persistentVolumeClaim:
+                claimName: resilienceai-models-pvc
+          restartPolicy: OnFailure
+          serviceAccountName: resilienceai-sa
