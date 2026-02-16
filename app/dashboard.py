@@ -22,6 +22,12 @@ try:
 except ImportError:
     HAS_PYDECK = False
 
+try:
+    from src.visualization_3d import Visualization3D, get_visualization_help, HAS_PYDECK as VIZ_HAS_PYDECK, HAS_PLOTLY as VIZ_HAS_PLOTLY
+    HAS_ADVANCED_VIZ = True
+except ImportError:
+    HAS_ADVANCED_VIZ = False
+
 # ── Page Config ───────────────────────────────────────────────────────
 st.set_page_config(
     page_title="ResilienceAI - Disaster Vulnerability Assessment",
@@ -332,68 +338,136 @@ def main():
 
     # ── Tab: 3D Tower Map ──────────────────────────────────────────────
     with tab_3d:
-        st.subheader("3D Vulnerability Tower Map")
-        if HAS_PYDECK and "latitude" in df_filtered.columns:
-            map_df = df_filtered.dropna(subset=["latitude", "longitude", "risk_score"]).copy()
-            map_df = map_df[
-                (map_df["latitude"] > 24) & (map_df["latitude"] < 50) &
-                (map_df["longitude"] > -130) & (map_df["longitude"] < -65)
-            ]
-
-            if len(map_df) > 0:
-                # Color: green(low) -> yellow(med) -> red(high)
-                def risk_to_rgb(score):
-                    if score < 0.33:
-                        t = score / 0.33
-                        return [int(39 + (255-39)*t), int(174 + (235-174)*t), int(96 + (59-96)*t), 200]
-                    elif score < 0.67:
-                        t = (score - 0.33) / 0.34
-                        return [int(255 + (231-255)*t), int(235 + (76-235)*t), int(59 + (60-59)*t), 200]
+        st.subheader("🗼 3D Vulnerability Tower Map")
+        
+        if HAS_ADVANCED_VIZ and "latitude" in df_filtered.columns:
+            viz = Visualization3D(df_filtered)
+            
+            if len(viz.df) > 0:
+                # View selection
+                view_col1, view_col2, view_col3 = st.columns([2, 2, 2])
+                with view_col1:
+                    viz_mode = st.selectbox(
+                        "Visualization Mode",
+                        ["Enhanced Towers", "Hexagon Aggregation", "3D Scatter (Plotly)", "Risk Surface (Plotly)", "Multi-Dimensional"],
+                        key="viz_mode"
+                    )
+                with view_col2:
+                    if viz_mode in ["Enhanced Towers", "Hexagon Aggregation"]:
+                        show_heatmap = st.checkbox("Show Heatmap Overlay", value=False, key="show_heatmap")
                     else:
-                        return [231, 76, 60, 200]
-
-                map_df["color"] = map_df["risk_score"].apply(risk_to_rgb)
-                map_df["elevation"] = map_df["risk_score"] * 50000
-
-                col1, col2 = st.columns([3, 1])
-                with col2:
-                    pitch = st.slider("View Pitch", 0, 80, 45, key="pydeck_pitch")
-                    bearing = st.slider("Rotation", 0, 360, 0, key="pydeck_bearing")
-                    elev_scale = st.slider("Height Scale", 1, 10, 5, key="pydeck_elev")
-                    map_df["elevation"] = map_df["risk_score"] * 10000 * elev_scale
-
-                with col1:
-                    layer = pdk.Layer(
-                        "ColumnLayer",
-                        data=map_df,
-                        get_position=["longitude", "latitude"],
-                        get_elevation="elevation",
-                        elevation_scale=1,
-                        radius=8000,
-                        get_fill_color="color",
-                        pickable=True,
-                        auto_highlight=True,
+                        show_heatmap = False
+                with view_col3:
+                    if viz_mode == "Enhanced Towers":
+                        show_labels = st.checkbox("Show County Labels", value=True, key="show_labels")
+                    else:
+                        show_labels = False
+                
+                # Camera controls for PyDeck views
+                if viz_mode in ["Enhanced Towers", "Hexagon Aggregation"]:
+                    st.markdown("##### Camera Controls")
+                    cam_col1, cam_col2, cam_col3, cam_col4 = st.columns(4)
+                    with cam_col1:
+                        pitch = st.slider("Pitch", 0, 85, 50, key="tower_pitch")
+                    with cam_col2:
+                        bearing = st.slider("Rotation", 0, 360, 0, key="tower_bearing")
+                    with cam_col3:
+                        zoom = st.slider("Zoom", 1.0, 8.0, 3.5, key="tower_zoom")
+                    with cam_col4:
+                        height_scale = st.slider("Height Scale", 0.5, 3.0, 1.0, 0.1, key="tower_height")
+                else:
+                    pitch, bearing, zoom, height_scale = 50, 0, 3.5, 1.0
+                
+                st.markdown("---")
+                
+                # Render selected visualization
+                if viz_mode == "Enhanced Towers":
+                    # Enhanced tower map with multiple layers
+                    deck = viz.create_enhanced_tower_map(
+                        view_pitch=pitch,
+                        view_bearing=bearing,
+                        view_zoom=zoom,
+                        show_labels=show_labels,
+                        show_heatmap=show_heatmap
                     )
-                    view = pdk.ViewState(
-                        latitude=39.5, longitude=-98.35,
-                        zoom=3.5, pitch=pitch, bearing=bearing,
+                    if deck:
+                        # Update height scale based on slider
+                        viz.config.tower_height_multiplier = 50000 * height_scale
+                        deck = viz.create_enhanced_tower_map(
+                            view_pitch=pitch,
+                            view_bearing=bearing,
+                            view_zoom=zoom,
+                            show_labels=show_labels,
+                            show_heatmap=show_heatmap
+                        )
+                        st.pydeck_chart(deck, height=650)
+                    
+                    # Visual encoding explanation
+                    with st.expander("📊 Visual Encoding Guide", expanded=False):
+                        st.markdown("""
+                        **Tower Height**: Risk score (scaled by population for visibility)
+                        **Tower Color**: Smooth gradient from Green (low) → Yellow (medium) → Red (high) → Dark Red (extreme)
+                        **Tower Radius**: Population size (larger = more populous counties)
+                        **White Labels**: High-risk counties (score > 0.6)
+                        **Heatmap Overlay**: Optional density visualization of risk concentration
+                        """)
+                        
+                elif viz_mode == "Hexagon Aggregation":
+                    deck = viz.create_hexagon_map(
+                        view_pitch=pitch,
+                        view_zoom=zoom
                     )
-                    deck = pdk.Deck(
-                        layers=[layer],
-                        initial_view_state=view,
-                        tooltip={
-                            "html": "<b>{county_name}</b><br/>Risk: {risk_score}<br/>Pop: {total_population}",
-                            "style": {"backgroundColor": "#1A1F2E", "color": "#E0E0E0"},
-                        },
-                        map_style="mapbox://styles/mapbox/dark-v10",
-                    )
-                    st.pydeck_chart(deck, height=600)
-
-                st.markdown("*Tower height represents risk score. Green = Low, Yellow = Medium, Red = High risk.*")
+                    if deck:
+                        st.pydeck_chart(deck, height=650)
+                    
+                    with st.expander("📊 Hexagon Map Guide", expanded=False):
+                        st.markdown("""
+                        **Hexagon Elevation**: Average risk score in the region
+                        **Hexagon Color**: Risk level (Green→Yellow→Red)
+                        **Hexagon Size**: 50km radius aggregation areas
+                        **Use Case**: Identifying regional risk clusters and hotspots
+                        """)
+                        
+                elif viz_mode == "3D Scatter (Plotly)":
+                    fig = viz.create_plotly_3d_views().get("scatter_3d")
+                    if fig:
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.warning("Could not create 3D scatter plot.")
+                        
+                elif viz_mode == "Risk Surface (Plotly)":
+                    fig = viz.create_plotly_3d_views().get("surface")
+                    if fig:
+                        st.plotly_chart(fig, use_container_width=True)
+                        st.caption("Interpolated risk surface showing geographic risk landscape")
+                    else:
+                        st.warning("Could not create surface plot (requires scipy).")
+                        
+                elif viz_mode == "Multi-Dimensional":
+                    fig = viz.create_plotly_3d_views().get("comparison")
+                    if fig:
+                        st.plotly_chart(fig, use_container_width=True)
+                        st.caption("Comparing multiple risk dimensions in 3D space")
+                    else:
+                        st.warning("Could not create multi-dimensional plot.")
+                
+                # Legend and stats
+                st.markdown("---")
+                legend_col1, legend_col2, legend_col3, legend_col4 = st.columns(4)
+                with legend_col1:
+                    st.markdown("🟢 **Low Risk** (< 0.33)")
+                with legend_col2:
+                    st.markdown("🟡 **Medium Risk** (0.33 - 0.67)")
+                with legend_col3:
+                    st.markdown("🔴 **High Risk** (0.67 - 0.85)")
+                with legend_col4:
+                    st.markdown("🟥 **Extreme Risk** (> 0.85)")
+                    
             else:
                 st.warning("No counties with valid coordinates in current filter.")
-        elif not HAS_PYDECK:
-            st.info("Install `pydeck` for 3D visualization: `pip install pydeck`")
+                
+        elif not HAS_ADVANCED_VIZ:
+            st.info("Install required packages: `pip install pydeck plotly scipy`")
         else:
             st.warning("Geographic data not available.")
 
