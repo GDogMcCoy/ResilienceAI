@@ -44,6 +44,7 @@ Scenario simulation & network analysis:
 - **Equity Analysis**: Demographic disparity assessment across risk dimensions
 - **Benchmarking**: Compare counties to demographic peers with radar chart data
 - **Alert Thresholds**: Configurable risk thresholds with severity-based alerting
+- **Real-Time Alert System**: Subscribe counties to vulnerability monitoring with multi-channel notifications (webhook, email, SMS)
 - **Self-Improvement**: Meta-tool that evaluates response quality and proposes new capabilities
 
 When answering:
@@ -490,6 +491,136 @@ def get_mcp_tools():
                         "default": 20
                     }
                 }
+            }
+        },
+        # ── Real-Time Alert System Tools ─────────────────────────────────
+        {
+            "name": "subscribe_to_alerts",
+            "description": "Subscribe to real-time vulnerability alerts for a specific county. Receive notifications when risk thresholds are exceeded.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "county_fips": {
+                        "type": "string",
+                        "description": "5-digit county FIPS code to monitor"
+                    },
+                    "threshold": {
+                        "type": "number",
+                        "description": "Risk score threshold (0-1) that triggers alerts (default: 0.7)"
+                    },
+                    "alert_types": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Alert types to monitor: flood, storm, drought, wildfire (default: all)"
+                    },
+                    "webhook_url": {
+                        "type": "string",
+                        "description": "Optional webhook URL for push notifications"
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "Optional email address for notifications"
+                    },
+                    "phone": {
+                        "type": "string",
+                        "description": "Optional phone number for SMS notifications"
+                    }
+                },
+                "required": ["county_fips"]
+            }
+        },
+        {
+            "name": "unsubscribe_from_alerts",
+            "description": "Deactivate an alert subscription by ID.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "subscription_id": {
+                        "type": "string",
+                        "description": "Subscription ID to deactivate"
+                    }
+                },
+                "required": ["subscription_id"]
+            }
+        },
+        {
+            "name": "list_alert_subscriptions",
+            "description": "List all active alert subscriptions with optional filtering by county or state.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "county_fips": {
+                        "type": "string",
+                        "description": "Optional: Filter by county FIPS code"
+                    },
+                    "state": {
+                        "type": "string",
+                        "description": "Optional: Filter by state abbreviation"
+                    }
+                }
+            }
+        },
+        {
+            "name": "dispatch_alert",
+            "description": "Dispatch an alert to all subscribers in a county. Used for emergency notifications during active disasters.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "county_fips": {
+                        "type": "string",
+                        "description": "Target county FIPS code"
+                    },
+                    "alert_type": {
+                        "type": "string",
+                        "enum": ["flood", "storm", "drought", "wildfire", "tornado", "hurricane"],
+                        "description": "Type of disaster alert"
+                    },
+                    "severity": {
+                        "type": "string",
+                        "enum": ["low", "medium", "high", "critical"],
+                        "description": "Alert severity level"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Alert message content"
+                    },
+                    "affected_population": {
+                        "type": "integer",
+                        "description": "Optional: Estimated population affected"
+                    }
+                },
+                "required": ["county_fips", "alert_type", "severity", "message"]
+            }
+        },
+        {
+            "name": "get_active_alerts",
+            "description": "Get all active (unacknowledged) alerts with optional filtering by county or alert type.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "county_fips": {
+                        "type": "string",
+                        "description": "Optional: Filter by county FIPS code"
+                    },
+                    "alert_type": {
+                        "type": "string",
+                        "description": "Optional: Filter by alert type (flood, storm, etc.)"
+                    }
+                }
+            }
+        },
+        {
+            "name": "acknowledge_alert",
+            "description": "Mark an alert as acknowledged by its ID.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "alert_id": {
+                        "type": "string",
+                        "description": "Alert event ID to acknowledge"
+                    }
+                },
+                "required": ["alert_id"]
             }
         },
     ]
@@ -948,6 +1079,140 @@ class ResilienceAgent:
                 "neighborhood_radius_km": max_dist_km,
                 "max_results": max_results
             }
+        }
+
+    # ── Real-Time Alert System ─────────────────────────────────────────
+    def subscribe_to_alerts(self, county_fips: str, threshold: float = 0.7,
+                           alert_types: list = None, webhook_url: str = None,
+                           email: str = None, phone: str = None):
+        """
+        Subscribe to real-time alerts for a county.
+        
+        Args:
+            county_fips: 5-digit county FIPS code
+            threshold: Risk threshold (0-1) that triggers alerts
+            alert_types: List of alert types ['flood', 'storm', 'drought', 'wildfire']
+            webhook_url: Optional webhook URL for notifications
+            email: Optional email for notifications
+            phone: Optional phone for SMS notifications
+        """
+        from src.alert_manager import AlertManager
+        
+        # Get county info from dataframe
+        county_data = self.df[self.df['fips'] == county_fips]
+        if county_data.empty:
+            return {"error": f"County {county_fips} not found"}
+        
+        county_name = county_data.iloc[0]['county_name']
+        state = county_data.iloc[0]['state']
+        
+        manager = AlertManager()
+        subscription_id = manager.subscribe(
+            county_fips=county_fips,
+            county_name=county_name,
+            state=state,
+            threshold=threshold,
+            alert_types=alert_types or ['flood', 'storm', 'drought', 'wildfire'],
+            webhook_url=webhook_url,
+            email=email,
+            phone=phone
+        )
+        
+        return {
+            "subscription_id": subscription_id,
+            "county": f"{county_name}, {state}",
+            "threshold": threshold,
+            "alert_types": alert_types or ['flood', 'storm', 'drought', 'wildfire'],
+            "status": "active"
+        }
+
+    def unsubscribe_from_alerts(self, subscription_id: str):
+        """Deactivate an alert subscription."""
+        from src.alert_manager import AlertManager
+        manager = AlertManager()
+        success = manager.unsubscribe(subscription_id)
+        return {
+            "subscription_id": subscription_id,
+            "success": success,
+            "status": "unsubscribed" if success else "not_found"
+        }
+
+    def list_alert_subscriptions(self, county_fips: str = None, state: str = None):
+        """List all active alert subscriptions."""
+        from src.alert_manager import AlertManager
+        manager = AlertManager()
+        subs = manager.list_subscriptions(county_fips=county_fips, state=state)
+        return {
+            "subscriptions": [s.to_dict() for s in subs],
+            "count": len(subs)
+        }
+
+    def dispatch_alert(self, county_fips: str, alert_type: str, severity: str,
+                      message: str, affected_population: int = None):
+        """
+        Dispatch an alert to all subscribers in a county.
+        
+        Args:
+            county_fips: Target county FIPS code
+            alert_type: Type of alert (flood, storm, drought, wildfire)
+            severity: Severity level (low, medium, high, critical)
+            message: Alert message
+            affected_population: Optional population count affected
+        """
+        from src.alert_manager import AlertManager
+        manager = AlertManager()
+        
+        data = {
+            "affected_population": affected_population,
+            "timestamp": pd.Timestamp.now().isoformat()
+        }
+        
+        event_ids = manager.trigger_alert(
+            county_fips=county_fips,
+            alert_type=alert_type,
+            severity=severity,
+            message=message,
+            data=data
+        )
+        
+        # Get county info
+        county_data = self.df[self.df['fips'] == county_fips]
+        county_name = county_data.iloc[0]['county_name'] if not county_data.empty else "Unknown"
+        
+        return {
+            "alert_dispatched": True,
+            "county": county_name,
+            "county_fips": county_fips,
+            "alert_type": alert_type,
+            "severity": severity,
+            "message": message,
+            "subscribers_notified": len(event_ids),
+            "event_ids": event_ids
+        }
+
+    def get_active_alerts(self, county_fips: str = None, alert_type: str = None):
+        """Get all active (unacknowledged) alerts."""
+        from src.alert_manager import AlertManager
+        manager = AlertManager()
+        alerts = manager.get_active_alerts(county_fips=county_fips, alert_type=alert_type)
+        return {
+            "alerts": [a.to_dict() for a in alerts],
+            "count": len(alerts),
+            "filters": {
+                "county_fips": county_fips,
+                "alert_type": alert_type
+            }
+        }
+
+    def acknowledge_alert(self, alert_id: str):
+        """Mark an alert as acknowledged."""
+        from src.alert_manager import AlertManager
+        manager = AlertManager()
+        success = manager.acknowledge_alert(alert_id)
+        return {
+            "alert_id": alert_id,
+            "acknowledged": success,
+            "timestamp": pd.Timestamp.now().isoformat()
         }
 
     def self_improve(self, query, response_summary, confidence=None,
