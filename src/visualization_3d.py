@@ -1,6 +1,7 @@
 """
 ResilienceAI - Advanced 3D Data Visualization Module
 Enhanced 3D visualizations using PyDeck (Deck.gl) and Plotly
+Includes topological manifold surfaces for smooth risk landscapes
 """
 import numpy as np
 import pandas as pd
@@ -21,6 +22,13 @@ try:
 except ImportError:
     HAS_PLOTLY = False
 
+try:
+    from scipy.interpolate import griddata, Rbf, CloughTocher2DInterpolator
+    from scipy.ndimage import gaussian_filter
+    HAS_SCIPY = True
+except ImportError:
+    HAS_SCIPY = False
+
 
 @dataclass
 class VisualizationConfig:
@@ -30,9 +38,10 @@ class VisualizationConfig:
     tower_height_multiplier: float = 50000
     tower_opacity: float = 0.85
     
-    # Hexagon settings
-    hexagon_radius: int = 50000  # meters
-    hexagon_height_multiplier: float = 100
+    # Surface/Manifold settings
+    surface_resolution: int = 100  # Grid resolution for interpolation
+    surface_smoothness: float = 2.0  # Gaussian smoothing sigma
+    height_scale: float = 0.3  # Z-axis exaggeration (0-1)
     
     # Color schemes
     color_low: List[int] = None
@@ -101,7 +110,6 @@ def prepare_data_for_3d(df: pd.DataFrame) -> pd.DataFrame:
     )
     
     # Multi-dimensional elevation (composite score)
-    # Combine risk_score with other factors for tower height
     map_df["elevation"] = map_df["risk_score"] * config.tower_height_multiplier
     
     # Population-weighted elevation for extra visual encoding
@@ -147,6 +155,441 @@ def create_tooltip_text(row: pd.Series) -> str:
         lines.append(f"Nearest Hospital: {row['dist_nearest_hospitals_km']:.1f} km")
     
     return "<br/>".join(lines)
+
+
+def create_interpolated_surface(
+    df: pd.DataFrame,
+    value_column: str = "risk_score",
+    resolution: int = 100,
+    smoothing: float = 2.0,
+    method: str = "rbf"
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Create a smooth interpolated surface from scattered data points.
+    Returns x_grid, y_grid, z_surface for 3D plotting.
+    """
+    if not HAS_SCIPY or len(df) == 0:
+        return None, None, None
+    
+    # Extract coordinates and values
+    x = df["longitude"].values
+    y = df["latitude"].values
+    z = df[value_column].values
+    
+    # Create regular grid
+    xi = np.linspace(x.min(), x.max(), resolution)
+    yi = np.linspace(y.min(), y.max(), resolution)
+    xi, yi = np.meshgrid(xi, yi)
+    
+    # Interpolation method
+    if method == "rbf":
+        # Radial Basis Function interpolation - very smooth
+        try:
+            rbf = Rbf(x, y, z, function="multiquadric", smooth=0.1)
+            zi = rbf(xi, yi)
+        except:
+            # Fallback to griddata
+            zi = griddata((x, y), z, (xi, yi), method="cubic", fill_value=0)
+    elif method == "linear":
+        zi = griddata((x, y), z, (xi, yi), method="linear", fill_value=0)
+    else:
+        zi = griddata((x, y), z, (xi, yi), method="cubic", fill_value=0)
+    
+    # Apply Gaussian smoothing for even smoother surface
+    if smoothing > 0:
+        zi = gaussian_filter(zi, sigma=smoothing)
+    
+    # Clip to valid range
+    zi = np.clip(zi, 0, 1)
+    
+    return xi, yi, zi
+
+
+def create_topological_manifold(
+    df: pd.DataFrame,
+    height_scale: float = 0.3,
+    resolution: int = 100,
+    show_surface: bool = True,
+    show_wireframe: bool = False,
+    show_counties: bool = True,
+    colorscale: str = "RdYlGn_r"
+) -> Optional[Any]:
+    """
+    Create a 3D topological manifold surface representing risk as energy landscape.
+    Like SGD loss landscape with hills (high risk) and valleys (low risk).
+    """
+    if not HAS_PLOTLY or len(df) == 0:
+        return None
+    
+    # Create interpolated surface
+    xi, yi, zi = create_interpolated_surface(
+        df, 
+        value_column="risk_score",
+        resolution=resolution,
+        smoothing=2.0,
+        method="rbf"
+    )
+    
+    if xi is None:
+        return None
+    
+    fig = go.Figure()
+    
+    # Main surface - the topological manifold
+    if show_surface:
+        fig.add_trace(go.Surface(
+            x=xi,
+            y=yi,
+            z=zi * height_scale,  # Scale height for visual appeal
+            colorscale=colorscale,
+            cmin=0,
+            cmax=1,
+            showscale=True,
+            colorbar=dict(
+                title=dict(text="Risk Score", font=dict(color="#E0E0E0")),
+                tickfont=dict(color="#E0E0E0"),
+                x=0.95,
+                thickness=20,
+                len=0.8
+            ),
+            lighting=dict(
+                ambient=0.6,
+                diffuse=0.8,
+                roughness=0.4,
+                specular=0.5,
+                fresnel=0.2
+            ),
+            lightposition=dict(x=100, y=100, z=1000),
+            contours=dict(
+                z=dict(
+                    show=True,
+                    usecolormap=True,
+                    highlightcolor="#FFFFFF",
+                    project_z=True,
+                    size=0.05,
+                    start=0,
+                    end=height_scale
+                )
+            ),
+            hovertemplate="Lon: %{x:.2f}<br>Lat: %{y:.2f}<br>Risk: %{z:.3f}<extra></extra>",
+            name="Risk Landscape"
+        ))
+    
+    # Wireframe overlay for structure visibility
+    if show_wireframe:
+        fig.add_trace(go.Surface(
+            x=xi,
+            y=yi,
+            z=zi * height_scale,
+            colorscale=[[0, "rgba(255,255,255,0.1)"], [1, "rgba(255,255,255,0.1)"]],
+            showscale=False,
+            contours=dict(
+                x=dict(show=True, color="rgba(255,255,255,0.1)", width=1),
+                y=dict(show=True, color="rgba(255,255,255,0.1)", width=1),
+            ),
+            hoverinfo="skip",
+            name="Wireframe"
+        ))
+    
+    # County markers on top of surface
+    if show_counties:
+        # Sample for performance
+        sample_df = df.sample(min(500, len(df))) if len(df) > 500 else df.copy()
+        
+        # Calculate z-position for each county (on the surface)
+        county_z = []
+        for _, row in sample_df.iterrows():
+            # Find nearest grid point
+            lon_idx = np.argmin(np.abs(xi[0, :] - row["longitude"]))
+            lat_idx = np.argmin(np.abs(yi[:, 0] - row["latitude"]))
+            county_z.append(zi[lat_idx, lon_idx] * height_scale + 0.02)  # Slightly above surface
+        
+        fig.add_trace(go.Scatter3d(
+            x=sample_df["longitude"],
+            y=sample_df["latitude"],
+            z=county_z,
+            mode="markers",
+            marker=dict(
+                size=3,
+                color=sample_df["risk_score"],
+                colorscale=colorscale,
+                cmin=0,
+                cmax=1,
+                opacity=0.8,
+                line=dict(color="white", width=0.5)
+            ),
+            text=sample_df.apply(
+                lambda row: f"{row.get('county_name', 'Unknown')}<br>Risk: {row.get('risk_score', 0):.3f}",
+                axis=1
+            ),
+            hovertemplate="%{text}<extra></extra>",
+            name="Counties"
+        ))
+    
+    # Layout for dark theme
+    fig.update_layout(
+        title=dict(
+            text="<b>Risk Landscape Topology</b><br><sup>3D Energy Surface - Hills = High Risk, Valleys = Low Risk</sup>",
+            font=dict(color="#E0E0E0", size=18),
+            x=0.5
+        ),
+        scene=dict(
+            xaxis=dict(
+                title="Longitude",
+                backgroundcolor="#0E1117",
+                gridcolor="#1E293B",
+                color="#E0E0E0",
+                showbackground=True,
+                zerolinecolor="#4FC3F7"
+            ),
+            yaxis=dict(
+                title="Latitude",
+                backgroundcolor="#0E1117",
+                gridcolor="#1E293B",
+                color="#E0E0E0",
+                showbackground=True,
+                zerolinecolor="#4FC3F7"
+            ),
+            zaxis=dict(
+                title="Risk Score",
+                backgroundcolor="#0E1117",
+                gridcolor="#1E293B",
+                color="#E0E0E0",
+                showbackground=True,
+                zerolinecolor="#4FC3F7",
+                range=[0, height_scale * 1.2]
+            ),
+            bgcolor="#0E1117",
+            camera=dict(
+                eye=dict(x=1.5, y=1.5, z=0.8),
+                center=dict(x=0, y=0, z=0),
+                up=dict(x=0, y=0, z=1)
+            ),
+            aspectratio=dict(x=2, y=1.5, z=0.5),  # Flattened for better view
+        ),
+        paper_bgcolor="#0E1117",
+        plot_bgcolor="#0E1117",
+        font=dict(color="#E0E0E0", family="Inter, sans-serif"),
+        margin=dict(l=0, r=0, b=0, t=60),
+        height=700,
+        showlegend=False,
+        # Add rotation instructions
+        annotations=[
+            dict(
+                text="Click & Drag to Rotate | Scroll to Zoom | Right-click to Pan",
+                showarrow=False,
+                xref="paper",
+                yref="paper",
+                x=0.5,
+                y=-0.02,
+                font=dict(color="#90A4AE", size=11)
+            )
+        ]
+    )
+    
+    return fig
+
+
+def create_multi_layer_topology(
+    df: pd.DataFrame,
+    metrics: List[str] = None,
+    height_scale: float = 0.25
+) -> Optional[Any]:
+    """
+    Create multiple topological surfaces stacked or side-by-side
+    showing different risk dimensions.
+    """
+    if not HAS_PLOTLY or not HAS_SCIPY or len(df) == 0:
+        return None
+    
+    if metrics is None:
+        metrics = ["risk_score", "vulnerability_index", "isolation_index"]
+    
+    available_metrics = [m for m in metrics if m in df.columns]
+    if len(available_metrics) == 0:
+        return None
+    
+    # Create subplots for each metric
+    n_metrics = len(available_metrics)
+    fig = make_subplots(
+        rows=1,
+        cols=n_metrics,
+        specs=[[{"type": "surface"}] * n_metrics],
+        subplot_titles=[m.replace("_", " ").title() for m in available_metrics]
+    )
+    
+    colorscales = ["RdYlGn_r", "Plasma", "Viridis"]
+    
+    for i, metric in enumerate(available_metrics):
+        xi, yi, zi = create_interpolated_surface(
+            df,
+            value_column=metric,
+            resolution=80,
+            smoothing=2.0,
+            method="rbf"
+        )
+        
+        if xi is not None:
+            fig.add_trace(
+                go.Surface(
+                    x=xi,
+                    y=yi,
+                    z=zi * height_scale,
+                    colorscale=colorscales[i % len(colorscales)],
+                    cmin=0,
+                    cmax=1,
+                    showscale=(i == 0),  # Only show colorbar for first
+                    colorbar=dict(
+                        title=dict(text="Score", font=dict(color="#E0E0E0")),
+                        tickfont=dict(color="#E0E0E0"),
+                        x=1.02,
+                        thickness=15
+                    ) if i == 0 else None,
+                    lighting=dict(
+                        ambient=0.6,
+                        diffuse=0.8,
+                        roughness=0.4,
+                        specular=0.5
+                    ),
+                    contours=dict(
+                        z=dict(
+                            show=True,
+                            usecolormap=True,
+                            project_z=True,
+                            size=0.05
+                        )
+                    ),
+                    name=metric.replace("_", " ").title()
+                ),
+                row=1,
+                col=i + 1
+            )
+    
+    # Update all scenes
+    for i in range(1, n_metrics + 1):
+        fig.update_scenes(
+            dict(
+                xaxis=dict(
+                    backgroundcolor="#0E1117",
+                    gridcolor="#1E293B",
+                    color="#E0E0E0",
+                    showbackground=True
+                ),
+                yaxis=dict(
+                    backgroundcolor="#0E1117",
+                    gridcolor="#1E293B",
+                    color="#E0E0E0",
+                    showbackground=True
+                ),
+                zaxis=dict(
+                    backgroundcolor="#0E1117",
+                    gridcolor="#1E293B",
+                    color="#E0E0E0",
+                    showbackground=True,
+                    range=[0, height_scale * 1.2]
+                ),
+                bgcolor="#0E1117",
+                camera=dict(eye=dict(x=1.5, y=1.5, z=0.8)),
+                aspectratio=dict(x=2, y=1.5, z=0.5)
+            ),
+            row=1,
+            col=i
+        )
+    
+    fig.update_layout(
+        title=dict(
+            text="<b>Multi-Dimensional Risk Topology</b>",
+            font=dict(color="#E0E0E0", size=18),
+            x=0.5
+        ),
+        paper_bgcolor="#0E1117",
+        font=dict(color="#E0E0E0"),
+        height=600,
+        margin=dict(l=0, r=50, b=0, t=50)
+    )
+    
+    return fig
+
+
+def create_gradient_flow_field(
+    df: pd.DataField,
+    height_scale: float = 0.2
+) -> Optional[Any]:
+    """
+    Create a 3D visualization showing the gradient/flow of risk
+    like a vector field showing how risk flows across geography.
+    """
+    if not HAS_PLOTLY or not HAS_SCIPY or len(df) == 0:
+        return None
+    
+    # Create surface
+    xi, yi, zi = create_interpolated_surface(df, resolution=50, smoothing=1.5)
+    if xi is None:
+        return None
+    
+    # Calculate gradients
+    dy, dx = np.gradient(zi)
+    
+    # Subsample for vector field
+    step = 5
+    x_sample = xi[::step, ::step]
+    y_sample = yi[::step, ::step]
+    z_sample = zi[::step, ::step] * height_scale
+    dx_sample = dx[::step, ::step] * 0.5  # Scale arrows
+    dy_sample = dy[::step, ::step] * 0.5
+    dz_sample = np.zeros_like(dx_sample)
+    
+    fig = go.Figure()
+    
+    # Surface
+    fig.add_trace(go.Surface(
+        x=xi,
+        y=yi,
+        z=zi * height_scale,
+        colorscale="RdYlGn_r",
+        cmin=0,
+        cmax=1,
+        showscale=True,
+        opacity=0.7,
+        name="Risk Surface"
+    ))
+    
+    # Gradient vectors (arrows showing direction of steepest increase)
+    fig.add_trace(go.Cone(
+        x=x_sample.flatten(),
+        y=y_sample.flatten(),
+        z=z_sample.flatten(),
+        u=dx_sample.flatten(),
+        v=dy_sample.flatten(),
+        w=dz_sample.flatten(),
+        colorscale="Blues",
+        showscale=False,
+        sizemode="absolute",
+        sizeref=0.5,
+        opacity=0.6,
+        name="Risk Gradient"
+    ))
+    
+    fig.update_layout(
+        title=dict(
+            text="<b>Risk Gradient Flow Field</b><br><sup>Arrows show direction of steepest risk increase</sup>",
+            font=dict(color="#E0E0E0", size=16),
+            x=0.5
+        ),
+        scene=dict(
+            xaxis=dict(title="Longitude", backgroundcolor="#0E1117", gridcolor="#1E293B", color="#E0E0E0"),
+            yaxis=dict(title="Latitude", backgroundcolor="#0E1117", gridcolor="#1E293B", color="#E0E0E0"),
+            zaxis=dict(title="Risk Score", backgroundcolor="#0E1117", gridcolor="#1E293B", color="#E0E0E0"),
+            bgcolor="#0E1117",
+            camera=dict(eye=dict(x=1.5, y=1.5, z=1.0))
+        ),
+        paper_bgcolor="#0E1117",
+        font=dict(color="#E0E0E0"),
+        height=650,
+        margin=dict(l=0, r=0, b=0, t=60)
+    )
+    
+    return fig
 
 
 def create_enhanced_column_layer(df: pd.DataFrame, config: VisualizationConfig = None) -> Optional[Any]:
@@ -382,76 +825,15 @@ def create_plotly_3d_scatter(
     
     fig.update_layout(
         title=dict(
-            text="3D Risk Landscape (Longitude × Latitude × Risk Score)",
+            text="3D Risk Landscape (Longitude x Latitude x Risk Score)",
             font=dict(color="#E0E0E0", size=16)
         ),
         scene=dict(
             xaxis=dict(title="Longitude", backgroundcolor="#0E1117", gridcolor="#1E293B", color="#E0E0E0"),
             yaxis=dict(title="Latitude", backgroundcolor="#0E1117", gridcolor="#1E293B", color="#E0E0E0"),
-            zaxis=dict(title="Risk Score", backgroundcolor="##0E1117", gridcolor="#1E293B", color="#E0E0E0", range=[0, 1]),
+            zaxis=dict(title="Risk Score", backgroundcolor="#0E1117", gridcolor="#1E293B", color="#E0E0E0", range=[0, 1]),
             bgcolor="#0E1117",
             camera=dict(eye=dict(x=1.5, y=1.5, z=0.8))
-        ),
-        paper_bgcolor="#0E1117",
-        plot_bgcolor="#0E1117",
-        font=dict(color="#E0E0E0"),
-        margin=dict(l=0, r=0, b=0, t=40),
-        height=600
-    )
-    
-    return fig
-
-
-def create_plotly_3d_surface(df: pd.DataFrame) -> Optional[Any]:
-    """Create a 3D surface plot showing risk landscape."""
-    if not HAS_PLOTLY or len(df) == 0:
-        return None
-    
-    # Create grid for surface interpolation
-    from scipy.interpolate import griddata
-    
-    # Sample for performance
-    plot_df = df.sample(min(1000, len(df))) if len(df) > 1000 else df.copy()
-    
-    # Create grid
-    xi = np.linspace(plot_df["longitude"].min(), plot_df["longitude"].max(), 50)
-    yi = np.linspace(plot_df["latitude"].min(), plot_df["latitude"].max(), 50)
-    xi, yi = np.meshgrid(xi, yi)
-    
-    # Interpolate
-    zi = griddata(
-        (plot_df["longitude"], plot_df["latitude"]),
-        plot_df["risk_score"],
-        (xi, yi),
-        method="cubic",
-        fill_value=0
-    )
-    
-    fig = go.Figure(data=[go.Surface(
-        x=xi, y=yi, z=zi,
-        colorscale="RdYlGn_r",
-        cmin=0, cmax=1,
-        showscale=True,
-        colorbar=dict(title="Risk Score", x=0.95),
-        lighting=dict(
-            ambient=0.6,
-            diffuse=0.8,
-            roughness=0.4,
-            specular=0.5
-        )
-    )])
-    
-    fig.update_layout(
-        title=dict(
-            text="Risk Landscape Surface (Interpolated)",
-            font=dict(color="#E0E0E0", size=16)
-        ),
-        scene=dict(
-            xaxis=dict(title="Longitude", backgroundcolor="#0E1117", gridcolor="#1E293B", color="#E0E0E0"),
-            yaxis=dict(title="Latitude", backgroundcolor="#0E1117", gridcolor="#1E293B", color="#E0E0E0"),
-            zaxis=dict(title="Risk Score", backgroundcolor="#0E1117", gridcolor="#1E293B", color="#E0E0E0"),
-            bgcolor="#0E1117",
-            camera=dict(eye=dict(x=1.5, y=1.5, z=1.0))
         ),
         paper_bgcolor="#0E1117",
         plot_bgcolor="#0E1117",
@@ -482,7 +864,7 @@ def create_risk_comparison_3d(df: pd.DataFrame) -> Optional[Any]:
     fig = make_subplots(
         rows=1, cols=2,
         specs=[[{"type": "scatter3d"}, {"type": "scatter3d"}]],
-        subplot_titles=("Risk × Vulnerability × Isolation", "Risk × Population × Disasters")
+        subplot_titles=("Risk x Vulnerability x Isolation", "Risk x Population x Disasters")
     )
     
     # First 3D scatter
@@ -550,6 +932,36 @@ class Visualization3D:
     def __init__(self, df: pd.DataFrame):
         self.df = prepare_data_for_3d(df)
         self.config = VisualizationConfig()
+    
+    def create_topological_manifold_map(
+        self,
+        height_scale: float = 0.3,
+        show_surface: bool = True,
+        show_wireframe: bool = False,
+        show_counties: bool = True
+    ) -> Optional[Any]:
+        """Create the topological manifold surface visualization."""
+        if len(self.df) == 0:
+            return None
+        return create_topological_manifold(
+            self.df,
+            height_scale=height_scale,
+            show_surface=show_surface,
+            show_wireframe=show_wireframe,
+            show_counties=show_counties
+        )
+    
+    def create_multi_layer_topology(self, height_scale: float = 0.25) -> Optional[Any]:
+        """Create multi-layer topology comparing different metrics."""
+        if len(self.df) == 0:
+            return None
+        return create_multi_layer_topology(self.df, height_scale=height_scale)
+    
+    def create_gradient_flow_field(self, height_scale: float = 0.2) -> Optional[Any]:
+        """Create gradient flow field visualization."""
+        if len(self.df) == 0:
+            return None
+        return create_gradient_flow_field(self.df, height_scale=height_scale)
     
     def create_enhanced_tower_map(
         self,
@@ -624,8 +1036,10 @@ class Visualization3D:
         
         if HAS_PLOTLY and len(self.df) > 0:
             views["scatter_3d"] = create_plotly_3d_scatter(self.df)
-            views["surface"] = create_plotly_3d_surface(self.df)
             views["comparison"] = create_risk_comparison_3d(self.df)
+            views["manifold"] = self.create_topological_manifold_map()
+            views["multi_layer"] = self.create_multi_layer_topology()
+            views["gradient_flow"] = self.create_gradient_flow_field()
         
         return views
 
@@ -635,25 +1049,36 @@ def get_visualization_help() -> str:
     return """
     ## 3D Visualization Guide
     
-    ### PyDeck (Deck.gl) Views:
-    - **Enhanced Tower Map**: 3D columns with height = risk score, radius = population, color = risk gradient
-    - **Hexagon Map**: Aggregate view showing risk density across regions
-    - **Heatmap Layer**: Overlay showing concentration of high-risk areas
+    ### Topological Manifold (NEW!):
+    - **Risk Landscape Surface**: Smooth interpolated surface like SGD loss landscape
+    - **Energy Hills/Troughs**: High risk = hills (peaks), Low risk = valleys
+    - **Contour Lines**: Visual elevation guides
+    - **County Markers**: Actual county locations on the surface
+    - **Fully Interactive**: Click & drag to rotate, scroll to zoom
     
-    ### Plotly 3D Views:
-    - **3D Scatter**: Interactive scatter plot (Longitude × Latitude × Risk)
-    - **Surface Plot**: Interpolated risk landscape surface
-    - **Multi-Dimensional**: Compare different risk metrics in 3D space
+    ### Multi-Layer Topology:
+    - Compare Risk, Vulnerability, and Isolation as separate surfaces
+    - Side-by-side comparison with synchronized views
+    
+    ### Gradient Flow Field:
+    - Shows direction of steepest risk increase across geography
+    - Cone arrows pointing "uphill" in risk landscape
+    
+    ### Traditional Views:
+    - **Enhanced Towers**: Population-scaled columns with risk coloring
+    - **Hexagon Aggregation**: Regional risk density
+    - **Heatmap**: Concentration overlay
+    - **3D Scatter**: Interactive point cloud
     
     ### Visual Encodings:
-    - **Height**: Risk score (elevated for population weighting)
-    - **Color**: Smooth gradient from green (low) to red (high)
-    - **Radius**: Population size (larger = more populous)
-    - **Opacity**: Semi-transparent to show overlap
+    - **Height**: Risk score (scaled for visual appeal)
+    - **Color**: Smooth gradient Green -> Yellow -> Red -> Dark Red
+    - **Surface**: Continuous interpolation between counties
+    - **Contours**: Risk level boundaries
     
     ### Interactions:
-    - Click and drag to rotate
-    - Scroll to zoom
-    - Hover for detailed county information
-    - Pitch and bearing sliders for custom views
+    - Click & drag to rotate view
+    - Scroll to zoom in/out
+    - Right-click and drag to pan
+    - Hover for county details
     """
