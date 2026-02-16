@@ -272,7 +272,7 @@ st.markdown('<div class="main-header">🛡️ ResilienceAI</div>', unsafe_allow_
 st.markdown('<div class="sub-header">AI-Powered Disaster Vulnerability Assessment Platform</div>', unsafe_allow_html=True)
 
 # ── Tabs ─────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12, tab13, tab14 = st.tabs([
     "📊 Overview",
     "🗺️ Risk Map",
     "🏥 Infrastructure",
@@ -284,7 +284,9 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12 = st.t
     "💰 Interventions",
     "📤 Export",
     "📑 Briefings",
-    "🤖 Agent Query"  # Tab 12 - New Agent Query Tab
+    "🤖 Agent Query",  # Tab 12
+    "🚨 Alert Management",  # Tab 13 - NEW
+    "🌾 Agricultural Risk"  # Tab 14 - NEW
 ])
 
 # ── Tab 1: Overview ─────────────────────────────────────────────────
@@ -914,10 +916,270 @@ def process_archia_query(query: str, config: dict) -> dict:
             'error': f"Error processing query: {str(e)}"
         }
 
+# ── Tab 13: Alert Management ─────────────────────────────────────────
+with tab13:
+    st.header("🚨 Real-Time Alert Management")
+    st.markdown("Monitor and manage vulnerability alerts for counties.")
+    
+    if not AGENT_AVAILABLE:
+        st.warning("⚠️ Agent not available. Alert management requires the ResilienceAgent.")
+    else:
+        # Alert Management Interface
+        col1, col2 = st.columns([1, 2])
+        
+        with col1:
+            st.subheader("Create Alert Subscription")
+            
+            # County selection
+            if st.session_state.data_loaded:
+                county_options = st.session_state.df['county_name'].tolist()
+                selected_county = st.selectbox("Select County", county_options)
+                
+                # Get FIPS for selected county
+                county_data = st.session_state.df[st.session_state.df['county_name'] == selected_county]
+                if not county_data.empty:
+                    county_fips = county_data.iloc[0]['fips']
+                    county_state = county_data.iloc[0]['county_name'].split(', ')[-1]
+                    
+                    st.caption(f"FIPS: {county_fips} | State: {county_state}")
+                    
+                    # Alert threshold
+                    threshold = st.slider("Alert Threshold", 0.0, 1.0, 0.7, 0.05,
+                                        help="Risk score threshold that triggers alerts")
+                    
+                    # Alert types
+                    alert_types = st.multiselect(
+                        "Alert Types",
+                        ['flood', 'storm', 'drought', 'wildfire', 'tornado'],
+                        default=['flood', 'storm', 'drought', 'wildfire'],
+                        help="Types of disasters to monitor"
+                    )
+                    
+                    # Notification channels
+                    st.markdown("**Notification Channels**")
+                    webhook_url = st.text_input("Webhook URL (optional)", 
+                                               placeholder="https://hooks.slack.com/...")
+                    email = st.text_input("Email (optional)", 
+                                         placeholder="alerts@example.com")
+                    
+                    if st.button("🔔 Create Subscription", type="primary"):
+                        try:
+                            agent = st.session_state.local_agent
+                            result = agent.subscribe_to_alerts(
+                                county_fips=county_fips,
+                                threshold=threshold,
+                                alert_types=alert_types,
+                                webhook_url=webhook_url if webhook_url else None,
+                                email=email if email else None
+                            )
+                            
+                            if 'subscription_id' in result:
+                                st.success(f"✅ Subscription created: {result['subscription_id']}")
+                            else:
+                                st.error(f"❌ Failed: {result.get('error', 'Unknown error')}")
+                        except Exception as e:
+                            st.error(f"❌ Error: {str(e)}")
+            else:
+                st.warning("No county data loaded")
+        
+        with col2:
+            st.subheader("Active Alerts")
+            
+            try:
+                agent = st.session_state.local_agent
+                active_alerts = agent.get_active_alerts()
+                
+                if active_alerts.get('count', 0) > 0:
+                    st.metric("Active Alerts", active_alerts['count'])
+                    
+                    for alert in active_alerts.get('alerts', [])[:10]:
+                        with st.container():
+                            cols = st.columns([3, 1, 1])
+                            with cols[0]:
+                                st.markdown(f"**{alert.get('alert_type', 'Unknown').upper()}** - {alert.get('message', '')[:50]}...")
+                                st.caption(f"County: {alert.get('county_fips', 'Unknown')} | Triggered: {alert.get('triggered_at', 'Unknown')[:10]}")
+                            with cols[1]:
+                                severity = alert.get('severity', 'low')
+                                if severity == 'critical':
+                                    st.error("🔴 Critical")
+                                elif severity == 'high':
+                                    st.warning("🟠 High")
+                                elif severity == 'medium':
+                                    st.info("🟡 Medium")
+                                else:
+                                    st.success("🟢 Low")
+                            with cols[2]:
+                                if st.button("Ack", key=f"ack_{alert.get('id', '')}"):
+                                    agent.acknowledge_alert(alert.get('id'))
+                                    st.rerun()
+                            st.divider()
+                else:
+                    st.info("✅ No active alerts")
+                    
+            except Exception as e:
+                st.error(f"Error loading alerts: {str(e)}")
+
+# ── Tab 14: Agricultural Risk ────────────────────────────────────────
+with tab14:
+    st.header("🌾 Agricultural Vulnerability Assessment")
+    st.markdown("Analyze crop vulnerability, food security risk, and agricultural resilience.")
+    
+    if not AGENT_AVAILABLE:
+        st.warning("⚠️ Agent not available. Agricultural analysis requires the ResilienceAgent.")
+    else:
+        col1, col2 = st.columns([1, 2])
+        
+        with col1:
+            st.subheader("County Analysis")
+            
+            if st.session_state.data_loaded:
+                # State selection for agriculture
+                ag_states = ['IA', 'IL', 'IN', 'OH', 'MO', 'KS', 'NE', 'MN', 'WI', 'MI', 
+                            'TX', 'CA', 'FL', 'GA', 'NC', 'SC', 'TN', 'KY', 'AR', 'LA']
+                selected_state = st.selectbox("Select State", ag_states, index=4)  # MO default
+                
+                # Filter counties by state
+                state_counties = st.session_state.df[
+                    st.session_state.df['county_name'].str.contains(f", {selected_state}")
+                ]['county_name'].tolist()
+                
+                if state_counties:
+                    selected_county = st.selectbox("Select County", state_counties)
+                    
+                    county_data = st.session_state.df[st.session_state.df['county_name'] == selected_county]
+                    if not county_data.empty:
+                        county_fips = county_data.iloc[0]['fips']
+                        county_name_only = selected_county.split(',')[0]
+                        population = county_data.iloc[0].get('total_population', 0)
+                        
+                        st.caption(f"FIPS: {county_fips} | Population: {population:,}")
+                        
+                        analysis_type = st.radio(
+                            "Analysis Type",
+                            ["Crop Vulnerability", "Food Security Risk", "Crop Yields"]
+                        )
+                        
+                        if st.button("🔍 Analyze", type="primary"):
+                            try:
+                                agent = st.session_state.local_agent
+                                
+                                if analysis_type == "Crop Vulnerability":
+                                    with st.spinner("Calculating agricultural vulnerability..."):
+                                        result = agent.calculate_agricultural_vulnerability(
+                                            county_fips=county_fips,
+                                            county_name=county_name_only,
+                                            state=selected_state
+                                        )
+                                        st.session_state.ag_result = result
+                                        
+                                elif analysis_type == "Food Security Risk":
+                                    with st.spinner("Assessing food security..."):
+                                        result = agent.assess_food_security_risk(
+                                            county_fips=county_fips,
+                                            county_name=county_name_only,
+                                            state=selected_state,
+                                            population=population
+                                        )
+                                        st.session_state.ag_result = result
+                                        
+                                else:  # Crop Yields
+                                    with st.spinner("Fetching crop yield data..."):
+                                        result = agent.get_crop_yield(
+                                            state=selected_state,
+                                            county_name=county_name_only,
+                                            commodity='CORN'
+                                        )
+                                        st.session_state.ag_result = result
+                                        
+                            except Exception as e:
+                                st.error(f"❌ Error: {str(e)}")
+                else:
+                    st.warning(f"No counties found for {selected_state}")
+            else:
+                st.warning("No county data loaded")
+        
+        with col2:
+            st.subheader("Analysis Results")
+            
+            if 'ag_result' in st.session_state:
+                result = st.session_state.ag_result
+                
+                if 'vulnerability_score' in result:
+                    # Crop Vulnerability Results
+                    score = result['vulnerability_score']
+                    risk_level = result['risk_level']
+                    
+                    col_score, col_level = st.columns(2)
+                    with col_score:
+                        st.metric("Vulnerability Score", f"{score:.3f}")
+                    with col_level:
+                        if risk_level == 'High':
+                            st.error(f"Risk Level: {risk_level}")
+                        elif risk_level == 'Moderate':
+                            st.warning(f"Risk Level: {risk_level}")
+                        else:
+                            st.success(f"Risk Level: {risk_level}")
+                    
+                    st.markdown("**Crop Stability (Coefficient of Variation)**")
+                    stability = result.get('crop_stability', {})
+                    cols = st.columns(3)
+                    with cols[0]:
+                        st.metric("Corn", f"{stability.get('corn', 0):.3f}")
+                    with cols[1]:
+                        st.metric("Soybeans", f"{stability.get('soybeans', 0):.3f}")
+                    with cols[2]:
+                        st.metric("Wheat", f"{stability.get('wheat', 0):.3f}")
+                    
+                    st.caption("Higher values = more variable yields = more vulnerable")
+                    
+                elif 'food_security_risk' in result:
+                    # Food Security Results
+                    risk = result['food_security_risk']
+                    acres = result.get('agricultural_acres', 0)
+                    calories = result.get('calories_per_capita', 0)
+                    
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        if risk == 'High':
+                            st.error(f"Risk: {risk}")
+                        elif risk == 'Moderate':
+                            st.warning(f"Risk: {risk}")
+                        else:
+                            st.success(f"Risk: {risk}")
+                    with col2:
+                        st.metric("Ag Acres", f"{acres:,}")
+                    with col3:
+                        st.metric("Cal/Capita", f"{calories:,}")
+                    
+                    st.markdown(f"**Import Dependency:** {result.get('import_dependency', 'Unknown')}")
+                    
+                    if risk == 'High':
+                        st.error("⚠️ This county is highly dependent on food imports. Disruptions could cause food insecurity.")
+                        
+                elif 'yields' in result:
+                    # Crop Yield Results
+                    st.metric("Records Found", result.get('record_count', 0))
+                    
+                    yields_data = result.get('yields', [])
+                    if yields_data:
+                        df_yields = pd.DataFrame(yields_data)
+                        st.dataframe(df_yields[['county_name', 'year', 'commodity', 'yield_per_acre']], 
+                                    use_container_width=True)
+                        
+                        # Simple chart
+                        if len(df_yields) > 1:
+                            fig = px.line(df_yields, x='year', y='yield_per_acre', 
+                                         title=f"{result.get('commodity', 'Crop')} Yield Trend",
+                                         markers=True)
+                            st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("👈 Select a county and click 'Analyze' to see results")
+
 # ── Footer ───────────────────────────────────────────────────────────
 st.divider()
 st.caption("""
 🛡️ **ResilienceAI** - Developed for the Archia Hackathon | 
 Powered by AI-driven vulnerability assessment | 
-Data sources: FEMA, HRSA, CDC, Census Bureau
+Data sources: FEMA, HRSA, CDC, Census Bureau, USDA NASS, NOAA
+""")
 """)
