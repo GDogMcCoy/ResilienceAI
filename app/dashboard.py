@@ -197,6 +197,40 @@ if AGENT_AVAILABLE and st.session_state.local_agent is None:
     except Exception as e:
         st.warning(f"Could not initialize local agent: {e}")
 
+# ── Visual Status Widget (Always Visible) ────────────────────────────
+def render_status_widget():
+    """Render a compact status widget"""
+    # Create columns for status indicators
+    cols = st.columns(6)
+    
+    with cols[0]:
+        if st.session_state.data_loaded:
+            st.success("🗄️ Data")
+        else:
+            st.error("🗄️ Data")
+    
+    with cols[1]:
+        if st.session_state.local_agent:
+            st.success("🤖 Agent")
+        else:
+            st.error("🤖 Agent")
+    
+    with cols[2]:
+        st.success("🌦️ Weather")
+    
+    with cols[3]:
+        st.success("🌾 Agriculture")
+    
+    with cols[4]:
+        st.success("🚨 Alerts")
+    
+    with cols[5]:
+        st.info(f"⏱️ {datetime.now().strftime('%H:%M')}")
+
+# Render status widget at top
+render_status_widget()
+st.divider()
+
 # ── Sidebar Configuration ────────────────────────────────────────────
 with st.sidebar:
     st.image("https://img.icons8.com/color/96/shield.png", width=64)
@@ -272,7 +306,7 @@ st.markdown('<div class="main-header">🛡️ ResilienceAI</div>', unsafe_allow_
 st.markdown('<div class="sub-header">AI-Powered Disaster Vulnerability Assessment Platform</div>', unsafe_allow_html=True)
 
 # ── Tabs ─────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12, tab13, tab14 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12, tab13, tab14, tab15 = st.tabs([
     "📊 Overview",
     "🗺️ Risk Map",
     "🏥 Infrastructure",
@@ -284,9 +318,10 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12, tab13
     "💰 Interventions",
     "📤 Export",
     "📑 Briefings",
-    "🤖 Agent Query",  # Tab 12
-    "🚨 Alert Management",  # Tab 13 - NEW
-    "🌾 Agricultural Risk"  # Tab 14 - NEW
+    "🤖 Agent Query",
+    "🚨 Alert Management",
+    "🌾 Agricultural Risk",
+    "📈 Activity Monitor"  # Tab 15 - NEW
 ])
 
 # ── Tab 1: Overview ─────────────────────────────────────────────────
@@ -1174,6 +1209,15 @@ with tab14:
                             st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("👈 Select a county and click 'Analyze' to see results")
+
+# ── Tab 15: Activity Monitor ─────────────────────────────────────────
+with tab15:
+    try:
+        from src.dashboard_monitor import render_activity_dashboard
+        render_activity_dashboard()
+    except Exception as e:
+        st.error(f"Could not load activity monitor: {str(e)}")
+        st.info("The activity monitor tracks dashboard usage in real-time")
 
 # ── Footer ───────────────────────────────────────────────────────────
 st.divider()
