@@ -360,6 +360,12 @@ with tab3:
     if df is not None and CLIMATE_AVAILABLE:
         # County selector — by name or ZIP code
         selected_fips = county_picker(df, key_prefix="climate", label="Find County")
+        # Derive county name from FIPS for chart titles
+        selected_county = "Unknown County"
+        if selected_fips and df is not None:
+            match = df[df["fips"] == selected_fips]
+            if not match.empty:
+                selected_county = match.iloc[0].get("county_name", selected_fips)
         if selected_fips is None:
             st.info("Enter a ZIP code or select a county to view climate data.")
 
@@ -570,9 +576,21 @@ with tab3:
 
             try:
                 from src.gee_client import GEEClient, GEE_CACHE_DIR
+                from urllib.request import urlopen
 
                 sat_year = st.number_input("Satellite Data Year", 2020, 2025, 2024, key="sat_year")
                 state_fips = "29"  # Missouri
+
+                # Load county GeoJSON (cached in session state)
+                if "counties_geojson" not in st.session_state:
+                    with urlopen("https://raw.githubusercontent.com/plotly/datasets/master/geojson-counties-fips.json") as resp:
+                        all_counties_geo = json.load(resp)
+                    # Filter to Missouri counties only for faster rendering
+                    mo_features = [f for f in all_counties_geo["features"]
+                                   if f["properties"].get("STATE", f.get("id", "")[:2]) == state_fips
+                                   or f.get("id", "")[:2] == state_fips]
+                    st.session_state.counties_geojson = {"type": "FeatureCollection", "features": mo_features}
+                counties_geo = st.session_state.counties_geojson
 
                 # Check cache status
                 cache_status = GEEClient.get_cache_status(state_fips, sat_year)
@@ -583,7 +601,6 @@ with tab3:
                         f"No satellite data cached for state {state_fips}, year {sat_year}. "
                         f"Run: `python src/pipeline/gee_fetch.py --state {state_fips} --year {sat_year}`"
                     )
-                    # Show cache status table
                     status_rows = []
                     for key, info in cache_status.items():
                         status_rows.append({
@@ -593,66 +610,114 @@ with tab3:
                         })
                     st.dataframe(pd.DataFrame(status_rows), use_container_width=True)
                 else:
-                    # Show freshness
                     st.success(f"{cached_count}/6 indicators cached for state {state_fips}, year {sat_year}")
-
                     cached_data = GEEClient.load_all_cached(state_fips, sat_year)
 
+                    # Helper to build county choropleth map
+                    def make_county_map(data_df, value_col, title, color_scale, labels, range_color=None):
+                        fig = px.choropleth(
+                            data_df, geojson=counties_geo, locations="fips",
+                            color=value_col, color_continuous_scale=color_scale,
+                            scope="usa", hover_name="county_name",
+                            hover_data={value_col: ":.2f", "fips": True},
+                            labels=labels, title=title,
+                            range_color=range_color,
+                        )
+                        fig.update_geos(
+                            fitbounds="locations", visible=False,
+                            bgcolor="rgba(0,0,0,0)",
+                        )
+                        fig.update_layout(
+                            **PLOTLY_LAYOUT, height=500,
+                            margin=dict(l=0, r=0, t=40, b=0),
+                            geo=dict(bgcolor="rgba(0,0,0,0)"),
+                        )
+                        return fig
+
+                    # 2x2 map grid
+                    map_col1, map_col2 = st.columns(2)
+
                     # LST choropleth
-                    if "lst" in cached_data:
-                        lst_df = cached_data["lst"]
-                        if not lst_df.empty and "lst_fahrenheit" in lst_df.columns:
-                            fig_lst = px.bar(
-                                lst_df.sort_values("lst_fahrenheit", ascending=False).head(20),
-                                x="county_name", y="lst_fahrenheit",
-                                title=f"Land Surface Temperature — Top 20 Hottest Counties ({sat_year})",
-                                labels={"lst_fahrenheit": "LST (°F)", "county_name": "County"},
-                                color="lst_fahrenheit", color_continuous_scale="YlOrRd",
-                            )
-                            fig_lst.update_layout(**PLOTLY_LAYOUT, xaxis_tickangle=-45)
-                            st.plotly_chart(fig_lst, use_container_width=True)
+                    with map_col1:
+                        if "lst" in cached_data:
+                            lst_df = cached_data["lst"].dropna(subset=["lst_fahrenheit"])
+                            if not lst_df.empty:
+                                fig = make_county_map(
+                                    lst_df, "lst_fahrenheit",
+                                    f"Land Surface Temperature ({sat_year})",
+                                    "YlOrRd",
+                                    {"lst_fahrenheit": "LST (°F)"},
+                                )
+                                st.plotly_chart(fig, use_container_width=True)
+                                # Summary metrics
+                                mc1, mc2, mc3 = st.columns(3)
+                                mc1.metric("Hottest", f"{lst_df['lst_fahrenheit'].max():.1f}°F",
+                                           lst_df.loc[lst_df['lst_fahrenheit'].idxmax(), 'county_name'])
+                                mc2.metric("Coolest", f"{lst_df['lst_fahrenheit'].min():.1f}°F",
+                                           lst_df.loc[lst_df['lst_fahrenheit'].idxmin(), 'county_name'])
+                                mc3.metric("State Avg", f"{lst_df['lst_fahrenheit'].mean():.1f}°F")
 
-                    # NDVI vegetation health
-                    if "ndvi" in cached_data:
-                        ndvi_df = cached_data["ndvi"]
-                        if not ndvi_df.empty and "ndvi" in ndvi_df.columns:
-                            fig_ndvi = px.bar(
-                                ndvi_df.sort_values("ndvi").head(20),
-                                x="county_name", y="ndvi",
-                                title=f"Vegetation Health (NDVI) — 20 Most Stressed Counties ({sat_year})",
-                                labels={"ndvi": "NDVI (0-1)", "county_name": "County"},
-                                color="ndvi", color_continuous_scale="RdYlGn",
-                            )
-                            fig_ndvi.update_layout(**PLOTLY_LAYOUT, xaxis_tickangle=-45)
-                            st.plotly_chart(fig_ndvi, use_container_width=True)
+                    # NDVI choropleth
+                    with map_col2:
+                        if "ndvi" in cached_data:
+                            ndvi_df = cached_data["ndvi"].dropna(subset=["ndvi"])
+                            if not ndvi_df.empty:
+                                fig = make_county_map(
+                                    ndvi_df, "ndvi",
+                                    f"Vegetation Health / NDVI ({sat_year})",
+                                    "RdYlGn",
+                                    {"ndvi": "NDVI"},
+                                    range_color=[0.3, 1.0],
+                                )
+                                st.plotly_chart(fig, use_container_width=True)
+                                mc1, mc2, mc3 = st.columns(3)
+                                mc1.metric("Healthiest", f"{ndvi_df['ndvi'].max():.3f}",
+                                           ndvi_df.loc[ndvi_df['ndvi'].idxmax(), 'county_name'])
+                                mc2.metric("Most Stressed", f"{ndvi_df['ndvi'].min():.3f}",
+                                           ndvi_df.loc[ndvi_df['ndvi'].idxmin(), 'county_name'])
+                                mc3.metric("State Avg", f"{ndvi_df['ndvi'].mean():.3f}")
 
-                    # PDSI drought
-                    if "pdsi" in cached_data:
-                        pdsi_df = cached_data["pdsi"]
-                        if not pdsi_df.empty and "pdsi" in pdsi_df.columns:
-                            fig_pdsi = px.bar(
-                                pdsi_df.sort_values("pdsi").head(20),
-                                x="county_name", y="pdsi",
-                                title=f"Palmer Drought Severity Index — 20 Driest Counties ({sat_year})",
-                                labels={"pdsi": "PDSI", "county_name": "County"},
-                                color="pdsi", color_continuous_scale="BrBG",
-                            )
-                            fig_pdsi.update_layout(**PLOTLY_LAYOUT, xaxis_tickangle=-45)
-                            st.plotly_chart(fig_pdsi, use_container_width=True)
+                    map_col3, map_col4 = st.columns(2)
 
-                    # Nighttime lights
-                    if "nightlights" in cached_data:
-                        nl_df = cached_data["nightlights"]
-                        if not nl_df.empty and "avg_radiance" in nl_df.columns:
-                            fig_nl = px.bar(
-                                nl_df.sort_values("avg_radiance", ascending=False).head(20),
-                                x="county_name", y="avg_radiance",
-                                title=f"Nighttime Lights (Infrastructure Proxy) — Top 20 ({sat_year})",
-                                labels={"avg_radiance": "Radiance (nW/cm²/sr)", "county_name": "County"},
-                                color="avg_radiance", color_continuous_scale="Viridis",
-                            )
-                            fig_nl.update_layout(**PLOTLY_LAYOUT, xaxis_tickangle=-45)
-                            st.plotly_chart(fig_nl, use_container_width=True)
+                    # PDSI drought choropleth
+                    with map_col3:
+                        if "pdsi" in cached_data:
+                            pdsi_df = cached_data["pdsi"].dropna(subset=["pdsi"])
+                            if not pdsi_df.empty:
+                                fig = make_county_map(
+                                    pdsi_df, "pdsi",
+                                    f"Drought Severity / PDSI ({sat_year})",
+                                    "BrBG",
+                                    {"pdsi": "PDSI"},
+                                    range_color=[-6, 6],
+                                )
+                                st.plotly_chart(fig, use_container_width=True)
+                                mc1, mc2, mc3 = st.columns(3)
+                                mc1.metric("Driest", f"{pdsi_df['pdsi'].min():.1f}",
+                                           pdsi_df.loc[pdsi_df['pdsi'].idxmin(), 'county_name'])
+                                mc2.metric("Wettest", f"{pdsi_df['pdsi'].max():.1f}",
+                                           pdsi_df.loc[pdsi_df['pdsi'].idxmax(), 'county_name'])
+                                drought_pct = (pdsi_df['pdsi'] < -2).mean() * 100
+                                mc3.metric("Counties in Drought", f"{drought_pct:.0f}%")
+
+                    # Nighttime lights choropleth
+                    with map_col4:
+                        if "nightlights" in cached_data:
+                            nl_df = cached_data["nightlights"].dropna(subset=["avg_radiance"])
+                            if not nl_df.empty:
+                                fig = make_county_map(
+                                    nl_df, "avg_radiance",
+                                    f"Nighttime Lights ({sat_year})",
+                                    "Viridis",
+                                    {"avg_radiance": "Radiance (nW/cm²/sr)"},
+                                )
+                                st.plotly_chart(fig, use_container_width=True)
+                                mc1, mc2, mc3 = st.columns(3)
+                                mc1.metric("Brightest", f"{nl_df['avg_radiance'].max():.1f}",
+                                           nl_df.loc[nl_df['avg_radiance'].idxmax(), 'county_name'])
+                                mc2.metric("Darkest", f"{nl_df['avg_radiance'].min():.2f}",
+                                           nl_df.loc[nl_df['avg_radiance'].idxmin(), 'county_name'])
+                                mc3.metric("State Avg", f"{nl_df['avg_radiance'].mean():.1f}")
 
                     # Cache freshness details
                     with st.expander("Cache Details"):
@@ -698,16 +763,91 @@ with tab4:
             with st.spinner("Routing to specialist agent..."):
                 # Route query
                 routing = st.session_state.orchestrator.execute_query(query_text)
-                st.session_state.agent_history.append({
-                    "query": query_text, "routing": routing, "time": datetime.now().isoformat()
-                })
 
                 st.success(f"Routed to: **{routing['agent_name']}**")
                 st.caption(f"Available tools: {', '.join(routing['available_tools'][:8])}...")
 
-                # Try to auto-execute if we can determine the tool
-                with col_info:
+                # Auto-execute: extract FIPS from query and run the best-match tool
+                import re
+                query_lower = query_text.lower()
+
+                # Try to extract FIPS code from query
+                fips_match = re.search(r'\b(\d{5})\b', query_text)
+                extracted_fips = fips_match.group(1) if fips_match else None
+
+                # Try to match county name from loaded data
+                if not extracted_fips and df is not None:
+                    for _, row in df.iterrows():
+                        cname = str(row.get("county_name", "")).lower()
+                        short_name = cname.split(",")[0].strip()
+                        if short_name and len(short_name) > 2 and short_name in query_lower:
+                            extracted_fips = str(row["fips"])
+                            break
+
+                if extracted_fips:
+                    # Determine best tool based on query keywords
+                    tool_name = None
+                    tool_params = {"fips": extracted_fips}
+                    routed = routing.get("routed_to", "")
+
+                    if routed == "climate":
+                        if any(kw in query_lower for kw in ["satellite", "lst", "ndvi", "heat vuln", "surface temp"]):
+                            tool_name = "get_satellite_indicators"
+                            tool_params["year"] = 2024
+                        elif any(kw in query_lower for kw in ["vegetation", "ndvi", "crop", "plant"]):
+                            tool_name = "get_vegetation_stress"
+                            tool_params["year"] = 2024
+                        elif any(kw in query_lower for kw in ["heat", "temperature", "hot", "warming"]):
+                            tool_name = "get_heat_vulnerability"
+                            tool_params["year"] = 2024
+                        elif any(kw in query_lower for kw in ["drought"]):
+                            tool_name = "get_drought_history"
+                        elif any(kw in query_lower for kw in ["hazard", "nri", "risk profile"]):
+                            tool_name = "get_hazard_risk_profile"
+                        elif any(kw in query_lower for kw in ["flood"]):
+                            tool_name = "get_flood_frequency"
+                        elif any(kw in query_lower for kw in ["severe weather", "tornado", "hail", "wind"]):
+                            tool_name = "get_severe_weather_history"
+                        else:
+                            tool_name = "get_climate_trends"
+                    elif routed == "vulnerability":
+                        tool_name = "get_county_detail"
+                        tool_params = {"fips": extracted_fips}
+                    elif routed == "realtime":
+                        tool_name = "get_active_alerts"
+                        tool_params = {"state": "MO"}
+                    elif routed == "planning":
+                        if any(kw in query_lower for kw in ["intervention", "roi"]):
+                            tool_name = "calculate_intervention_roi"
+                            tool_params = {"fips": extracted_fips, "intervention_type": "add_hospital"}
+                        elif any(kw in query_lower for kw in ["forecast", "predict", "trajectory"]):
+                            tool_name = "forecast_risk_trajectory"
+                            tool_params = {"fips": extracted_fips}
+                        else:
+                            tool_name = "generate_executive_briefing"
+                            tool_params = {"fips": extracted_fips}
+
+                    if tool_name:
+                        with st.spinner(f"Executing **{tool_name}**({extracted_fips})..."):
+                            try:
+                                result = st.session_state.orchestrator.execute_tool(tool_name, tool_params)
+                                st.session_state.agent_history.append({
+                                    "query": query_text, "routing": routing,
+                                    "tool": tool_name, "result": result,
+                                    "time": datetime.now().isoformat()
+                                })
+                                st.json(result)
+                            except Exception as e:
+                                st.error(f"Tool execution error: {e}")
+                    else:
+                        st.info(routing["message"])
+                else:
+                    st.warning("Could not extract a county FIPS or name from query. "
+                               "Try including a 5-digit FIPS code or county name (e.g., 'Boone County').")
                     st.info(routing["message"])
+                    st.session_state.agent_history.append({
+                        "query": query_text, "routing": routing, "time": datetime.now().isoformat()
+                    })
 
         # Direct tool execution
         st.divider()
