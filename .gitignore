@@ -29,3 +29,11 @@ outputs/reports/
 !.gemini/settings.json
 gha-creds-*.json
 *.skill
+
+# Research files (keep for hackathon context)
+!research/
+
+# Logs and local databases
+data/*.log
+data/*.db
+data/improvement_log.json
