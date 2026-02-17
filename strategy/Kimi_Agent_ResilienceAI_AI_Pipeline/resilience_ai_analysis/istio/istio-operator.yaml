@@ -1,0 +1,189 @@
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: resilience-ai-istio
+spec:
+  profile: default
+  hub: docker.io/istio
+  tag: 1.20.0
+  
+  # Global mesh configuration
+  meshConfig:
+    defaultConfig:
+      proxyMetadata:
+        ISTIO_META_DNS_CAPTURE: "true"
+      tracing:
+        sampling: 100.0
+        customTags:
+          environment:
+            literal:
+              value: "production"
+      proxyStatsMatcher:
+        inclusionRegexps:
+          - ".*outlier_detection.*"
+          - ".*circuit_breakers.*"
+    enableAutoMtls: true
+    enableTracing: true
+    accessLogFile: /dev/stdout
+    accessLogEncoding: JSON
+    accessLogFormat: |
+      {
+        "timestamp": "%START_TIME%",
+        "source": "%UPSTREAM_HOST%",
+        "destination": "%DOWNSTREAM_REMOTE_ADDRESS%",
+        "method": "%REQ(:METHOD)%",
+        "path": "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%",
+        "protocol": "%PROTOCOL%",
+        "response_code": "%RESPONSE_CODE%",
+        "response_flags": "%RESPONSE_FLAGS%",
+        "bytes_received": "%BYTES_RECEIVED%",
+        "bytes_sent": "%BYTES_SENT%",
+        "duration": "%DURATION%",
+        "upstream_service_time": "%RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)%",
+        "x_forwarded_for": "%REQ(X-FORWARDED-FOR)%",
+        "user_agent": "%REQ(USER-AGENT)%",
+        "request_id": "%REQ(X-REQUEST-ID)%",
+        "authority": "%REQ(:AUTHORITY)%",
+        "upstream_host": "%UPSTREAM_HOST%",
+        "upstream_cluster": "%UPSTREAM_CLUSTER%",
+        "upstream_local_address": "%UPSTREAM_LOCAL_ADDRESS%",
+        "downstream_local_address": "%DOWNSTREAM_LOCAL_ADDRESS%",
+        "downstream_remote_address": "%DOWNSTREAM_REMOTE_ADDRESS%",
+        "requested_server_name": "%REQUESTED_SERVER_NAME%",
+        "istio_policy_status": "%DYNAMIC_METADATA(istio.mixer:status)%"
+      }
+    
+    # Enable telemetry
+    defaultProviders:
+      metrics:
+      - prometheus
+      tracing:
+      - zipkin
+  
+  # Component configuration
+  components:
+    pilot:
+      k8s:
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        hpaSpec:
+          minReplicas: 2
+          maxReplicas: 5
+          metrics:
+          - type: Resource
+            resource:
+              name: cpu
+              targetAverageUtilization: 80
+        podDisruptionBudget:
+          minAvailable: 1
+        
+    ingressGateways:
+    - name: istio-ingressgateway
+      enabled: true
+      k8s:
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 1000m
+            memory: 512Mi
+        hpaSpec:
+          minReplicas: 2
+          maxReplicas: 10
+          metrics:
+          - type: Resource
+            resource:
+              name: cpu
+              targetAverageUtilization: 70
+        service:
+          type: LoadBalancer
+          ports:
+          - name: status-port
+            port: 15021
+            targetPort: 15021
+          - name: http2
+            port: 80
+            targetPort: 8080
+          - name: https
+            port: 443
+            targetPort: 8443
+          - name: grpc
+            port: 50051
+            targetPort: 50051
+          - name: tls
+            port: 15443
+            targetPort: 15443
+        overlays:
+        - apiVersion: apps/v1
+          kind: Deployment
+          name: istio-ingressgateway
+          patches:
+          - path: spec.template.spec.containers.[name:istio-proxy].securityContext.capabilities.add
+            value: ["NET_ADMIN"]
+            
+    egressGateways:
+    - name: istio-egressgateway
+      enabled: true
+      k8s:
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        hpaSpec:
+          minReplicas: 1
+          maxReplicas: 5
+          
+  # Addon components
+  addonComponents:
+    grafana:
+      enabled: true
+    prometheus:
+      enabled: true
+    tracing:
+      enabled: true
+    kiali:
+      enabled: true
+      
+  # Values configuration
+  values:
+    global:
+      proxy:
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+      
+    pilot:
+      env:
+        PILOT_ENABLE_CROSS_CLUSTER_WORKLOAD_ENTRY: "true"
+        PILOT_ENABLE_K8S_SELECT_WORKLOAD_ENTRIES: "true"
+        PILOT_ENABLE_ANALYSIS: "true"
+        
+    grafana:
+      enabled: true
+      persist: true
+      storageClassName: standard
+      accessMode: ReadWriteOnce
+      
+    prometheus:
+      enabled: true
+      retention: 30d
+      
+    kiali:
+      enabled: true
+      dashboard:
+        auth:
+          strategy: anonymous
+        viewOnlyMode: false

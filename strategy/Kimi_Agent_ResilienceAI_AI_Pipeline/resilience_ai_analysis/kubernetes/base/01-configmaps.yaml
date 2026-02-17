@@ -1,0 +1,178 @@
+# ============================================================================
+# ResilienceAI - ConfigMaps
+# ============================================================================
+# Purpose: Non-sensitive configuration data for all services
+# ============================================================================
+
+---
+# Main Application ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: resilience-ai-config
+  namespace: resilience-ai
+  labels:
+    app: resilience-ai
+    component: config
+data:
+  # Application Settings
+  APP_NAME: "ResilienceAI"
+  APP_VERSION: "2.0.0"
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "INFO"
+  
+  # Server Configuration
+  SERVER_HOST: "0.0.0.0"
+  SERVER_PORT: "8501"
+  WORKERS: "4"
+  
+  # Feature Flags
+  ENABLE_ANALYTICS: "true"
+  ENABLE_CACHING: "true"
+  ENABLE_RATE_LIMITING: "true"
+  ENABLE_AUDIT_LOGGING: "true"
+  
+  # Assessment Configuration
+  MAX_ASSESSMENT_QUESTIONS: "50"
+  ASSESSMENT_TIMEOUT_MINUTES: "60"
+  RESULT_RETENTION_DAYS: "365"
+  
+  # AI/ML Settings
+  AI_MODEL_PATH: "/models"
+  AI_INFERENCE_BATCH_SIZE: "32"
+  AI_CONFIDENCE_THRESHOLD: "0.75"
+  ENABLE_MODEL_WARMUP: "true"
+  
+  # Database Connection Pool
+  DB_POOL_SIZE: "20"
+  DB_MAX_OVERFLOW: "10"
+  DB_POOL_TIMEOUT: "30"
+  DB_POOL_RECYCLE: "3600"
+  
+  # Cache Configuration
+  CACHE_TTL_SECONDS: "300"
+  CACHE_MAX_SIZE: "10000"
+  
+  # Security Settings
+  SESSION_TIMEOUT_MINUTES: "30"
+  MAX_LOGIN_ATTEMPTS: "5"
+  PASSWORD_MIN_LENGTH: "12"
+  
+  # External Service URLs
+  EXTERNAL_API_TIMEOUT: "30"
+  WEBHOOK_RETRY_ATTEMPTS: "3"
+
+---
+# Frontend ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: resilience-ai-frontend-config
+  namespace: resilience-ai
+  labels:
+    app: resilience-ai
+    component: frontend
+data:
+  # UI Configuration
+  THEME_PRIMARY_COLOR: "#1976d2"
+  THEME_SECONDARY_COLOR: "#dc004e"
+  ENABLE_DARK_MODE: "true"
+  DEFAULT_LANGUAGE: "en"
+  SUPPORTED_LANGUAGES: "en,es,fr,de,zh,ja"
+  
+  # Performance Settings
+  ENABLE_LAZY_LOADING: "true"
+  ENABLE_CODE_SPLITTING: "true"
+  CACHE_STATIC_ASSETS: "true"
+  
+  # Analytics
+  ANALYTICS_TRACKING_ID: ""
+  ENABLE_ERROR_REPORTING: "true"
+
+---
+# API Gateway ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: resilience-ai-gateway-config
+  namespace: resilience-ai
+  labels:
+    app: resilience-ai
+    component: gateway
+data:
+  # Gateway Configuration
+  GATEWAY_PORT: "8080"
+  ENABLE_CORS: "true"
+  CORS_ALLOWED_ORIGINS: "*"
+  CORS_ALLOWED_METHODS: "GET,POST,PUT,DELETE,OPTIONS"
+  CORS_ALLOWED_HEADERS: "Authorization,Content-Type,X-Request-ID"
+  
+  # Rate Limiting
+  RATE_LIMIT_REQUESTS_PER_MINUTE: "100"
+  RATE_LIMIT_BURST: "150"
+  
+  # Timeout Configuration
+  REQUEST_TIMEOUT_SECONDS: "30"
+  CONNECT_TIMEOUT_SECONDS: "10"
+  
+  # Circuit Breaker Settings
+  CIRCUIT_BREAKER_FAILURE_THRESHOLD: "5"
+  CIRCUIT_BREAKER_SUCCESS_THRESHOLD: "3"
+  CIRCUIT_BREAKER_TIMEOUT_SECONDS: "60"
+
+---
+# ML Service ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: resilience-ai-ml-config
+  namespace: resilience-ai
+  labels:
+    app: resilience-ai
+    component: ml-service
+data:
+  # ML Service Configuration
+  ML_SERVICE_PORT: "5000"
+  MODEL_REGISTRY_URL: "http://mlflow:5000"
+  
+  # Model Settings
+  DEFAULT_MODEL_VERSION: "v2.1.0"
+  MODEL_LOAD_TIMEOUT: "300"
+  INFERENCE_WORKERS: "2"
+  
+  # GPU Configuration
+  GPU_ENABLED: "true"
+  GPU_MEMORY_FRACTION: "0.8"
+  
+  # Batch Processing
+  BATCH_INFERENCE_ENABLED: "true"
+  MAX_BATCH_SIZE: "64"
+  BATCH_TIMEOUT_MS: "100"
+  
+  # Model Monitoring
+  ENABLE_MODEL_MONITORING: "true"
+  DRIFT_DETECTION_INTERVAL_HOURS: "24"
+  
+  # Feature Store
+  FEATURE_STORE_URL: "http://feast-server:6566"
+  FEATURE_CACHE_TTL: "3600"
+
+---
+# Database Migration ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: resilience-ai-migration-config
+  namespace: resilience-ai
+  labels:
+    app: resilience-ai
+    component: migration
+data:
+  # Migration Settings
+  MIGRATION_DIRECTORY: "/app/migrations"
+  AUTO_MIGRATE: "false"
+  MIGRATION_TIMEOUT: "600"
+  
+  # Database Schema
+  DB_SCHEMA: "public"
+  DB_MIGRATION_TABLE: "schema_migrations"

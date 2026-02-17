@@ -1,0 +1,175 @@
+version: '3.8'
+
+services:
+  # Core Edge ML Inference Service
+  edge-inference:
+    image: resilienceai/edge-inference:latest
+    container_name: edge-inference
+    restart: unless-stopped
+    runtime: nvidia
+    environment:
+      - MODEL_PATH=/models
+      - CACHE_SIZE_GB=4
+      - INFERENCE_THREADS=4
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./models:/models:ro
+      - inference-cache:/cache
+      - ./config:/config:ro
+    ports:
+      - "8080:8080"
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8G
+        reservations:
+          cpus: '2.0'
+          memory: 4G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - edge-network
+
+  # Local Database for Offline Storage
+  edge-database:
+    image: postgres:15-alpine
+    container_name: edge-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=resilience
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=resilience_local
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+    networks:
+      - edge-network
+
+  # Data Synchronization Service
+  sync-service:
+    image: resilienceai/sync-service:latest
+    container_name: sync-service
+    restart: unless-stopped
+    environment:
+      - SYNC_INTERVAL_SECONDS=300
+      - BATCH_SIZE=100
+      - COMPRESSION_ENABLED=true
+      - CLOUD_ENDPOINT=${CLOUD_ENDPOINT}
+      - API_KEY=${API_KEY}
+    volumes:
+      - sync-queue:/queue
+      - ./certs:/certs:ro
+    depends_on:
+      - edge-database
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    networks:
+      - edge-network
+
+  # Local Cache Service (Redis)
+  edge-cache:
+    image: redis:7-alpine
+    container_name: edge-cache
+    restart: unless-stopped
+    command: redis-server --maxmemory 2gb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 2G
+    networks:
+      - edge-network
+
+  # Monitoring Agent
+  monitoring-agent:
+    image: resilienceai/monitoring-agent:latest
+    container_name: monitoring-agent
+    restart: unless-stopped
+    environment:
+      - NODE_ID=${NODE_ID}
+      - COLLECTION_INTERVAL_SECONDS=60
+      - ALERT_ENDPOINT=${ALERT_ENDPOINT}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    pid: host
+    privileged: true
+    networks:
+      - edge-network
+
+  # Message Queue for Async Processing
+  edge-mq:
+    image: rabbitmq:3-management-alpine
+    container_name: edge-mq
+    restart: unless-stopped
+    environment:
+      - RABBITMQ_DEFAULT_USER=resilience
+      - RABBITMQ_DEFAULT_PASS=${MQ_PASSWORD}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - edge-network
+
+  # Edge API Gateway
+  edge-gateway:
+    image: resilienceai/edge-gateway:latest
+    container_name: edge-gateway
+    restart: unless-stopped
+    environment:
+      - JWT_SECRET=${JWT_SECRET}
+      - RATE_LIMIT_REQUESTS_PER_MINUTE=100
+      - ENABLE_OFFLINE_MODE=true
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - edge-inference
+      - edge-database
+      - edge-cache
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    networks:
+      - edge-network
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  inference-cache:
+    driver: local
+  sync-queue:
+    driver: local
+  rabbitmq-data:
+    driver: local
+
+networks:
+  edge-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

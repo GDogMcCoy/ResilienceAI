@@ -1,0 +1,133 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: resilience-ai-dashboards
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  service-mesh-dashboard.json: |
+    {
+      "dashboard": {
+        "title": "ResilienceAI Service Mesh",
+        "tags": ["istio", "resilience-ai"],
+        "timezone": "UTC",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Request Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(istio_requests_total{namespace=\"resilience-ai\"}[5m])) by (destination_service)",
+                "legendFormat": "{{ destination_service }}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+          },
+          {
+            "id": 2,
+            "title": "Error Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(istio_requests_total{namespace=\"resilience-ai\",response_code=~\"5..\"}[5m])) by (destination_service)",
+                "legendFormat": "{{ destination_service }}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+          },
+          {
+            "id": 3,
+            "title": "P95 Latency",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, sum(rate(istio_request_duration_milliseconds_bucket{namespace=\"resilience-ai\"}[5m])) by (le, destination_service))",
+                "legendFormat": "{{ destination_service }}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+          },
+          {
+            "id": 4,
+            "title": "Active Connections",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(envoy_cluster_upstream_cx_active{namespace=\"resilience-ai\"}) by (cluster_name)",
+                "legendFormat": "{{ cluster_name }}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+          },
+          {
+            "id": 5,
+            "title": "Circuit Breaker Status",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "sum(envoy_cluster_circuit_breakers_default_cx_open{namespace=\"resilience-ai\"}) by (cluster_name)",
+                "legendFormat": "{{ cluster_name }}"
+              }
+            ],
+            "gridPos": {"h": 4, "w": 24, "x": 0, "y": 16}
+          },
+          {
+            "id": 6,
+            "title": "mTLS Status",
+            "type": "table",
+            "targets": [
+              {
+                "expr": "istio_mtls_connections_secure{namespace=\"resilience-ai\"}",
+                "format": "table"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 24, "x": 0, "y": 20}
+          }
+        ]
+      }
+    }
+  
+  ml-engine-dashboard.json: |
+    {
+      "dashboard": {
+        "title": "ML Engine Performance",
+        "tags": ["ml", "resilience-ai"],
+        "panels": [
+          {
+            "id": 1,
+            "title": "Prediction Latency",
+            "type": "heatmap",
+            "targets": [
+              {
+                "expr": "sum(rate(ml_prediction_duration_seconds_bucket[5m])) by (le)",
+                "legendFormat": ""
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "title": "Model Load Time",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "ml_model_load_duration_seconds{namespace=\"resilience-ai\"}",
+                "legendFormat": "{{ model_name }}"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "title": "Prediction Throughput",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(ml_predictions_total{namespace=\"resilience-ai\"}[5m])",
+                "legendFormat": "{{ model_version }}"
+              }
+            ]
+          }
+        ]
+      }
+    }

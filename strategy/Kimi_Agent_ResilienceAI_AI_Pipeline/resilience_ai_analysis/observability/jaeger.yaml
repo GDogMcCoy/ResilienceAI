@@ -1,0 +1,51 @@
+apiVersion: jaegertracing.io/v1
+kind: Jaeger
+metadata:
+  name: resilience-ai-jaeger
+  namespace: observability
+spec:
+  strategy: production
+  storage:
+    type: elasticsearch
+    options:
+      es:
+        server-urls: http://elasticsearch:9200
+        index-prefix: resilience-ai
+  ingress:
+    enabled: true
+    hosts:
+    - jaeger.resilience-ai.example.com
+  resources:
+    requests:
+      memory: 2Gi
+      cpu: 500m
+    limits:
+      memory: 8Gi
+      cpu: 2000m
+  collector:
+    replicas: 2
+    options:
+      collector:
+        queue-size: 2000
+  agent:
+    sidecar:
+      injection: true
+---
+# Distributed tracing configuration for services
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tracing-config
+  namespace: resilience-ai
+data:
+  tracing.yaml: |
+    tracing:
+      sampling:
+        type: probabilistic
+        param: 0.1
+      zipkin:
+        address: jaeger-collector.observability.svc.cluster.local:9411
+      tags:
+        service.name: ${SERVICE_NAME}
+        service.namespace: resilience-ai
+        deployment.environment: production

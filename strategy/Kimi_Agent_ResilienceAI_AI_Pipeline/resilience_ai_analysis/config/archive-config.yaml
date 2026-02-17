@@ -1,0 +1,118 @@
+# ResilienceAI Data Archiving Configuration
+
+# Storage Configuration
+storage:
+  primary_bucket: "resilienceai-archive"
+  backup_bucket: "resilienceai-archive-backup"
+  region: "us-east-1"
+  replication_regions:
+    - "us-west-2"
+    - "eu-west-1"
+
+# Lifecycle Policies
+lifecycle:
+  enabled: true
+  policies:
+    incident_data:
+      hot_days: 30
+      warm_days: 60
+      cold_days: 2555  # ~7 years
+      frozen_years: 10
+    
+    sensor_telemetry:
+      hot_days: 30
+      warm_days: 60
+      cold_days: 995   # ~2.7 years
+      frozen_years: 3
+    
+    audit_logs:
+      hot_days: 30
+      warm_days: 60
+      cold_days: 2555
+      frozen_years: 10
+
+# Encryption Configuration
+encryption:
+  algorithm: "AES-256-GCM"
+  key_management: "aws_kms"  # or "hashicorp_vault"
+  key_rotation_days: 90
+  
+# Compression Configuration
+compression:
+  enabled: true
+  default_algorithm: "zstd"
+  default_level: 3
+  min_size_mb: 1
+  
+# Compliance Configuration
+compliance:
+  standards:
+    - SOX
+    - GDPR
+    - ISO27001
+    - NIST
+  
+  legal_hold:
+    enabled: true
+    max_duration_days: 2555
+  
+  audit:
+    retention_years: 10
+    immutable: true
+
+# Cost Optimization
+cost_optimization:
+  intelligent_tiering:
+    enabled: true
+    analysis_frequency: "daily"
+  
+  compression:
+    enabled: true
+    target_ratio: 3.0
+  
+  deduplication:
+    enabled: true
+    scope: "bucket"
+
+# Retrieval Configuration
+retrieval:
+  default_priority: "standard"
+  max_concurrent_requests: 100
+  notification_enabled: true
+  
+  sla:
+    expedited: "1-5 minutes"
+    standard: "3-5 hours"
+    bulk: "5-12 hours"
+
+# Metadata Configuration
+metadata:
+  store:
+    primary: "postgresql"
+    search: "elasticsearch"
+    cache: "redis"
+  
+  indexing:
+    enabled: true
+    fields:
+      - data_category
+      - owner
+      - department
+      - created_at
+      - storage_tier
+
+# Audit Configuration
+audit:
+  enabled: true
+  events:
+    - archive_created
+    - data_accessed
+    - retrieval_initiated
+    - tier_transition
+    - permission_changed
+    - legal_hold_applied
+  
+  storage:
+    stream: "kafka"
+    analytics: "clickhouse"
+    archive: "s3"

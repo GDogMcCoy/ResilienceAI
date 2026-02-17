@@ -1,0 +1,43 @@
+# Global mTLS policy - STRICT mode
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: resilience-ai
+spec:
+  mtls:
+    mode: STRICT
+---
+# Allow PERMISSIVE for specific services during migration
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: legacy-services
+  namespace: resilience-ai
+spec:
+  selector:
+    matchLabels:
+      app: legacy-service
+  mtls:
+    mode: PERMISSIVE
+  portLevelMtls:
+    8080:
+      mode: STRICT
+---
+# Port-level mTLS for specific ports
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: ml-engine-mtls
+  namespace: resilience-ai
+spec:
+  selector:
+    matchLabels:
+      app: ml-engine
+  mtls:
+    mode: STRICT
+  portLevelMtls:
+    50051:  # gRPC port
+      mode: STRICT
+    8080:   # HTTP port
+      mode: STRICT

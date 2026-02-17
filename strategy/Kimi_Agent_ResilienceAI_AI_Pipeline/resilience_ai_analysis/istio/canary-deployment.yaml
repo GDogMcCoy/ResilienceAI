@@ -1,0 +1,128 @@
+# Canary deployment for ML Engine
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: ml-engine-canary
+  namespace: resilience-ai
+spec:
+  hosts:
+  - ml-engine
+  http:
+  # Route based on headers for testing
+  - match:
+    - headers:
+        canary:
+          exact: "true"
+    route:
+    - destination:
+        host: ml-engine
+        subset: canary
+      weight: 100
+    
+  # Route based on user segment
+  - match:
+    - headers:
+        x-user-segment:
+          exact: "beta"
+    route:
+    - destination:
+        host: ml-engine
+        subset: canary
+      weight: 100
+    
+  # Weighted traffic split
+  - route:
+    - destination:
+        host: ml-engine
+        subset: stable
+      weight: 95
+    - destination:
+        host: ml-engine
+        subset: canary
+      weight: 5
+---
+# DestinationRule with subsets for canary
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: ml-engine-canary-dr
+  namespace: resilience-ai
+spec:
+  host: ml-engine
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http2MaxRequests: 1000
+    loadBalancer:
+      simple: ROUND_ROBIN
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+  subsets:
+  - name: stable
+    labels:
+      version: stable
+    trafficPolicy:
+      connectionPool:
+        http:
+          http2MaxRequests: 1000
+  - name: canary
+    labels:
+      version: canary
+    trafficPolicy:
+      connectionPool:
+        http:
+          http2MaxRequests: 500
+---
+# Progressive canary rollout
+apiVersion: flagger.app/v1beta1
+kind: Canary
+metadata:
+  name: ml-engine
+  namespace: resilience-ai
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ml-engine
+  service:
+    port: 8080
+    targetPort: 8080
+    gateways:
+    - resilience-ai-gateway
+    hosts:
+    - ml-engine.resilience-ai.svc.cluster.local
+  analysis:
+    interval: 30s
+    threshold: 5
+    maxWeight: 50
+    stepWeight: 10
+    metrics:
+    - name: request-success-rate
+      thresholdRange:
+        min: 99
+      interval: 1m
+    - name: request-duration
+      thresholdRange:
+        max: 500
+      interval: 1m
+    webhooks:
+    - name: load-test
+      url: http://flagger-loadtester.resilience-ai/
+      timeout: 5s
+      metadata:
+        cmd: "hey -z 1m -q 10 -c 2 http://ml-engine.resilience-ai.svc.cluster.local:8080/health"
+    - name: conformance-test
+      type: pre-rollout
+      url: http://flagger-loadtester.resilience-ai/
+      timeout: 30s
+      metadata:
+        type: bash
+        cmd: "curl -sf http://ml-engine-canary.resilience-ai.svc.cluster.local:8080/ready"
+    - name: promotion-gate
+      type: confirm-promotion
+      url: http://flagger-loadtester.resilience-ai/gate/check
+      timeout: 10s

@@ -1,0 +1,165 @@
+# ============================================================================
+# ResilienceAI - Persistent Volume Claims
+# ============================================================================
+# Purpose: Storage for models, data, and persistent state
+# ============================================================================
+
+---
+# Models PVC (shared read-only across pods)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: resilience-ai-models-pvc
+  namespace: resilience-ai
+  labels:
+    app: resilience-ai
+    component: storage
+    type: models
+spec:
+  accessModes:
+    - ReadOnlyMany
+  storageClassName: fast-ssd
+  resources:
+    requests:
+      storage: 50Gi
+  volumeMode: Filesystem
+
+---
+# Data PVC for file uploads and exports
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: resilience-ai-data-pvc
+  namespace: resilience-ai
+  labels:
+    app: resilience-ai
+    component: storage
+    type: data
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: efs-sc  # Use EFS for multi-zone access
+  resources:
+    requests:
+      storage: 500Gi
+  volumeMode: Filesystem
+
+---
+# Logs PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: resilience-ai-logs-pvc
+  namespace: resilience-ai
+  labels:
+    app: resilience-ai
+    component: storage
+    type: logs
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 100Gi
+
+---
+# Storage Class for Fast SSD
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: fast-ssd
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: ebs.csi.aws.com  # AWS EBS CSI driver
+parameters:
+  type: gp3
+  iops: "10000"
+  throughput: "500"
+  encrypted: "true"
+  kmsKeyId: "alias/aws/ebs"
+allowVolumeExpansion: true
+mountOptions:
+  - debug
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+
+---
+# Storage Class for EFS (multi-zone)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: efs-sc
+provisioner: efs.csi.aws.com
+parameters:
+  provisioningMode: efs-ap
+  fileSystemId: fs-xxxxxxxxxxxxxxxxx
+  directoryPerms: "700"
+  gidRangeStart: "1000"
+  gidRangeEnd: "2000"
+  basePath: /resilience-ai
+allowVolumeExpansion: true
+volumeBindingMode: Immediate
+reclaimPolicy: Retain
+
+---
+# Local Storage Class for caching
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-fast
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+
+---
+# Persistent Volume for Local Cache
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: local-cache-pv
+  labels:
+    type: local
+    app: resilience-ai
+spec:
+  capacity:
+    storage: 100Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-fast
+  local:
+    path: /mnt/fast-disks/cache
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - node-1
+                - node-2
+
+---
+# VolumeSnapshotClass for backups
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: resilience-ai-snapshot-class
+driver: ebs.csi.aws.com
+deletionPolicy: Retain
+parameters:
+  tagSpecification_1: "Name=resilience-ai-snapshot"
+  tagSpecification_2: "Environment=production"
+
+---
+# Example VolumeSnapshot for database backup
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: postgres-backup-20240101
+  namespace: resilience-ai
+spec:
+  volumeSnapshotClassName: resilience-ai-snapshot-class
+  source:
+    persistentVolumeClaimName: postgres-data-postgres-0

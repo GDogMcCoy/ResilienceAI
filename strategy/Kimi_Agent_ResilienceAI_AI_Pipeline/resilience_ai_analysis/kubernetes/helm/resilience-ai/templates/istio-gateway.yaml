@@ -1,0 +1,157 @@
+{{/* ============================================================================
+ResilienceAI - Istio Gateway Template
+============================================================================ */}}
+{{- if .Values.istio.enabled }}
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: {{ include "resilience-ai.fullname" . }}-gateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "resilience-ai.labels" . | nindent 4 }}
+    app.kubernetes.io/component: istio-gateway
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    # HTTP - Redirect to HTTPS
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        {{- range .Values.istio.gateway.hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      tls:
+        httpsRedirect: true
+    
+    # HTTPS
+    {{- if .Values.istio.gateway.tls.enabled }}
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      hosts:
+        {{- range .Values.istio.gateway.hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      tls:
+        mode: SIMPLE
+        credentialName: {{ .Values.istio.gateway.tls.credentialName }}
+        minProtocolVersion: TLSV1_2
+    {{- end }}
+{{- end }}
+
+---
+{{- if .Values.istio.virtualServices.enabled }}
+# VirtualService for Main Application
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{ include "resilience-ai.fullname" . }}-app-vs
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "resilience-ai.labels" . | nindent 4 }}
+    app.kubernetes.io/component: virtualservice
+spec:
+  hosts:
+    - {{ .Values.global.domain | quote }}
+    - {{ printf "app.%s" .Values.global.domain | quote }}
+  gateways:
+    - {{ include "resilience-ai.fullname" . }}-gateway
+    - mesh
+  http:
+    # Health checks
+    - match:
+        - uri:
+            prefix: /health
+      route:
+        - destination:
+            host: {{ include "resilience-ai.fullname" . }}-app
+            port:
+              number: 80
+      timeout: 5s
+    
+    # Main application routes
+    - route:
+        - destination:
+            host: {{ include "resilience-ai.fullname" . }}-app
+            subset: stable
+            port:
+              number: 80
+          weight: {{ if .Values.istio.virtualServices.canary.enabled }}{{ sub 100 .Values.istio.virtualServices.canary.weight }}{{ else }}100{{ end }}
+        {{- if .Values.istio.virtualServices.canary.enabled }}
+        - destination:
+            host: {{ include "resilience-ai.fullname" . }}-app
+            subset: canary
+            port:
+              number: 80
+          weight: {{ .Values.istio.virtualServices.canary.weight }}
+        {{- end }}
+      timeout: 60s
+      retries:
+        attempts: 3
+        perTryTimeout: 20s
+        retryOn: gateway-error,connect-failure,refused-stream
+{{- end }}
+
+---
+{{- if .Values.istio.destinationRules.enabled }}
+# DestinationRule for Main Application
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: {{ include "resilience-ai.fullname" . }}-app-dr
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "resilience-ai.labels" . | nindent 4 }}
+    app.kubernetes.io/component: destinationrule
+spec:
+  host: {{ include "resilience-ai.fullname" . }}-app
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http2MaxRequests: 1000
+        maxRequestsPerConnection: 100
+    
+    loadBalancer:
+      simple: LEAST_REQUEST
+    
+    {{- if .Values.istio.destinationRules.circuitBreaker.enabled }}
+    outlierDetection:
+      consecutive5xxErrors: {{ .Values.istio.destinationRules.circuitBreaker.consecutiveErrors }}
+      interval: {{ .Values.istio.destinationRules.circuitBreaker.interval }}
+      baseEjectionTime: {{ .Values.istio.destinationRules.circuitBreaker.baseEjectionTime }}
+      maxEjectionPercent: 50
+    {{- end }}
+  
+  subsets:
+    - name: stable
+      labels:
+        version: {{ .Values.app.image.tag | default .Chart.AppVersion }}
+    
+    {{- if .Values.istio.virtualServices.canary.enabled }}
+    - name: canary
+      labels:
+        version: canary
+    {{- end }}
+{{- end }}
+
+---
+{{- if .Values.istio.security.mtls.enabled }}
+# PeerAuthentication for mTLS
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: {{ include "resilience-ai.fullname" . }}-mtls
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "resilience-ai.labels" . | nindent 4 }}
+    app.kubernetes.io/component: security
+spec:
+  mtls:
+    mode: {{ .Values.istio.security.mtls.mode }}
+{{- end }}

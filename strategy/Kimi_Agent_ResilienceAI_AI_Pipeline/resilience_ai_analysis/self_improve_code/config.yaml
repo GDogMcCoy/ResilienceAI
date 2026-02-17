@@ -1,0 +1,357 @@
+# Self-Improvement System Configuration for ResilienceAI
+# This configuration file defines all settings for the self-improvement system
+
+# =============================================================================
+# FEEDBACK COLLECTION
+# =============================================================================
+feedback:
+  enabled: true
+  
+  explicit:
+    enabled: true
+    buffer_size: 100
+    storage_format: "jsonl"  # jsonl, parquet
+    storage_path: "data/feedback/explicit"
+    auto_flush: true
+    
+    # Feedback types enabled
+    types:
+      thumbs: true
+      rating: true
+      category: true
+      text: true
+    
+    # Rating scale
+    rating_scale:
+      min: 1
+      max: 5
+      default: 3
+    
+    # Categories for structured feedback
+    categories:
+      - accuracy
+      - completeness
+      - relevance
+      - clarity
+      - actionability
+  
+  implicit:
+    enabled: true
+    storage_path: "data/feedback/implicit"
+    session_timeout_seconds: 300  # 5 minutes
+    
+    # Engagement score weights
+    engagement_weights:
+      dwell_time: 0.25
+      scroll_depth: 0.20
+      interactions: 0.15
+      sharing: 0.20
+      follow_up: 0.10
+      retention: 0.10
+    
+    # Dwell time thresholds (seconds)
+    dwell_time:
+      optimal_min: 30
+      optimal_max: 120
+      minimum_engagement: 10
+
+# =============================================================================
+# QUALITY EVALUATION
+# =============================================================================
+quality_evaluation:
+  enabled: true
+  
+  # Model configuration
+  model:
+    use_ml: false  # Use ML models (requires training)
+    models_dir: "models/self_improve"
+    vectorizer_path: "models/self_improve/feedback_encoder.pkl"
+    classifier_path: "models/self_improve/quality_classifier.pkl"
+  
+  # Dimension weights for overall score
+  dimension_weights:
+    accuracy: 0.25
+    completeness: 0.20
+    relevance: 0.25
+    clarity: 0.15
+    actionability: 0.15
+  
+  # Quality thresholds
+  thresholds:
+    excellent: 0.85
+    good: 0.70
+    acceptable: 0.55
+    poor: 0.40
+  
+  # Minimum confidence for evaluation
+  min_confidence: 0.5
+  
+  # Maximum suggestions to return
+  max_suggestions: 5
+
+# =============================================================================
+# METRICS TRACKING
+# =============================================================================
+metrics:
+  enabled: true
+  
+  storage:
+    path: "data/metrics"
+    format: "jsonl"  # jsonl, parquet
+    buffer_size: 1000
+    auto_flush: true
+  
+  # Retention policy
+  retention:
+    raw_metrics_days: 90
+    aggregated_metrics_days: 365
+  
+  # Aggregation windows
+  aggregation:
+    enabled: true
+    windows:
+      - hourly
+      - daily
+      - weekly
+      - monthly
+  
+  # Anomaly detection
+  anomaly_detection:
+    enabled: true
+    window_size: 100
+    threshold_std: 3.0
+    metrics_to_monitor:
+      - query_latency
+      - response_quality
+      - error_rate
+
+# =============================================================================
+# A/B TESTING
+# =============================================================================
+ab_testing:
+  enabled: true
+  
+  storage:
+    path: "data/experiments"
+  
+  # Experiment settings
+  settings:
+    min_sample_size: 100
+    confidence_level: 0.95
+    auto_winner_selection: false
+    require_approval: true
+  
+  # Traffic allocation
+  traffic:
+    default_control_percentage: 0.5
+    max_variant_percentage: 0.5
+  
+  # Metrics to track
+  metrics:
+    primary: "conversion_rate"
+    secondary:
+      - engagement_score
+      - satisfaction_rating
+      - response_quality
+
+# =============================================================================
+# MODEL RETRAINING
+# =============================================================================
+model_retraining:
+  enabled: true
+  
+  storage:
+    models_dir: "models"
+    registry_path: "models/registry.json"
+  
+  # Retraining triggers
+  triggers:
+    scheduled:
+      enabled: true
+      frequency: "weekly"  # daily, weekly, monthly
+      day_of_week: 0  # Monday (0-6)
+      hour: 2  # 2 AM
+    
+    performance:
+      enabled: true
+      accuracy_degradation_threshold: 0.05  # 5%
+      latency_increase_threshold: 1.5  # 50%
+    
+    data_drift:
+      enabled: true
+      drift_threshold: 0.1
+      check_frequency_hours: 24
+    
+    new_data:
+      enabled: true
+      min_new_samples: 1000
+      min_new_sample_percent: 0.1  # 10%
+  
+  # Validation settings
+  validation:
+    test_size: 0.2
+    min_test_samples: 100
+    cross_validation_folds: 5
+  
+  # Deployment settings
+  deployment:
+    auto_deploy: false
+    require_ab_test: true
+    min_improvement_percent: 2.0
+    rollback_on_degradation: true
+
+# =============================================================================
+# HYPERPARAMETER OPTIMIZATION
+# =============================================================================
+hyperparameter_optimization:
+  enabled: true
+  
+  framework: "optuna"  # optuna, ray_tune
+  
+  # Search settings
+  search:
+    n_trials: 100
+    timeout_seconds: 3600
+    n_jobs: -1  # Use all cores
+  
+  # Pruning
+  pruning:
+    enabled: true
+    patience: 10
+
+# =============================================================================
+# CONTINUOUS LEARNING
+# =============================================================================
+continuous_learning:
+  enabled: true
+  
+  # Pipeline settings
+  pipeline:
+    check_interval_hours: 24
+    min_feedback_samples: 100
+    retrain_threshold: 0.1
+  
+  # Feedback integration
+  feedback:
+    use_explicit: true
+    use_implicit: true
+    weight_explicit: 0.7
+    weight_implicit: 0.3
+  
+  # Model update strategy
+  updates:
+    incremental: true
+    full_retrain: false
+    warm_start: true
+
+# =============================================================================
+# SYSTEM ADAPTATION
+# =============================================================================
+system_adaptation:
+  enabled: true
+  
+  # Adaptation rules
+  rules:
+    - name: "low_quality_response"
+      condition: "quality.overall < 0.5"
+      action: "increase_detail_level"
+    
+    - name: "high_latency"
+      condition: "latency_ms > 5000"
+      action: "simplify_response"
+    
+    - name: "user_feedback_negative"
+      condition: "feedback.rating < 0.4"
+      action: "request_clarification"
+  
+  # Dynamic thresholds
+  dynamic_thresholds:
+    enabled: true
+    adaptation_rate: 0.1
+
+# =============================================================================
+# INTEGRATION
+# =============================================================================
+integration:
+  # Existing system integration
+  existing:
+    agent_module: "src.agent"
+    dashboard_module: "app.main"
+    pipeline_module: "src.realtime_pipeline"
+  
+  # API endpoints
+  api:
+    feedback_endpoint: "/api/feedback"
+    metrics_endpoint: "/api/metrics"
+    quality_endpoint: "/api/quality"
+  
+  # Event streaming
+  events:
+    enabled: true
+    buffer_size: 100
+
+# =============================================================================
+# NOTIFICATIONS
+# =============================================================================
+notifications:
+  enabled: true
+  
+  # Alert conditions
+  alerts:
+    - name: "quality_degradation"
+      condition: "quality_score < 0.6"
+      severity: "warning"
+    
+    - name: "high_error_rate"
+      condition: "error_rate > 0.05"
+      severity: "critical"
+    
+    - name: "model_drift"
+      condition: "drift_score > 0.15"
+      severity: "warning"
+  
+  # Channels
+  channels:
+    email:
+      enabled: false
+      recipients: []
+    
+    slack:
+      enabled: false
+      webhook_url: ""
+    
+    dashboard:
+      enabled: true
+
+# =============================================================================
+# LOGGING
+# =============================================================================
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  
+  # Log files
+  files:
+    feedback: "logs/self_improve/feedback.log"
+    metrics: "logs/self_improve/metrics.log"
+    adaptation: "logs/self_improve/adaptation.log"
+  
+  # Rotation
+  rotation:
+    max_bytes: 10485760  # 10 MB
+    backup_count: 5
+
+# =============================================================================
+# DEVELOPMENT SETTINGS
+# =============================================================================
+development:
+  # Debug mode
+  debug: false
+  
+  # Test data
+  use_test_data: false
+  
+  # Mock external services
+  mock_services: false
+  
+  # Verbose logging
+  verbose: false

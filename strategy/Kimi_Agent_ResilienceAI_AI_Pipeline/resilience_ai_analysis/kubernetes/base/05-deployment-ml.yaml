@@ -1,0 +1,206 @@
+# ============================================================================
+# ResilienceAI - ML Service Deployment
+# ============================================================================
+# Purpose: Machine Learning inference service with GPU support
+# Features: Model serving, batch inference, GPU scheduling
+# ============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resilience-ai-ml
+  namespace: resilience-ai
+  labels:
+    app: resilience-ai
+    component: ml-service
+    version: v2.0.0
+spec:
+  replicas: 2
+  
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  
+  selector:
+    matchLabels:
+      app: resilience-ai
+      component: ml-service
+  
+  template:
+    metadata:
+      labels:
+        app: resilience-ai
+        component: ml-service
+        version: v2.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5000"
+    spec:
+      serviceAccountName: resilience-ai-sa
+      
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      
+      # Node selector for GPU nodes (optional)
+      # nodeSelector:
+      #   accelerator: nvidia-tesla-t4
+      
+      # GPU resource requests
+      # containers:
+      #   resources:
+      #     limits:
+      #       nvidia.com/gpu: 1
+      
+      # Tolerations for GPU nodes
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      
+      initContainers:
+        # Download models before starting
+        - name: model-downloader
+          image: resilience-ai/model-downloader:v2.0.0
+          env:
+            - name: MODEL_REGISTRY_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: resilience-ai-ml-config
+                  key: MODEL_REGISTRY_URL
+            - name: MODEL_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: resilience-ai-ml-config
+                  key: DEFAULT_MODEL_VERSION
+          volumeMounts:
+            - name: models
+              mountPath: /models
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      
+      containers:
+        - name: ml-service
+          image: resilience-ai/ml-service:v2.0.0
+          imagePullPolicy: Always
+          
+          ports:
+            - name: http
+              containerPort: 5000
+              protocol: TCP
+            - name: grpc
+              containerPort: 50051
+              protocol: TCP
+            - name: metrics
+              containerPort: 8080
+              protocol: TCP
+          
+          envFrom:
+            - configMapRef:
+                name: resilience-ai-ml-config
+            - secretRef:
+                name: resilience-ai-secrets
+          
+          env:
+            - name: MODEL_PATH
+              value: "/models"
+            - name: CUDA_VISIBLE_DEVICES
+              value: "0"
+          
+          resources:
+            requests:
+              cpu: 1000m
+              memory: 4Gi
+              # nvidia.com/gpu: 1  # Uncomment for GPU
+            limits:
+              cpu: 4000m
+              memory: 16Gi
+              # nvidia.com/gpu: 1  # Uncomment for GPU
+          
+          volumeMounts:
+            - name: models
+              mountPath: /models
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          
+          startupProbe:
+            httpGet:
+              path: /health/startup
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 60
+          
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: resilience-ai-models-pvc
+        - name: tmp
+          emptyDir:
+            sizeLimit: 2Gi
+      
+      terminationGracePeriodSeconds: 120
+
+---
+# ML Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: resilience-ai-ml
+  namespace: resilience-ai
+  labels:
+    app: resilience-ai
+    component: ml-service
+spec:
+  type: ClusterIP
+  selector:
+    app: resilience-ai
+    component: ml-service
+  ports:
+    - name: http
+      port: 5000
+      targetPort: 5000
+      protocol: TCP
+    - name: grpc
+      port: 50051
+      targetPort: 50051
+      protocol: TCP
+    - name: metrics
+      port: 8080
+      targetPort: 8080
+      protocol: TCP

@@ -1,0 +1,219 @@
+{{/* ============================================================================
+ResilienceAI - Main Application Deployment Template
+============================================================================ */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "resilience-ai.fullname" . }}-app
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "resilience-ai.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/version: {{ .Values.app.image.tag | default .Chart.AppVersion }}
+spec:
+  {{- if not .Values.app.autoscaling.enabled }}
+  replicas: {{ .Values.app.replicaCount }}
+  {{- end }}
+  
+  strategy:
+    type: {{ .Values.app.strategy.type }}
+    {{- if eq .Values.app.strategy.type "RollingUpdate" }}
+    rollingUpdate:
+      maxSurge: {{ .Values.app.strategy.rollingUpdate.maxSurge }}
+      maxUnavailable: {{ .Values.app.strategy.rollingUpdate.maxUnavailable }}
+    {{- end }}
+  
+  selector:
+    matchLabels:
+      {{- include "resilience-ai.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: frontend
+  
+  template:
+    metadata:
+      labels:
+        {{- include "resilience-ai.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: frontend
+        app.kubernetes.io/version: {{ .Values.app.image.tag | default .Chart.AppVersion }}
+      annotations:
+        {{- include "resilience-ai.podAnnotations" . | nindent 8 }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secrets: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      {{- include "resilience-ai.imagePullSecrets" . | nindent 6 }}
+      
+      serviceAccountName: {{ include "resilience-ai.serviceAccountName" . }}
+      
+      securityContext:
+        {{- toYaml .Values.app.podSecurityContext | nindent 8 }}
+      
+      {{- if .Values.app.affinity }}
+      affinity:
+        {{- toYaml .Values.app.affinity | nindent 8 }}
+      {{- end }}
+      
+      {{- if .Values.app.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.app.nodeSelector | nindent 8 }}
+      {{- end }}
+      
+      {{- if .Values.app.tolerations }}
+      tolerations:
+        {{- toYaml .Values.app.tolerations | nindent 8 }}
+      {{- end }}
+      
+      # Init containers
+      initContainers:
+        # Wait for database
+        - name: wait-for-db
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z {{ include "resilience-ai.fullname" . }}-postgresql 5432; do
+                echo "Waiting for database..."
+                sleep 2
+              done
+              echo "Database is ready!"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+        
+        # Database migrations
+        - name: db-migrations
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}"
+          imagePullPolicy: {{ .Values.app.image.pullPolicy }}
+          command:
+            - python
+            - manage.py
+            - migrate
+          envFrom:
+            - configMapRef:
+                name: {{ include "resilience-ai.fullname" . }}-config
+            - secretRef:
+                name: {{ include "resilience-ai.fullname" . }}-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      
+      # Main containers
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}"
+          imagePullPolicy: {{ .Values.app.image.pullPolicy }}
+          
+          ports:
+            - name: http
+              containerPort: {{ .Values.app.env.SERVER_PORT | default 8501 }}
+              protocol: TCP
+            - name: metrics
+              containerPort: 8080
+              protocol: TCP
+          
+          envFrom:
+            - configMapRef:
+                name: {{ include "resilience-ai.fullname" . }}-config
+            - secretRef:
+                name: {{ include "resilience-ai.fullname" . }}-secrets
+          
+          env:
+            {{- include "resilience-ai.env" . | nindent 12 }}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: DATABASE_URL
+              value: {{ include "resilience-ai.databaseUrl" . | quote }}
+            - name: REDIS_URL
+              value: {{ include "resilience-ai.redisUrl" . | quote }}
+          
+          resources:
+            {{- toYaml .Values.app.resources | nindent 12 }}
+          
+          volumeMounts:
+            {{- range .Values.app.volumeMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+              {{- if .readOnly }}
+              readOnly: {{ .readOnly }}
+              {{- end }}
+            {{- end }}
+          
+          {{- if .Values.app.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.app.livenessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.app.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.app.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.app.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.app.livenessProbe.failureThreshold }}
+            successThreshold: 1
+          {{- end }}
+          
+          {{- if .Values.app.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.app.readinessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.app.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.app.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.app.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.app.readinessProbe.failureThreshold }}
+            successThreshold: 1
+          {{- end }}
+          
+          {{- if .Values.app.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.app.startupProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.app.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.app.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.app.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.app.startupProbe.failureThreshold }}
+          {{- end }}
+          
+          securityContext:
+            {{- toYaml .Values.app.securityContext | nindent 12 }}
+      
+      volumes:
+        {{- range .Values.app.volumes }}
+        - name: {{ .name }}
+          {{- if .persistentVolumeClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .persistentVolumeClaim.claimName }}
+          {{- end }}
+          {{- if .emptyDir }}
+          emptyDir:
+            {{- if .emptyDir.sizeLimit }}
+            sizeLimit: {{ .emptyDir.sizeLimit }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+      
+      terminationGracePeriodSeconds: 60

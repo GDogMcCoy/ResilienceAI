@@ -1,0 +1,337 @@
+# ResilienceAI Scheduled Reports Configuration
+# Define automated report generation schedules
+
+reports:
+  # Daily Executive Summary
+  daily_executive:
+    name: "Daily Executive Summary"
+    type: executive_briefing
+    enabled: true
+    schedule:
+      cron: "0 8 * * *"  # 8:00 AM daily
+      timezone: "America/New_York"
+    formats:
+      - pdf
+      - html
+    parameters:
+      include_top_counties: 20
+      include_recommendations: true
+    distribution:
+      - type: email
+        recipients:
+          - executives@resilienceai.io
+          - emergency-management@resilienceai.io
+        subject: "Daily Disaster Vulnerability Briefing"
+      - type: s3
+        bucket: "resilienceai-reports"
+        path: "daily/{date}/"
+    filters:
+      min_risk_score: 0.5
+    
+  # Weekly State Reports
+  weekly_state_reports:
+    name: "Weekly State Summary Reports"
+    type: state_summary
+    enabled: true
+    schedule:
+      cron: "0 9 * * 1"  # 9:00 AM Mondays
+      timezone: "America/New_York"
+    formats:
+      - pdf
+      - excel
+    parameters:
+      include_charts: true
+      include_trends: true
+    distribution:
+      - type: email
+        recipients:
+          - state-coordinators@resilienceai.io
+        subject: "Weekly State Vulnerability Summary"
+      - type: sftp
+        host: "reports.resilienceai.io"
+        path: "/weekly/{date}/"
+    
+  # Monthly Comprehensive Analysis
+  monthly_comprehensive:
+    name: "Monthly Comprehensive Analysis"
+    type: risk_analysis
+    enabled: true
+    schedule:
+      cron: "0 10 1 * *"  # 10:00 AM, 1st of month
+      timezone: "America/New_York"
+    formats:
+      - pdf
+      - excel
+      - powerpoint
+    parameters:
+      include_historical: true
+      include_predictions: true
+      include_interventions: true
+    distribution:
+      - type: email
+        recipients:
+          - leadership@resilienceai.io
+          - analytics@resilienceai.io
+        subject: "Monthly Comprehensive Vulnerability Analysis"
+      - type: s3
+        bucket: "resilienceai-reports"
+        path: "monthly/{year}/{month}/"
+      - type: webhook
+        url: "https://api.resilienceai.io/webhooks/reports"
+    
+  # High Risk Alert Report
+  high_risk_alert:
+    name: "High Risk Counties Alert"
+    type: county_profile
+    enabled: true
+    schedule:
+      cron: "0 */6 * * *"  # Every 6 hours
+      timezone: "America/New_York"
+    formats:
+      - pdf
+      - csv
+    parameters:
+      filter_high_risk: true
+      risk_threshold: 0.8
+    distribution:
+      - type: email
+        recipients:
+          - alerts@resilienceai.io
+          - emergency-response@resilienceai.io
+        subject: "URGENT: High Risk Counties Alert"
+        priority: high
+    filters:
+      min_risk_score: 0.8
+    
+  # Quarterly Compliance Report
+  quarterly_compliance:
+    name: "Quarterly Compliance Report"
+    type: compliance_report
+    enabled: true
+    schedule:
+      cron: "0 9 1 1,4,7,10 *"  # 1st of Jan, Apr, Jul, Oct
+      timezone: "America/New_York"
+    formats:
+      - pdf
+      - excel
+    parameters:
+      include_methodology: true
+      include_data_sources: true
+      include_validation: true
+    distribution:
+      - type: email
+        recipients:
+          - compliance@resilienceai.io
+          - legal@resilienceai.io
+        subject: "Q{quarter} Compliance Report - Disaster Vulnerability Assessment"
+      - type: s3
+        bucket: "resilienceai-compliance"
+        path: "{year}/Q{quarter}/"
+    anonymization:
+      level: strict
+      k: 5
+      l: 2
+    
+  # Disaster Event Report (Triggered)
+  disaster_event:
+    name: "Post-Disaster Event Analysis"
+    type: intervention_plan
+    enabled: true
+    trigger: event  # Triggered by disaster event
+    formats:
+      - pdf
+      - excel
+      - geojson
+    parameters:
+      include_affected_areas: true
+      include_resource_allocation: true
+      include_timeline: true
+    distribution:
+      - type: email
+        recipients:
+          - incident-commander@resilienceai.io
+          - field-teams@resilienceai.io
+        subject: "Disaster Event Analysis - {event_name}"
+      - type: webhook
+        url: "https://api.resilienceai.io/webhooks/disaster-events"
+    
+  # Research Data Export
+  research_export:
+    name: "Research Data Export"
+    type: data_export
+    enabled: true
+    schedule:
+      cron: "0 2 * * 0"  # 2:00 AM Sundays
+      timezone: "UTC"
+    formats:
+      - csv
+      - parquet
+      - geojson
+    parameters:
+      include_all_fields: true
+      include_metadata: true
+    distribution:
+      - type: s3
+        bucket: "resilienceai-research"
+        path: "exports/{date}/"
+    anonymization:
+      level: maximum
+      epsilon: 1.0
+    
+  # Infrastructure Gap Report
+  infrastructure_gaps:
+    name: "Infrastructure Gap Analysis"
+    type: infrastructure_analysis
+    enabled: true
+    schedule:
+      cron: "0 7 15 * *"  # 7:00 AM, 15th of month
+      timezone: "America/New_York"
+    formats:
+      - pdf
+      - excel
+    parameters:
+      include_zero_redundancy: true
+      include_distance_analysis: true
+      include_recommendations: true
+    distribution:
+      - type: email
+        recipients:
+          - infrastructure@resilienceai.io
+          - planning@resilienceai.io
+        subject: "Monthly Infrastructure Gap Analysis"
+
+# Distribution Channels Configuration
+distribution_channels:
+  email:
+    smtp_host: "smtp.resilienceai.io"
+    smtp_port: 587
+    smtp_user: "${SMTP_USER}"
+    smtp_password: "${SMTP_PASSWORD}"
+    from_address: "reports@resilienceai.io"
+    
+  s3:
+    access_key: "${AWS_ACCESS_KEY}"
+    secret_key: "${AWS_SECRET_KEY}"
+    region: "us-east-1"
+    
+  sftp:
+    host: "reports.resilienceai.io"
+    port: 22
+    username: "${SFTP_USER}"
+    password: "${SFTP_PASSWORD}"
+    
+  webhook:
+    timeout: 30
+    retry_count: 3
+    retry_delay: 60
+
+# Anonymization Policies
+anonymization_policies:
+  public:
+    level: standard
+    k: 5
+    quasi_identifiers:
+      - county_name
+      - state
+    sensitive_attributes:
+      - risk_score
+      - vulnerability_index
+      
+  research:
+    level: strict
+    k: 5
+    l: 2
+    quasi_identifiers:
+      - county_name
+      - state
+      - total_population
+    sensitive_attributes:
+      - risk_score
+      - vulnerability_index
+      - poverty_pct
+      
+  internal:
+    level: minimal
+    remove_identifiers:
+      - fips
+
+# Report Templates
+templates:
+  executive_briefing:
+    sections:
+      - executive_summary
+      - key_metrics
+      - risk_distribution
+      - top_counties
+      - infrastructure_analysis
+      - recommendations
+      - methodology
+      
+  state_summary:
+    sections:
+      - state_overview
+      - county_breakdown
+      - risk_analysis
+      - infrastructure_status
+      - disaster_history
+      - recommendations
+      
+  county_profile:
+    sections:
+      - county_overview
+      - risk_assessment
+      - demographics
+      - infrastructure
+      - disaster_history
+      - interventions
+      
+  risk_analysis:
+    sections:
+      - risk_overview
+      - statistical_analysis
+      - trend_analysis
+      - predictive_modeling
+      - risk_factors
+      - mitigation_strategies
+      
+  intervention_plan:
+    sections:
+      - situation_overview
+      - affected_areas
+      - resource_requirements
+      - implementation_timeline
+      - cost_estimates
+      - expected_outcomes
+      
+  compliance_report:
+    sections:
+      - executive_summary
+      - data_sources
+      - methodology
+      - validation_results
+      - privacy_compliance
+      - audit_trail
+
+# Notification Settings
+notifications:
+  on_success:
+    enabled: true
+    channels:
+      - email
+      - slack
+    template: "Report '{report_name}' generated successfully. Available at: {download_url}"
+    
+  on_failure:
+    enabled: true
+    channels:
+      - email
+      - slack
+      - pagerduty
+    template: "Report '{report_name}' generation failed. Error: {error_message}"
+    
+  on_delay:
+    enabled: true
+    threshold_minutes: 30
+    channels:
+      - email
+    template: "Report '{report_name}' is taking longer than expected. Current status: {status}"

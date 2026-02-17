@@ -1,0 +1,143 @@
+# A/B Testing for ML Model Versions
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: ml-model-ab-test
+  namespace: resilience-ai
+spec:
+  hosts:
+  - ml-engine
+  http:
+  # Route based on user ID hash (consistent routing)
+  - match:
+    - headers:
+        x-user-id:
+          regex: "^[0-3].*"
+    route:
+    - destination:
+        host: ml-engine
+        subset: model-v1
+      weight: 100
+    
+  # Route based on user ID hash (consistent routing)
+  - match:
+    - headers:
+        x-user-id:
+          regex: "^[4-7].*"
+    route:
+    - destination:
+        host: ml-engine
+        subset: model-v2
+      weight: 100
+    
+  # Route based on A/B test cookie
+  - match:
+    - headers:
+        cookie:
+          regex: ".*ab_test_group=A.*"
+    route:
+    - destination:
+        host: ml-engine
+        subset: model-v1
+      weight: 100
+    
+  - match:
+    - headers:
+        cookie:
+          regex: ".*ab_test_group=B.*"
+    route:
+    - destination:
+        host: ml-engine
+        subset: model-v2
+      weight: 100
+    
+  # Default split
+  - route:
+    - destination:
+        host: ml-engine
+        subset: model-v1
+      weight: 50
+    - destination:
+        host: ml-engine
+        subset: model-v2
+      weight: 50
+---
+# DestinationRule for A/B test subsets
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: ml-model-ab-dr
+  namespace: resilience-ai
+spec:
+  host: ml-engine
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http2MaxRequests: 1000
+    loadBalancer:
+      simple: ROUND_ROBIN
+  subsets:
+  - name: model-v1
+    labels:
+      model-version: v1
+      ab-test-group: control
+  - name: model-v2
+    labels:
+      model-version: v2
+      ab-test-group: treatment
+---
+# A/B Test for UI Features
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: web-ui-ab-test
+  namespace: resilience-ai
+spec:
+  hosts:
+  - web-ui
+  http:
+  # Route based on user agent
+  - match:
+    - headers:
+        user-agent:
+          regex: ".*Mobile.*"
+    route:
+    - destination:
+        host: web-ui
+        subset: mobile-version
+      weight: 100
+    
+  # Route based on custom header from frontend
+  - match:
+    - headers:
+        x-ui-version:
+          exact: "v2"
+    route:
+    - destination:
+        host: web-ui
+        subset: v2
+      weight: 100
+    
+  # Geographic routing
+  - match:
+    - headers:
+        x-geo-region:
+          exact: "EU"
+    route:
+    - destination:
+        host: web-ui
+        subset: eu-version
+      weight: 100
+    
+  # Default
+  - route:
+    - destination:
+        host: web-ui
+        subset: v1
+      weight: 80
+    - destination:
+        host: web-ui
+        subset: v2
+      weight: 20

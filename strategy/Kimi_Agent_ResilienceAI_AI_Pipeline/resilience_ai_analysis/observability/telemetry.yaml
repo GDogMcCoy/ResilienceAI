@@ -1,0 +1,46 @@
+apiVersion: telemetry.istio.io/v1alpha1
+kind: Telemetry
+metadata:
+  name: resilience-ai-metrics
+  namespace: resilience-ai
+spec:
+  metrics:
+  - providers:
+    - name: prometheus
+    overrides:
+    # Custom metric for ML predictions
+    - match:
+        metric: REQUEST_COUNT
+      tagOverrides:
+        model_name:
+          operation: UPSERT
+          value: "unknown"
+        prediction_type:
+          operation: UPSERT
+          value: "unknown"
+    # Custom metric for circuit breaker events
+    - match:
+        metric: REQUEST_COUNT
+      tagOverrides:
+        circuit_breaker_status:
+          operation: UPSERT
+          value: "closed"
+  
+  accessLogging:
+  - providers:
+    - name: envoy
+    filter:
+      expression: "response.code >= 400 || request.url_path.matches('.*admin.*')"
+  
+  tracing:
+  - providers:
+    - name: zipkin
+    randomSamplingPercentage: 10.0
+    customTags:
+      service_mesh:
+        literal:
+          value: "istio"
+      environment:
+        environment:
+          name: ENVIRONMENT
+          defaultValue: "production"

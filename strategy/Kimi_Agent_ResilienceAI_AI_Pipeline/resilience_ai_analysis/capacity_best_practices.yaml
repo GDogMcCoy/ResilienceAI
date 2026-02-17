@@ -1,0 +1,205 @@
+capacity_planning_best_practices:
+  
+  monitoring:
+    - name: "Comprehensive Metrics Collection"
+      description: "Collect metrics at all levels - infrastructure, application, and business"
+      implementation:
+        - "Use 1-minute granularity for critical metrics"
+        - "Retain data for at least 90 days"
+        - "Include both system and application metrics"
+        - "Track business metrics (users, transactions, revenue)"
+    
+    - name: "Proactive Alerting"
+      description: "Set up alerts before problems occur"
+      thresholds:
+        cpu_warning: 75%
+        cpu_critical: 90%
+        memory_warning: 80%
+        memory_critical: 90%
+        disk_warning: 80%
+        disk_critical: 90%
+        latency_warning: "2x baseline"
+        latency_critical: "5x baseline"
+  
+  forecasting:
+    - name: "Multi-Horizon Forecasting"
+      description: "Forecast at multiple time horizons"
+      horizons:
+        short_term: "1 hour - for immediate scaling"
+        medium_term: "24 hours - for daily planning"
+        long_term: "7 days - for capacity procurement"
+    
+    - name: "Seasonal Adjustment"
+      description: "Account for seasonal patterns"
+      patterns:
+        - "Daily peaks (business hours)"
+        - "Weekly patterns (weekdays vs weekends)"
+        - "Monthly patterns (month-end processing)"
+        - "Annual events (holidays, sales)"
+  
+  scaling:
+    - name: "Gradual Scaling"
+      description: "Scale gradually to avoid oscillation"
+      guidelines:
+        scale_up_increment: "1-2 instances at a time"
+        scale_down_increment: "1 instance at a time"
+        cooldown_period: "5-10 minutes between scaling events"
+    
+    - name: "Predictive Scaling"
+      description: "Scale before load increases"
+      implementation:
+        - "Use load forecasts to pre-scale"
+        - "Schedule scaling for known events"
+        - "Maintain headroom for unexpected spikes"
+  
+  headroom:
+    - name: "Maintain Adequate Headroom"
+      description: "Keep buffer capacity for unexpected load"
+      recommendations:
+        normal_operations: "30% headroom"
+        peak_events: "50% headroom"
+        critical_systems: "40% headroom"
+  
+  cost_optimization:
+    - name: "Right-Sizing"
+      description: "Use appropriate instance sizes"
+      guidelines:
+        - "Monitor utilization and adjust sizes"
+        - "Use Reserved Instances for baseline capacity"
+        - "Use Spot Instances for fault-tolerant workloads"
+        - "Implement auto-scaling for variable workloads"
+    
+    - name: "Cost-Aware Scaling"
+      description: "Consider cost in scaling decisions"
+      practices:
+        - "Set maximum instance limits"
+        - "Use cost-based scaling policies"
+        - "Monitor and optimize data transfer costs"
+        - "Regular cost reviews and optimization"
+  
+  testing:
+    - name: "Load Testing"
+      description: "Validate capacity with load testing"
+      types:
+        - "Baseline load testing"
+        - "Stress testing"
+        - "Spike testing"
+        - "Endurance testing"
+    
+    - name: "Chaos Engineering"
+      description: "Test resilience under failure"
+      practices:
+        - "Simulate instance failures"
+        - "Test auto-scaling behavior"
+        - "Validate failover mechanisms"
+  
+  documentation:
+    - name: "Capacity Documentation"
+      description: "Document capacity decisions and rationale"
+      items:
+        - "Current capacity and utilization"
+        - "Growth projections and assumptions"
+        - "Scaling policies and thresholds"
+        - "Cost breakdown and optimization opportunities"
+        - "Known limitations and bottlenecks"
+
+implementation_checklist:
+  week_1_2_foundation:
+    resource_monitoring:
+      - "Deploy metrics collection agents"
+      - "Configure metric storage (time-series database)"
+      - "Set up metric visualization dashboards"
+      - "Implement metric retention policies"
+    
+    alerting:
+      - "Define alert thresholds"
+      - "Configure alert channels (email, Slack, PagerDuty)"
+      - "Create alert escalation policies"
+      - "Test alert delivery"
+    
+    performance_baselines:
+      - "Collect baseline metrics for 7 days"
+      - "Establish baseline thresholds"
+      - "Document baseline values"
+      - "Set up baseline monitoring"
+    
+    auto_scaling:
+      - "Configure auto-scaling groups"
+      - "Define scaling policies"
+      - "Set scaling thresholds"
+      - "Test scaling behavior"
+
+  week_3_4_intelligence:
+    load_forecasting:
+      - "Implement forecasting models"
+      - "Integrate with metrics data"
+      - "Validate forecast accuracy"
+      - "Create forecast dashboards"
+    
+    bottleneck_detection:
+      - "Implement bottleneck detection algorithms"
+      - "Configure bottleneck thresholds"
+      - "Create bottleneck alerts"
+      - "Document common bottlenecks"
+    
+    capacity_modeling:
+      - "Build capacity models for each service"
+      - "Validate models with load testing"
+      - "Create capacity planning dashboards"
+      - "Document capacity requirements"
+    
+    cost_modeling:
+      - "Implement cost tracking"
+      - "Create cost allocation tags"
+      - "Build cost dashboards"
+      - "Set up cost alerts"
+
+  week_5_6_optimization:
+    predictive_scaling:
+      - "Integrate forecasting with scaling"
+      - "Configure predictive scaling policies"
+      - "Test predictive scaling accuracy"
+      - "Document predictive scaling behavior"
+    
+    infrastructure_sizing:
+      - "Analyze current instance sizes"
+      - "Identify right-sizing opportunities"
+      - "Implement sizing recommendations"
+      - "Track cost savings"
+    
+    growth_projections:
+      - "Implement growth projection models"
+      - "Create growth dashboards"
+      - "Document growth assumptions"
+      - "Plan for future capacity"
+    
+    cost_optimization:
+      - "Identify cost optimization opportunities"
+      - "Implement Reserved Instance purchases"
+      - "Configure Spot Instance usage"
+      - "Track optimization savings"
+
+  week_7_8_advanced:
+    seasonal_planning:
+      - "Identify seasonal events"
+      - "Create seasonal capacity plans"
+      - "Schedule pre-scaling actions"
+      - "Document seasonal procedures"
+    
+    advanced_forecasting:
+      - "Implement ML-based forecasting"
+      - "Train models on historical data"
+      - "Validate ML forecast accuracy"
+      - "Integrate ML forecasts into planning"
+    
+    multi_region_capacity:
+      - "Analyze multi-region requirements"
+      - "Plan regional capacity distribution"
+      - "Implement regional scaling"
+      - "Document regional capacity strategy"
+    
+    automated_optimization:
+      - "Implement automated optimization rules"
+      - "Configure optimization policies"
+      - "Test automated optimization"
+      - "Monitor optimization results"

@@ -1,0 +1,250 @@
+# File: .github/workflows/release.yml
+name: ResilienceAI Release Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - release/*
+      - hotfix/*
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+          - hotfix
+      prerelease:
+        description: 'Is prerelease?'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  PYTHON_VERSION: '3.11'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release_type: ${{ steps.version.outputs.release_type }}
+      should_release: ${{ steps.check.outputs.should_release }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Determine version bump
+        id: version
+        run: |
+          python scripts/determine_version.py \
+            --branch "${{ github.ref_name }}" \
+            --commit-msg "${{ github.event.head_commit.message }}" \
+            --manual-type "${{ github.event.inputs.release_type }}"
+
+      - name: Check release readiness
+        id: check
+        run: |
+          python scripts/check_release_readiness.py \
+            --version "${{ steps.version.outputs.version }}"
+
+  build-and-test:
+    name: Build & Test
+    needs: validate
+    runs-on: ubuntu-latest
+    if: needs.validate.outputs.should_release == 'true'
+    
+    strategy:
+      matrix:
+        component: [core, ml_models, api, frontend]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run tests
+        run: |
+          pytest tests/${{ matrix.component }} \
+            --cov=src/${{ matrix.component }} \
+            --cov-report=xml
+
+      - name: Build artifacts
+        run: |
+          python scripts/build_artifact.py \
+            --component ${{ matrix.component }} \
+            --version ${{ needs.validate.outputs.version }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.component }}-${{ needs.validate.outputs.version }}
+          path: dist/${{ matrix.component }}/*
+          retention-days: 30
+
+  security-scan:
+    name: Security Scan
+    needs: [validate, build-and-test]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  build-containers:
+    name: Build Containers
+    needs: [validate, security-scan]
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        service: [api, ml-worker, frontend, scheduler]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.validate.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.validate.outputs.version }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.${{ matrix.service }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.validate.outputs.version }}
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: [validate, build-containers]
+    runs-on: ubuntu-latest
+    environment: staging
+    if: github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/release/')
+    
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Deploy to EKS staging
+        run: |
+          aws eks update-kubeconfig --name resilienceai-staging
+          kubectl apply -k k8s/staging/
+          kubectl rollout status deployment/api -n staging --timeout=300s
+
+  deploy-production:
+    name: Deploy to Production
+    needs: [validate, deploy-staging]
+    runs-on: ubuntu-latest
+    environment: production
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Deploy to EKS production
+        run: |
+          aws eks update-kubeconfig --name resilienceai-production
+          python scripts/blue_green_deploy.py \
+            --version ${{ needs.validate.outputs.version }} \
+            --environment production
+
+  create-release:
+    name: Create GitHub Release
+    needs: [validate, deploy-production]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        run: |
+          python scripts/generate_changelog.py \
+            --version ${{ needs.validate.outputs.version }} \
+            --output CHANGELOG_RELEASE.md
+
+      - name: Create Git tag
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git tag -a "v${{ needs.validate.outputs.version }}" \
+            -m "Release v${{ needs.validate.outputs.version }}"
+          git push origin "v${{ needs.validate.outputs.version }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ needs.validate.outputs.version }}
+          name: Release v${{ needs.validate.outputs.version }}
+          body_path: CHANGELOG_RELEASE.md
+          prerelease: ${{ github.event.inputs.prerelease }}
+
+      - name: Notify stakeholders
+        run: |
+          python scripts/notify_release.py \
+            --version ${{ needs.validate.outputs.version }} \
+            --channels slack,email

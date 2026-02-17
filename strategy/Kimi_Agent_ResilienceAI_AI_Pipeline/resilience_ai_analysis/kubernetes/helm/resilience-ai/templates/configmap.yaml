@@ -1,0 +1,67 @@
+{{/* ============================================================================
+ResilienceAI - ConfigMap Template
+============================================================================ */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "resilience-ai.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "resilience-ai.labels" . | nindent 4 }}
+    app.kubernetes.io/component: config
+data:
+  # Application Settings
+  APP_NAME: {{ .Values.app.env.APP_NAME | quote }}
+  APP_VERSION: {{ .Values.app.env.APP_VERSION | quote }}
+  ENVIRONMENT: {{ .Values.global.environment | quote }}
+  LOG_LEVEL: {{ .Values.app.env.LOG_LEVEL | quote }}
+  
+  # Server Configuration
+  SERVER_HOST: "0.0.0.0"
+  SERVER_PORT: {{ .Values.app.env.SERVER_PORT | quote }}
+  WORKERS: {{ .Values.app.env.WORKERS | quote }}
+  
+  # Feature Flags
+  ENABLE_ANALYTICS: {{ .Values.features.analytics | quote }}
+  ENABLE_CACHING: {{ .Values.features.caching | quote }}
+  ENABLE_RATE_LIMITING: {{ .Values.features.rateLimiting | quote }}
+  ENABLE_AUDIT_LOGGING: {{ .Values.features.auditLogging | quote }}
+  
+  # Assessment Configuration
+  MAX_ASSESSMENT_QUESTIONS: "50"
+  ASSESSMENT_TIMEOUT_MINUTES: "60"
+  RESULT_RETENTION_DAYS: "365"
+  
+  # AI/ML Settings
+  AI_MODEL_PATH: "/models"
+  AI_INFERENCE_BATCH_SIZE: "32"
+  AI_CONFIDENCE_THRESHOLD: "0.75"
+  ENABLE_MODEL_WARMUP: "true"
+  ENABLE_MODEL_MONITORING: {{ .Values.features.modelMonitoring | quote }}
+  
+  # Database Connection Pool
+  DB_POOL_SIZE: "20"
+  DB_MAX_OVERFLOW: "10"
+  DB_POOL_TIMEOUT: "30"
+  DB_POOL_RECYCLE: "3600"
+  
+  # Cache Configuration
+  CACHE_TTL_SECONDS: "300"
+  CACHE_MAX_SIZE: "10000"
+  
+  # Security Settings
+  SESSION_TIMEOUT_MINUTES: "30"
+  MAX_LOGIN_ATTEMPTS: "5"
+  PASSWORD_MIN_LENGTH: "12"
+  
+  # External Service URLs
+  EXTERNAL_API_TIMEOUT: "30"
+  WEBHOOK_RETRY_ATTEMPTS: "3"
+  
+  # Domain
+  DOMAIN: {{ .Values.global.domain | quote }}
+  
+  # Gateway Configuration
+  GATEWAY_UPSTREAM_APP: {{ .Values.gateway.config.upstreams.app | quote }}
+  GATEWAY_UPSTREAM_ML: {{ .Values.gateway.config.upstreams.ml | quote }}
+  GATEWAY_UPSTREAM_AUTH: {{ .Values.gateway.config.upstreams.auth | quote }}

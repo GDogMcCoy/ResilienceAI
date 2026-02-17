@@ -1,0 +1,488 @@
+# ============================================================================
+# ResilienceAI - Default Values
+# ============================================================================
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+# ============================================================================
+
+# -----------------------------------------------------------------------------
+# Global Configuration
+# -----------------------------------------------------------------------------
+global:
+  # Environment: development, staging, production
+  environment: production
+  
+  # Domain configuration
+  domain: resilienceai.com
+  
+  # Image registry
+  imageRegistry: "ghcr.io/resilienceai"
+  imagePullSecrets:
+    - name: resilience-ai-registry-credentials
+  
+  # Storage class
+  storageClass: fast-ssd
+  
+  # Node selector
+  nodeSelector: {}
+  
+  # Tolerations
+  tolerations: []
+  
+  # Affinity
+  affinity: {}
+
+# -----------------------------------------------------------------------------
+# Application Configuration
+# -----------------------------------------------------------------------------
+app:
+  enabled: true
+  
+  replicaCount: 3
+  
+  image:
+    repository: resilience-ai/app
+    tag: v2.0.0
+    pullPolicy: Always
+  
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8501
+  
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 300
+        policies:
+          - type: Percent
+            value: 10
+            periodSeconds: 60
+      scaleUp:
+        stabilizationWindowSeconds: 0
+        policies:
+          - type: Percent
+            value: 100
+            periodSeconds: 15
+  
+  # Health checks
+  livenessProbe:
+    enabled: true
+    path: /health/live
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    enabled: true
+    path: /health/ready
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+  
+  startupProbe:
+    enabled: true
+    path: /health/startup
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  
+  # Environment variables
+  env:
+    APP_NAME: "ResilienceAI"
+    APP_VERSION: "2.0.0"
+    LOG_LEVEL: "INFO"
+    SERVER_PORT: "8501"
+    WORKERS: "4"
+  
+  # Secrets (reference to existing secrets)
+  envFromSecrets:
+    - resilience-ai-secrets
+  
+  # ConfigMaps
+  envFromConfigMaps:
+    - resilience-ai-config
+  
+  # Volume mounts
+  volumes:
+    - name: models
+      persistentVolumeClaim:
+        claimName: resilience-ai-models-pvc
+    - name: tmp
+      emptyDir:
+        sizeLimit: 500Mi
+  
+  volumeMounts:
+    - name: models
+      mountPath: /models
+      readOnly: true
+    - name: tmp
+      mountPath: /tmp
+  
+  # Service account
+  serviceAccount:
+    create: true
+    annotations: {}
+    name: ""
+  
+  # Pod security context
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+  
+  # Container security context
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+  
+  # Pod disruption budget
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
+  
+  # Rolling update strategy
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 0
+
+# -----------------------------------------------------------------------------
+# API Gateway Configuration
+# -----------------------------------------------------------------------------
+gateway:
+  enabled: true
+  
+  replicaCount: 2
+  
+  image:
+    repository: resilience-ai/gateway
+    tag: v2.0.0
+    pullPolicy: Always
+  
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+  
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+  
+  env:
+    GATEWAY_PORT: "8080"
+    ENABLE_CORS: "true"
+    RATE_LIMIT_REQUESTS_PER_MINUTE: "100"
+  
+  config:
+    upstreams:
+      app: "http://resilience-ai-app:80"
+      ml: "http://resilience-ai-ml:5000"
+      auth: "http://resilience-ai-auth:8080"
+
+# -----------------------------------------------------------------------------
+# ML Service Configuration
+# -----------------------------------------------------------------------------
+ml:
+  enabled: true
+  
+  replicaCount: 2
+  
+  image:
+    repository: resilience-ai/ml-service
+    tag: v2.0.0
+    pullPolicy: Always
+  
+  service:
+    type: ClusterIP
+    ports:
+      http: 5000
+      grpc: 50051
+      metrics: 8080
+  
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 4Gi
+      # nvidia.com/gpu: 1
+    limits:
+      cpu: 4000m
+      memory: 16Gi
+      # nvidia.com/gpu: 1
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 60
+    scaleDownStabilizationWindow: 600
+  
+  env:
+    ML_SERVICE_PORT: "5000"
+    MODEL_PATH: "/models"
+    BATCH_INFERENCE_ENABLED: "true"
+  
+  volumes:
+    models:
+      enabled: true
+      size: 50Gi
+      storageClass: fast-ssd
+
+# -----------------------------------------------------------------------------
+# Database Configuration (PostgreSQL)
+# -----------------------------------------------------------------------------
+database:
+  enabled: true
+  
+  type: postgresql
+  
+  postgresql:
+    auth:
+      database: resilience_ai
+      username: resilience_ai_user
+      existingSecret: resilience-ai-secrets
+      secretKeys:
+        adminPasswordKey: DB_ADMIN_PASSWORD
+        userPasswordKey: DB_PASSWORD
+    
+    primary:
+      persistence:
+        enabled: true
+        size: 100Gi
+        storageClass: fast-ssd
+      
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: 2000m
+          memory: 4Gi
+      
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 1
+    
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+
+# -----------------------------------------------------------------------------
+# Cache Configuration (Redis)
+# -----------------------------------------------------------------------------
+cache:
+  enabled: true
+  
+  type: redis
+  
+  redis:
+    auth:
+      existingSecret: resilience-ai-secrets
+      existingSecretPasswordKey: REDIS_PASSWORD
+    
+    master:
+      persistence:
+        enabled: true
+        size: 20Gi
+        storageClass: fast-ssd
+      
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          cpu: 500m
+          memory: 2Gi
+    
+    replica:
+      replicaCount: 2
+      persistence:
+        enabled: true
+        size: 20Gi
+    
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+
+# -----------------------------------------------------------------------------
+# Istio Service Mesh Configuration
+# -----------------------------------------------------------------------------
+istio:
+  enabled: true
+  
+  gateway:
+    enabled: true
+    hosts:
+      - resilienceai.com
+      - app.resilienceai.com
+      - api.resilienceai.com
+    tls:
+      enabled: true
+      credentialName: resilience-ai-tls-secret
+  
+  virtualServices:
+    enabled: true
+    canary:
+      enabled: false
+      weight: 10
+  
+  destinationRules:
+    enabled: true
+    circuitBreaker:
+      enabled: true
+      consecutiveErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+  
+  security:
+    mtls:
+      enabled: true
+      mode: STRICT
+    authorization:
+      enabled: true
+    
+  sidecar:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+# -----------------------------------------------------------------------------
+# Ingress Configuration
+# -----------------------------------------------------------------------------
+ingress:
+  enabled: true
+  
+  className: nginx
+  
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  
+  hosts:
+    - host: resilienceai.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: app
+          port: 80
+    
+    - host: app.resilienceai.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: app
+          port: 80
+    
+    - host: api.resilienceai.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: gateway
+          port: 80
+  
+  tls:
+    - secretName: resilience-ai-tls
+      hosts:
+        - resilienceai.com
+        - app.resilienceai.com
+        - api.resilienceai.com
+
+# -----------------------------------------------------------------------------
+# Monitoring Configuration
+# -----------------------------------------------------------------------------
+monitoring:
+  enabled: true
+  
+  prometheus:
+    enabled: true
+    retention: 30d
+    storage: 50Gi
+  
+  grafana:
+    enabled: true
+    adminPassword: "admin"
+    persistence:
+      enabled: true
+      size: 10Gi
+  
+  loki:
+    enabled: true
+    persistence:
+      enabled: true
+      size: 50Gi
+  
+  jaeger:
+    enabled: true
+    storage:
+      type: elasticsearch
+  
+  alerts:
+    enabled: true
+    slack:
+      webhook: ""
+      channel: "#alerts"
+
+# -----------------------------------------------------------------------------
+# Backup Configuration
+# -----------------------------------------------------------------------------
+backup:
+  enabled: true
+  
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: 30
+  
+  s3:
+    enabled: true
+    bucket: resilience-ai-backups
+    region: us-east-1
+    path: /backups
+
+# -----------------------------------------------------------------------------
+# Feature Flags
+# -----------------------------------------------------------------------------
+features:
+  analytics: true
+  caching: true
+  rateLimiting: true
+  auditLogging: true
+  modelMonitoring: true
+  gpu: false

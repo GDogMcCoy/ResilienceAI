@@ -1,0 +1,118 @@
+# Load Testing Thresholds for ResilienceAI
+
+# Response Time Thresholds (milliseconds)
+response_time:
+  p50:
+    target: 100
+    warning: 200
+    critical: 500
+  p95:
+    target: 500
+    warning: 1000
+    critical: 2000
+  p99:
+    target: 1000
+    warning: 2000
+    critical: 5000
+
+# Throughput Thresholds (requests per second)
+throughput:
+  predict:
+    target: 100
+    warning: 50
+    critical: 20
+  batch:
+    target: 20
+    warning: 10
+    critical: 5
+  health:
+    target: 500
+    warning: 250
+    critical: 100
+
+# Error Rate Thresholds (%)
+error_rate:
+  target: 0.1
+  warning: 1.0
+  critical: 5.0
+
+# Resource Utilization Thresholds (%)
+resources:
+  cpu:
+    target: 70
+    warning: 80
+    critical: 90
+  memory:
+    target: 70
+    warning: 80
+    critical: 90
+  disk:
+    target: 70
+    warning: 80
+    critical: 90
+
+# ML-Specific Thresholds
+ml:
+  inference_time_ms:
+    target: 50
+    warning: 100
+    critical: 200
+  model_load_time_ms:
+    target: 5000
+    warning: 10000
+    critical: 30000
+  batch_processing_time_s:
+    target: 5
+    warning: 10
+    critical: 30
+
+# Queue Thresholds
+queue:
+  depth:
+    target: 100
+    warning: 500
+    critical: 1000
+  wait_time_ms:
+    target: 100
+    warning: 500
+    critical: 1000
+
+# Connection Thresholds
+connections:
+  active:
+    target: 100
+    warning: 500
+    critical: 1000
+  pool_utilization:
+    target: 50
+    warning: 75
+    critical: 90
+
+# Test-Specific Thresholds
+tests:
+  smoke:
+    max_duration: "2m"
+    max_users: 10
+    max_error_rate: 0.01
+    
+  load:
+    max_duration: "30m"
+    max_users: 200
+    max_error_rate: 0.01
+    
+  stress:
+    max_duration: "1h"
+    max_users: 2000
+    max_error_rate: 0.10
+    
+  spike:
+    max_duration: "15m"
+    max_users: 1000
+    max_error_rate: 0.10
+    spike_multiplier: 20
+    
+  endurance:
+    max_duration: "12h"
+    max_users: 200
+    max_error_rate: 0.01
+    memory_growth_threshold: 10  # % growth over test

@@ -1,0 +1,142 @@
+# Neo4j Cluster Configuration for ResilienceAI
+# Deploy with: docker-compose up -d
+
+version: '3.8'
+
+services:
+  neo4j-core-1:
+    image: neo4j:5.14-enterprise
+    container_name: neo4j-core-1
+    hostname: neo4j-core-1
+    environment:
+      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-resilience123}
+      - NEO4J_dbms_mode=CORE
+      - NEO4J_causal__clustering_discovery__type=LIST
+      - NEO4J_causal__clustering_initial__discovery__members=neo4j-core-1:5000,neo4j-core-2:5000,neo4j-core-3:5000
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+      - NEO4J_dbms_memory_heap_initial__size=4G
+      - NEO4J_dbms_memory_heap_max__size=4G
+      - NEO4J_dbms_memory_pagecache_size=2G
+      - NEO4J_dbms_default__database=resilience
+      - NEO4J_PLUGINS=["apoc", "gds", "n10s"]
+    ports:
+      - "7474:7474"  # HTTP
+      - "7687:7687"  # Bolt
+      - "6362:6362"  # Backup
+    volumes:
+      - neo4j-data-1:/data
+      - neo4j-logs-1:/logs
+      - ./plugins:/plugins
+    networks:
+      - neo4j-cluster
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:7474"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  neo4j-core-2:
+    image: neo4j:5.14-enterprise
+    container_name: neo4j-core-2
+    hostname: neo4j-core-2
+    environment:
+      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-resilience123}
+      - NEO4J_dbms_mode=CORE
+      - NEO4J_causal__clustering_discovery__type=LIST
+      - NEO4J_causal__clustering_initial__discovery__members=neo4j-core-1:5000,neo4j-core-2:5000,neo4j-core-3:5000
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+      - NEO4J_dbms_memory_heap_initial__size=4G
+      - NEO4J_dbms_memory_heap_max__size=4G
+      - NEO4J_dbms_memory_pagecache_size=2G
+      - NEO4J_PLUGINS=["apoc", "gds", "n10s"]
+    ports:
+      - "7475:7474"
+      - "7688:7687"
+    volumes:
+      - neo4j-data-2:/data
+      - neo4j-logs-2:/logs
+    networks:
+      - neo4j-cluster
+    depends_on:
+      - neo4j-core-1
+
+  neo4j-core-3:
+    image: neo4j:5.14-enterprise
+    container_name: neo4j-core-3
+    hostname: neo4j-core-3
+    environment:
+      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-resilience123}
+      - NEO4J_dbms_mode=CORE
+      - NEO4J_causal__clustering_discovery__type=LIST
+      - NEO4J_causal__clustering_initial__discovery__members=neo4j-core-1:5000,neo4j-core-2:5000,neo4j-core-3:5000
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+      - NEO4J_dbms_memory_heap_initial__size=4G
+      - NEO4J_dbms_memory_heap_max__size=4G
+      - NEO4J_dbms_memory_pagecache_size=2G
+      - NEO4J_PLUGINS=["apoc", "gds", "n10s"]
+    ports:
+      - "7476:7474"
+      - "7689:7687"
+    volumes:
+      - neo4j-data-3:/data
+      - neo4j-logs-3:/logs
+    networks:
+      - neo4j-cluster
+    depends_on:
+      - neo4j-core-1
+
+  neo4j-read-replica-1:
+    image: neo4j:5.14-enterprise
+    container_name: neo4j-read-replica-1
+    hostname: neo4j-read-replica-1
+    environment:
+      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-resilience123}
+      - NEO4J_dbms_mode=READ_REPLICA
+      - NEO4J_causal__clustering_discovery__type=LIST
+      - NEO4J_causal__clustering_initial__discovery__members=neo4j-core-1:5000,neo4j-core-2:5000,neo4j-core-3:5000
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+      - NEO4J_dbms_memory_heap_initial__size=2G
+      - NEO4J_dbms_memory_heap_max__size=2G
+      - NEO4J_dbms_memory_pagecache_size=1G
+    ports:
+      - "7477:7474"
+      - "7690:7687"
+    volumes:
+      - neo4j-data-rr1:/data
+      - neo4j-logs-rr1:/logs
+    networks:
+      - neo4j-cluster
+    depends_on:
+      - neo4j-core-1
+      - neo4j-core-2
+      - neo4j-core-3
+
+  # Load balancer for read replicas
+  neo4j-lb:
+    image: nginx:alpine
+    container_name: neo4j-lb
+    ports:
+      - "7691:7687"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - neo4j-cluster
+    depends_on:
+      - neo4j-read-replica-1
+
+volumes:
+  neo4j-data-1:
+  neo4j-data-2:
+  neo4j-data-3:
+  neo4j-data-rr1:
+  neo4j-logs-1:
+  neo4j-logs-2:
+  neo4j-logs-3:
+  neo4j-logs-rr1:
+
+networks:
+  neo4j-cluster:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

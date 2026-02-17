@@ -1,0 +1,43 @@
+# TLS certificate for ingress gateway
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: resilience-ai-tls
+  namespace: istio-system
+spec:
+  secretName: resilience-ai-tls-cert
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+  - resilience-ai.example.com
+  - api.resilience-ai.example.com
+  - app.resilience-ai.example.com
+  - grpc.resilience-ai.example.com
+  - "*.resilience-ai.example.com"
+---
+# ClusterIssuer for Let's Encrypt
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: admin@resilience-ai.example.com
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+    - http01:
+        ingress:
+          class: istio
+---
+# Internal CA for service-to-service mTLS
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: resilience-ai-ca
+  namespace: resilience-ai
+spec:
+  ca:
+    secretName: resilience-ai-ca-secret

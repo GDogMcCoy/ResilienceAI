@@ -1,0 +1,47 @@
+[run]
+source = src
+branch = True
+omit = 
+    */tests/*
+    */test_*
+    */__pycache__/*
+    */venv/*
+    */.venv/*
+    */env/*
+    setup.py
+    */migrations/*
+    */examples/*
+    */demo_materials/*
+    */research/*
+    */strategy/*
+    */presentation/*
+    */docs/*
+    src/llm_example.py
+    src/modern_ui.py
+    src/dashboard_monitor.py
+    app/dashboard.py
+    
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    pass
+    except ImportError:
+    if 0:
+    if False:
+    
+show_missing = True
+skip_covered = False
+fail_under = 70
+
+[html]
+directory = htmlcov
+
+title = ResilienceAI Test Coverage Report
+
+[xml]
+output = coverage.xml

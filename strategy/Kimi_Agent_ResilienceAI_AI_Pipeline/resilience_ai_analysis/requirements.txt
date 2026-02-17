@@ -1,0 +1,47 @@
+# ResilienceAI Requirements
+
+# Core data processing
+pandas>=2.0.0
+numpy>=1.24.0,<2.0.0
+scipy>=1.10.0
+
+# Machine learning
+scikit-learn>=1.3.0
+joblib>=1.3.0
+shap<0.46.0
+
+# Geospatial analysis
+geopandas>=0.14.0
+shapely>=2.0.0
+
+# Visualization
+plotly>=5.15.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Dashboard
+streamlit>=1.28.0
+streamlit-lottie>=0.0.5
+streamlit-antd-components>=0.2.0
+streamlit-shadcn-ui>=0.1.0
+
+# HTTP requests
+requests>=2.31.0
+
+# Data export
+fhir.resources>=7.0.0
+
+# Markdown tables (for pandas to_markdown)
+tabulate>=0.9.0
+
+# Google Earth Engine (satellite data)
+earthengine-api>=1.4.0
+
+# Utilities
+python-dotenv>=1.0.0
+pyyaml>=6.0.0
+
+# Vector space and embeddings
+sentence-transformers>=2.2.0
+faiss-cpu>=1.7.4
+umap-learn>=0.5.4

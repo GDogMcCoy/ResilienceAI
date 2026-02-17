@@ -1,0 +1,134 @@
+# Global performance settings
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: global-performance
+  namespace: resilience-ai
+spec:
+  host: "*.resilience-ai.svc.cluster.local"
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 1000
+        connectTimeout: 10ms
+        tcpKeepalive:
+          time: 300s
+          interval: 75s
+      http:
+        h2UpgradePolicy: UPGRADE
+        http1MaxPendingRequests: 1000
+        http2MaxRequests: 5000
+        maxRequestsPerConnection: 1000
+        maxRetries: 3
+    loadBalancer:
+      simple: LEAST_REQUEST
+      localityLbSetting:
+        enabled: true
+        distribute:
+        - from: us-east-1
+          to:
+            us-east-1a: 40
+            us-east-1b: 35
+            us-east-1c: 25
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+---
+# Connection pool optimization for high-throughput services
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: high-throughput-optimization
+  namespace: resilience-ai
+spec:
+  host: ml-engine
+  trafficPolicy:
+    portLevelSettings:
+    - port:
+        number: 50051  # gRPC
+      connectionPool:
+        http:
+          h2UpgradePolicy: UPGRADE
+          http2MaxRequests: 10000
+          maxRequestsPerConnection: 1000
+    - port:
+        number: 8080  # HTTP
+      connectionPool:
+        http:
+          http1MaxPendingRequests: 2000
+          http2MaxRequests: 5000
+---
+# Envoy performance tuning
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: performance-envoy-filter
+  namespace: resilience-ai
+spec:
+  configPatches:
+  - applyTo: NETWORK_FILTER
+    match:
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.tcp_proxy
+    patch:
+      operation: MERGE
+      value:
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
+          idle_timeout: 300s
+          
+  - applyTo: CLUSTER
+    patch:
+      operation: MERGE
+      value:
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          common_tls_context:
+            tls_params:
+              tls_minimum_protocol_version: TLSv1_2
+              tls_maximum_protocol_version: TLSv1_3
+              cipher_suites:
+              - ECDHE-RSA-AES256-GCM-SHA384
+              - ECDHE-RSA-AES128-GCM-SHA256
+---
+# Sidecar resource optimization
+apiVersion: networking.istio.io/v1beta1
+kind: Sidecar
+metadata:
+  name: default
+  namespace: resilience-ai
+spec:
+  outboundTrafficPolicy:
+    mode: REGISTRY_ONLY
+  egress:
+  - hosts:
+    - "./*"
+    - "istio-system/*"
+    - "monitoring/*"
+  - hosts:
+    - "*/s3.amazonaws.com"
+    - "*/api.openai.com"
+    captureMode: NONE
+---
+# Sidecar proxy resources
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sidecar-resources
+  namespace: resilience-ai
+data:
+  proxy.istio.io/config: |
+    proxyMetadata:
+      ISTIO_META_DNS_CAPTURE: "true"
+      ISTIO_META_DNS_AUTO_ALLOCATE: "true"
+    concurrency: 2
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi

@@ -1,0 +1,36 @@
+# Enable automatic sidecar injection for ResilienceAI namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: resilience-ai
+  labels:
+    istio-injection: enabled
+    app.kubernetes.io/name: resilience-ai
+    app.kubernetes.io/part-of: resilience-ai-platform
+---
+# Production namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: resilience-ai-prod
+  labels:
+    istio-injection: enabled
+    environment: production
+---
+# Staging namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: resilience-ai-staging
+  labels:
+    istio-injection: enabled
+    environment: staging
+---
+# Canary namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: resilience-ai-canary
+  labels:
+    istio-injection: enabled
+    environment: canary

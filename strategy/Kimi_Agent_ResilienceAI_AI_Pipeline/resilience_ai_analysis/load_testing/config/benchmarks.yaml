@@ -1,0 +1,103 @@
+# Performance Benchmarks for ResilienceAI
+
+benchmarks:
+  # Response Time Benchmarks
+  response_time_p50:
+    name: "Response Time (p50)"
+    target: 100  # ms
+    warning_threshold: 200
+    critical_threshold: 500
+    unit: "ms"
+    description: "50th percentile response time"
+    
+  response_time_p95:
+    name: "Response Time (p95)"
+    target: 500  # ms
+    warning_threshold: 1000
+    critical_threshold: 2000
+    unit: "ms"
+    description: "95th percentile response time"
+    
+  response_time_p99:
+    name: "Response Time (p99)"
+    target: 1000  # ms
+    warning_threshold: 2000
+    critical_threshold: 5000
+    unit: "ms"
+    description: "99th percentile response time"
+
+  # Throughput Benchmarks
+  throughput_predict:
+    name: "Prediction Throughput"
+    target: 100  # RPS
+    warning_threshold: 50
+    critical_threshold: 20
+    unit: "RPS"
+    description: "Requests per second for prediction endpoint"
+    
+  throughput_batch:
+    name: "Batch Throughput"
+    target: 20  # batches/min
+    warning_threshold: 10
+    critical_threshold: 5
+    unit: "batches/min"
+    description: "Batch processing throughput"
+
+  # Error Rate Benchmarks
+  error_rate:
+    name: "Error Rate"
+    target: 0.1  # %
+    warning_threshold: 1.0
+    critical_threshold: 5.0
+    unit: "%"
+    description: "Percentage of failed requests"
+
+  # ML-Specific Benchmarks
+  inference_time:
+    name: "ML Inference Time"
+    target: 50  # ms
+    warning_threshold: 100
+    critical_threshold: 200
+    unit: "ms"
+    description: "Model inference time"
+    
+  model_load_time:
+    name: "Model Load Time"
+    target: 5000  # ms
+    warning_threshold: 10000
+    critical_threshold: 30000
+    unit: "ms"
+    description: "Time to load a model into memory"
+
+  # Resource Benchmarks
+  cpu_usage:
+    name: "CPU Usage"
+    target: 70  # %
+    warning_threshold: 80
+    critical_threshold: 90
+    unit: "%"
+    description: "CPU utilization"
+    
+  memory_usage:
+    name: "Memory Usage"
+    target: 70  # %
+    warning_threshold: 80
+    critical_threshold: 90
+    unit: "%"
+    description: "Memory utilization"
+
+# SLA Definitions
+slas:
+  availability:
+    target: 99.9  # %
+    measurement: "uptime_percentage"
+    
+  response_time_sla:
+    p50_target: 100  # ms
+    p95_target: 500  # ms
+    p99_target: 1000  # ms
+    
+  throughput_sla:
+    min_rps: 50
+    target_rps: 100
+    peak_rps: 200

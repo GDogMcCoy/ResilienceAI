@@ -1,0 +1,50 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: timeout-policies
+  namespace: resilience-ai
+spec:
+  hosts:
+  - "api.resilience-ai.example.com"
+  http:
+  # Quick operations
+  - match:
+    - uri:
+        prefix: /api/v1/auth
+    route:
+    - destination:
+        host: auth-service
+    timeout: 5s
+    
+  # ML predictions
+  - match:
+    - uri:
+        prefix: /api/v1/predict
+    route:
+    - destination:
+        host: ml-engine
+    timeout: 10s
+    
+  # Model training
+  - match:
+    - uri:
+        prefix: /api/v1/ml/train
+    route:
+    - destination:
+        host: ml-engine
+    timeout: 300s  # 5 minutes for training
+    
+  # Analytics queries
+  - match:
+    - uri:
+        prefix: /api/v1/analytics/reports
+    route:
+    - destination:
+        host: analytics-service
+    timeout: 60s
+    
+  # Default timeout
+  - route:
+    - destination:
+        host: api-gateway
+    timeout: 30s

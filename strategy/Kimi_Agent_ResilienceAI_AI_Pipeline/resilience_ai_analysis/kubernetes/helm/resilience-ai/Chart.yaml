@@ -1,0 +1,102 @@
+# ============================================================================
+# ResilienceAI - Helm Chart
+# ============================================================================
+apiVersion: v2
+name: resilience-ai
+description: |
+  ResilienceAI Platform - AI-powered resilience assessment and coaching system
+  
+  This Helm chart deploys the complete ResilienceAI platform including:
+  - Streamlit frontend application
+  - API Gateway
+  - ML inference service
+  - PostgreSQL database
+  - Redis cache
+  - Istio service mesh integration
+  - Monitoring and observability
+
+type: application
+version: 2.0.0
+appVersion: "2.0.0"
+
+keywords:
+  - resilience
+  - ai
+  - assessment
+  - coaching
+  - streamlit
+  - machine-learning
+  - kubernetes
+  - helm
+
+home: https://resilienceai.com
+sources:
+  - https://github.com/resilienceai/platform
+
+maintainers:
+  - name: ResilienceAI Team
+    email: platform-team@resilienceai.com
+    url: https://resilienceai.com/team
+
+dependencies:
+  # Database
+  - name: postgresql
+    version: 12.12.10
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+    alias: db
+  
+  # Cache
+  - name: redis
+    version: 18.6.1
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled
+    alias: cache
+  
+  # Message Queue
+  - name: rabbitmq
+    version: 12.6.0
+    repository: https://charts.bitnami.com/bitnami
+    condition: rabbitmq.enabled
+  
+  # Monitoring
+  - name: kube-prometheus-stack
+    version: 55.5.0
+    repository: https://prometheus-community.github.io/helm-charts
+    condition: monitoring.prometheus.enabled
+    alias: prometheus
+  
+  # Logging
+  - name: loki-stack
+    version: 2.9.11
+    repository: https://grafana.github.io/helm-charts
+    condition: monitoring.loki.enabled
+    alias: loki
+  
+  # Tracing
+  - name: jaeger
+    version: 0.73.0
+    repository: https://jaegertracing.github.io/helm-charts
+    condition: monitoring.jaeger.enabled
+  
+  # Service Mesh
+  - name: base
+    version: 1.20.0
+    repository: https://istio-release.storage.googleapis.com/charts
+    condition: istio.enabled
+    alias: istio-base
+  
+  - name: istiod
+    version: 1.20.0
+    repository: https://istio-release.storage.googleapis.com/charts
+    condition: istio.enabled
+  
+  - name: gateway
+    version: 1.20.0
+    repository: https://istio-release.storage.googleapis.com/charts
+    condition: istio.enabled
+    alias: istio-gateway
+
+annotations:
+  category: AI/ML
+  licenses: Apache-2.0
