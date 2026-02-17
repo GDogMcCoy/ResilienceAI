@@ -191,10 +191,44 @@ class ACISClient(CachedAPIClient):
             "User-Agent": "ResilienceAI/2.0 (hackathon@muidsi.edu)"
         })
 
+    # FIPS state code to ACIS state abbreviation
+    _FIPS_TO_STATE = {
+        "01": "AL", "02": "AK", "04": "AZ", "05": "AR", "06": "CA", "08": "CO",
+        "09": "CT", "10": "DE", "11": "DC", "12": "FL", "13": "GA", "15": "HI",
+        "16": "ID", "17": "IL", "18": "IN", "19": "IA", "20": "KS", "21": "KY",
+        "22": "LA", "23": "ME", "24": "MD", "25": "MA", "26": "MI", "27": "MN",
+        "28": "MS", "29": "MO", "30": "MT", "31": "NE", "32": "NV", "33": "NH",
+        "34": "NJ", "35": "NM", "36": "NY", "37": "NC", "38": "ND", "39": "OH",
+        "40": "OK", "41": "OR", "42": "PA", "44": "RI", "45": "SC", "46": "SD",
+        "47": "TN", "48": "TX", "49": "UT", "50": "VT", "51": "VA", "53": "WA",
+        "54": "WV", "55": "WI", "56": "WY",
+    }
+
+    @staticmethod
+    def _grid_mean(values):
+        """Average grid cell values, filtering out missing data markers."""
+        if not isinstance(values, list):
+            try:
+                v = float(values)
+                return v if v != -999 else None
+            except (ValueError, TypeError):
+                return None
+        nums = []
+        for v in values:
+            try:
+                f = float(v)
+                if f != -999:
+                    nums.append(f)
+            except (ValueError, TypeError):
+                continue
+        return round(sum(nums) / len(nums), 2) if nums else None
+
     def get_county_climate(self, fips: str, start_year: int = 2000,
                            end_year: int = 2025) -> List[ClimateRecord]:
         """Get annual temperature and precipitation for a county."""
+        state_code = self._FIPS_TO_STATE.get(fips[:2], "")
         body = {
+            "state": state_code,
             "county": fips,
             "sdate": f"{start_year}-01-01",
             "edate": f"{end_year}-12-31",
@@ -222,13 +256,34 @@ class ACISClient(CachedAPIClient):
             except (ValueError, IndexError):
                 continue
 
-            values = row[1] if isinstance(row[1], list) else row[1:]
-            try:
-                maxt = float(values[0]) if values[0] not in ("M", "-999", None) else None
-                mint = float(values[1]) if values[1] not in ("M", "-999", None) else None
-                pcpn = float(values[2]) if values[2] not in ("M", "-999", None) else None
-            except (IndexError, ValueError, TypeError):
-                maxt = mint = pcpn = None
+            # GridData returns [year, maxt_2d_grid, mint_2d_grid, pcpn_2d_grid]
+            # Each grid is a 2D array of cell values — flatten and average
+            def _flatten_grid_mean(grid):
+                """Average all numeric values in a 2D grid array."""
+                if not isinstance(grid, list):
+                    return self._grid_mean(grid)
+                nums = []
+                for item in grid:
+                    if isinstance(item, list):
+                        for v in item:
+                            try:
+                                f = float(v)
+                                if f != -999:
+                                    nums.append(f)
+                            except (ValueError, TypeError):
+                                continue
+                    else:
+                        try:
+                            f = float(item)
+                            if f != -999:
+                                nums.append(f)
+                        except (ValueError, TypeError):
+                            continue
+                return round(sum(nums) / len(nums), 2) if nums else None
+
+            maxt = _flatten_grid_mean(row[1]) if len(row) > 1 else None
+            mint = _flatten_grid_mean(row[2]) if len(row) > 2 else None
+            pcpn = _flatten_grid_mean(row[3]) if len(row) > 3 else None
 
             mean_temp = round((maxt + mint) / 2, 1) if maxt is not None and mint is not None else None
 

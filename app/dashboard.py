@@ -14,6 +14,7 @@ from pathlib import Path
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
+import requests
 
 try:
     import streamlit_antd_components as sac
@@ -111,6 +112,74 @@ def load_data():
     except Exception as e:
         st.error(f"Data load error: {e}")
     return None
+
+@st.cache_data
+def load_zip_to_fips():
+    """Load ZIP-to-county FIPS mapping from HUD USPS crosswalk or cached file."""
+    cache_path = Path(__file__).parent.parent / "data" / "cache" / "zip_county_crosswalk.csv"
+    if cache_path.exists():
+        return pd.read_csv(cache_path, dtype=str)
+    # Build from Census ZCTA-County Relationship File
+    try:
+        url = "https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/tab20_zcta520_county20_natl.txt"
+        resp = requests.get(url, timeout=30)
+        resp.raise_for_status()
+        raw = pd.read_csv(
+            __import__("io").StringIO(resp.text), sep="|", dtype=str,
+            encoding_errors="ignore",
+        )
+        # Strip BOM and whitespace from column names
+        raw.columns = [c.strip().lstrip("\ufeff") for c in raw.columns]
+        raw = raw[["GEOID_ZCTA5_20", "GEOID_COUNTY_20", "NAMELSAD_COUNTY_20"]]
+        raw = raw.rename(columns={
+            "GEOID_ZCTA5_20": "zip", "GEOID_COUNTY_20": "fips",
+            "NAMELSAD_COUNTY_20": "county_name"
+        })
+        # Keep primary (first) mapping per ZIP
+        raw = raw.drop_duplicates(subset="zip", keep="first")
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        raw.to_csv(cache_path, index=False)
+        return raw
+    except Exception:
+        return None
+
+def zip_to_fips(zip_code: str, crosswalk=None) -> dict:
+    """Look up county FIPS and name from a ZIP code."""
+    if crosswalk is None:
+        crosswalk = load_zip_to_fips()
+    if crosswalk is None:
+        return {"error": "ZIP crosswalk not available"}
+    match = crosswalk[crosswalk["zip"] == str(zip_code).zfill(5)]
+    if match.empty:
+        return {"error": f"No county found for ZIP {zip_code}"}
+    row = match.iloc[0]
+    return {"fips": row["fips"], "county_name": row["county_name"], "zip": row["zip"]}
+
+def county_picker(df, key_prefix, label="Find County"):
+    """Reusable county picker: search by ZIP or select by name. Returns FIPS string."""
+    search_mode = st.radio(label, ["By Name", "By ZIP Code"], horizontal=True, key=f"{key_prefix}_mode")
+    if search_mode == "By ZIP Code":
+        zip_input = st.text_input("ZIP Code", max_chars=5, key=f"{key_prefix}_zip",
+                                  placeholder="e.g. 65201")
+        if zip_input and len(zip_input) == 5:
+            result = zip_to_fips(zip_input)
+            if "error" not in result:
+                st.caption(f"Mapped to **{result['county_name']}** (FIPS: {result['fips']})")
+                return result["fips"]
+            else:
+                st.warning(result["error"])
+                return None
+        return None
+    else:
+        if df is None:
+            return None
+        mo_counties = df[df["county_name"].str.endswith(", Missouri")][["county_name", "fips"]].sort_values("county_name")
+        if mo_counties.empty:
+            mo_counties = df[["county_name", "fips"]].sort_values("county_name")
+        options = dict(zip(mo_counties["county_name"], mo_counties["fips"]))
+        default_idx = list(options.keys()).index("Boone, Missouri") if "Boone, Missouri" in options else 0
+        selected = st.selectbox("County", list(options.keys()), index=default_idx, key=f"{key_prefix}_name")
+        return options[selected]
 
 df = load_data()
 if df is not None:
@@ -289,14 +358,10 @@ with tab3:
     st.subheader("Climate Intelligence Dashboard")
 
     if df is not None and CLIMATE_AVAILABLE:
-        # County selector
-        mo_counties = df[df["county_name"].str.endswith(", Missouri")][["county_name", "fips"]].sort_values("county_name")
-        county_options = dict(zip(mo_counties["county_name"], mo_counties["fips"]))
-
-        selected_county = st.selectbox("Select County", list(county_options.keys()),
-                                       index=list(county_options.keys()).index("Boone, Missouri")
-                                       if "Boone, Missouri" in county_options else 0)
-        selected_fips = county_options[selected_county]
+        # County selector — by name or ZIP code
+        selected_fips = county_picker(df, key_prefix="climate", label="Find County")
+        if selected_fips is None:
+            st.info("Enter a ZIP code or select a county to view climate data.")
 
         ci1, ci2, ci3, ci4, ci5 = st.tabs([
             "Temperature & Precipitation",
@@ -632,8 +697,8 @@ with tab5:
             # Intervention ROI lookup
             st.subheader("Intervention ROI")
             if AGENT_AVAILABLE and st.session_state.local_agent:
-                roi_fips = st.text_input("County FIPS", value="29019", key="roi_fips")
-                if st.button("Calculate ROI"):
+                roi_fips = county_picker(df, key_prefix="roi", label="Select County for ROI")
+                if roi_fips and st.button("Calculate ROI"):
                     with st.spinner("Analyzing interventions..."):
                         try:
                             result = st.session_state.local_agent.calculate_intervention_roi(roi_fips)
