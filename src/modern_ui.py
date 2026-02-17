@@ -5,301 +5,223 @@ State-of-the-art visual design using Streamlit and custom CSS
 
 import streamlit as st
 
-# Modern color palette
+# Esoteric Noir color palette
 COLORS = {
-    'primary': '#6366f1',      # Indigo
-    'secondary': '#8b5cf6',    # Violet
-    'success': '#10b981',      # Emerald
-    'warning': '#f59e0b',      # Amber
-    'danger': '#ef4444',       # Red
-    'info': '#3b82f6',         # Blue
-    'dark': '#1e293b',         # Slate 800
-    'light': '#f8fafc',        # Slate 50
-    'gradient_start': '#4f46e5',
-    'gradient_end': '#7c3aed'
+    'primary': '#c084fc',      # Purple 400
+    'secondary': '#818cf8',    # Indigo 400
+    'success': '#4ade80',      # Green 400
+    'warning': '#fbbf24',      # Amber 400
+    'danger': '#f87171',       # Red 400
+    'info': '#38bdf8',         # Sky 400
+    'bg_dark': '#0f172a',      # Slate 900
+    'bg_card': '#1e293b',      # Slate 800
+    'text_main': '#f8fafc',    # Slate 50
+    'text_muted': '#94a3b8',   # Slate 400
+    'accent_glow': '0 0 15px rgba(192, 132, 252, 0.4)'
 }
 
-# Modern CSS framework
+# Modern CSS framework (Esoteric Noir Edition)
 MODERN_CSS = """
 <style>
-    /* Import modern fonts */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@300;400;600;700&display=swap');
     
-    /* Global styles */
     * {
         font-family: 'Inter', sans-serif;
     }
     
-    /* Main container */
-    .main {
-        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    code, pre, .mono {
+        font-family: 'JetBrains Mono', monospace !important;
+    }
+    
+    .stApp {
+        background-color: #0f172a;
+        color: #f8fafc;
     }
     
     /* Header styling */
     .modern-header {
-        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-        padding: 2rem;
-        border-radius: 16px;
+        background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
+        padding: 2.5rem;
+        border-radius: 20px;
         color: white;
         margin-bottom: 2rem;
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        border: 1px solid rgba(192, 132, 252, 0.2);
+        box-shadow: 0 0 30px rgba(0, 0, 0, 0.5), 0 0 10px rgba(192, 132, 252, 0.1);
     }
     
     .modern-header h1 {
-        font-size: 2.5rem;
+        font-size: 3rem;
         font-weight: 700;
         margin: 0;
-        background: linear-gradient(to right, #ffffff, #c7d2fe);
+        letter-spacing: -0.02em;
+        background: linear-gradient(to right, #f8fafc, #c084fc);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
+        text-shadow: 0 0 20px rgba(192, 132, 252, 0.3);
     }
     
     .modern-header p {
-        font-size: 1.1rem;
-        opacity: 0.9;
-        margin-top: 0.5rem;
+        font-size: 1.2rem;
+        color: #94a3b8;
+        margin-top: 0.75rem;
+        font-weight: 300;
     }
     
     /* Card component */
     .metric-card {
-        background: white;
-        border-radius: 16px;
-        padding: 1.5rem;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        transition: all 0.3s ease;
-        border: 1px solid #e2e8f0;
+        background: #1e293b;
+        border-radius: 20px;
+        padding: 1.75rem;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
     .metric-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        transform: translateY(-6px);
+        border-color: rgba(192, 132, 252, 0.4);
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 0 15px rgba(192, 132, 252, 0.1);
     }
     
     .metric-value {
-        font-size: 2.5rem;
+        font-size: 2.75rem;
         font-weight: 700;
-        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
+        font-family: 'JetBrains Mono', monospace;
+        color: #f8fafc;
+        text-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
     }
     
     .metric-label {
-        font-size: 0.875rem;
-        color: #64748b;
+        font-size: 0.8rem;
+        color: #94a3b8;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
-        font-weight: 500;
-    }
-    
-    /* Status badges */
-    .status-badge {
-        display: inline-flex;
-        align-items: center;
-        padding: 0.375rem 0.875rem;
-        border-radius: 9999px;
-        font-size: 0.75rem;
+        letter-spacing: 0.15em;
         font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-    
-    .status-online {
-        background: #d1fae5;
-        color: #065f46;
-    }
-    
-    .status-online::before {
-        content: '';
-        width: 8px;
-        height: 8px;
-        background: #10b981;
-        border-radius: 50%;
-        margin-right: 0.5rem;
-        animation: pulse 2s infinite;
-    }
-    
-    .status-warning {
-        background: #fef3c7;
-        color: #92400e;
-    }
-    
-    .status-error {
-        background: #fee2e2;
-        color: #991b1b;
-    }
-    
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.5; }
     }
     
     /* Tab styling */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        background: white;
-        padding: 0.5rem;
-        border-radius: 12px;
-        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        gap: 12px;
+        background: transparent;
+        padding: 0.75rem 0;
     }
     
     .stTabs [data-baseweb="tab"] {
-        border-radius: 8px;
-        padding: 0.75rem 1.25rem;
-        font-weight: 500;
-        transition: all 0.2s;
-    }
-    
-    .stTabs [data-baseweb="tab"]:hover {
-        background: #f1f5f9;
+        background: #1e293b;
+        border-radius: 12px;
+        padding: 0.875rem 1.75rem;
+        font-weight: 600;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        color: #94a3b8 !important;
+        transition: all 0.3s;
     }
     
     .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+        background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%) !important;
         color: white !important;
-    }
-    
-    /* Button styling */
-    .stButton > button {
-        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-        color: white;
-        border: none;
-        border-radius: 10px;
-        padding: 0.75rem 1.5rem;
-        font-weight: 600;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);
-    }
-    
-    .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3);
-    }
-    
-    /* Input styling */
-    .stTextInput > div > div > input {
-        border-radius: 10px;
-        border: 2px solid #e2e8f0;
-        padding: 0.75rem 1rem;
-        transition: all 0.2s;
-    }
-    
-    .stTextInput > div > div > input:focus {
-        border-color: #4f46e5;
-        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
-    }
-    
-    /* Select box styling */
-    .stSelectbox > div > div > div {
-        border-radius: 10px;
-        border: 2px solid #e2e8f0;
-    }
-    
-    /* Slider styling */
-    .stSlider > div > div > div > div {
-        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-    }
-    
-    /* Alert/Info boxes */
-    .stAlert {
-        border-radius: 12px;
-        border: none;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    }
-    
-    /* Dataframe styling */
-    .dataframe {
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    }
-    
-    /* Sidebar styling */
-    .css-1d391kg {
-        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-    }
-    
-    /* Chart containers */
-    .chart-container {
-        background: white;
-        border-radius: 16px;
-        padding: 1.5rem;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        margin-bottom: 1.5rem;
+        border-color: rgba(192, 132, 252, 0.5);
+        box-shadow: 0 0 15px rgba(168, 85, 247, 0.3);
     }
     
     /* Risk level indicators */
     .risk-high {
-        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-        color: white;
+        background: rgba(239, 68, 68, 0.2);
+        color: #f87171;
+        border: 1px solid #f87171;
         padding: 0.25rem 0.75rem;
-        border-radius: 9999px;
-        font-weight: 600;
-        font-size: 0.75rem;
+        border-radius: 6px;
+        font-weight: 700;
+        font-size: 0.7rem;
+        text-shadow: 0 0 5px rgba(248, 113, 113, 0.3);
     }
     
     .risk-medium {
-        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-        color: white;
+        background: rgba(245, 158, 11, 0.2);
+        color: #fbbf24;
+        border: 1px solid #fbbf24;
         padding: 0.25rem 0.75rem;
-        border-radius: 9999px;
-        font-weight: 600;
-        font-size: 0.75rem;
+        border-radius: 6px;
+        font-weight: 700;
+        font-size: 0.7rem;
     }
     
     .risk-low {
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-        color: white;
+        background: rgba(16, 185, 129, 0.2);
+        color: #34d399;
+        border: 1px solid #34d399;
         padding: 0.25rem 0.75rem;
-        border-radius: 9999px;
-        font-weight: 600;
-        font-size: 0.75rem;
+        border-radius: 6px;
+        font-weight: 700;
+        font-size: 0.7rem;
+    }
+
+    /* Bento Grid Layout */
+    .bento-container {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        grid-auto-rows: minmax(150px, auto);
+        gap: 1.5rem;
+        padding: 1rem 0;
     }
     
-    /* Loading spinner */
-    .stSpinner > div {
-        border-color: #4f46e5 transparent transparent transparent;
+    .bento-item {
+        background: rgba(30, 41, 59, 0.7);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-radius: 24px;
+        padding: 1.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
     }
     
-    /* Expander styling */
-    .streamlit-expanderHeader {
-        background: white;
-        border-radius: 10px;
-        border: 1px solid #e2e8f0;
-        font-weight: 600;
+    .bento-item:hover {
+        transform: scale(1.02);
+        border-color: rgba(192, 132, 252, 0.5);
+        background: rgba(30, 41, 59, 0.9);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
     }
-    
-    /* Tooltip styling */
-    .stTooltipIcon {
-        color: #4f46e5;
-    }
-    
-    /* Progress bar */
-    .stProgress > div > div > div {
-        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-    }
-    
-    /* Custom scrollbar */
-    ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-    }
-    
-    ::-webkit-scrollbar-track {
-        background: #f1f5f9;
-        border-radius: 4px;
-    }
-    
-    ::-webkit-scrollbar-thumb {
-        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-        border-radius: 4px;
-    }
-    
-    ::-webkit-scrollbar-thumb:hover {
-        background: linear-gradient(135deg, #4338ca 0%, #6d28d9 100%);
+
+    .bento-large { grid-column: span 2; grid-row: span 2; }
+    .bento-wide { grid-column: span 2; }
+    .bento-tall { grid-row: span 2; }
+
+    /* Vanta Background Fix */
+    #vanta-canvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: -1;
     }
 </style>
+
+<div id="vanta-canvas"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.fog.min.js"></script>
+<script>
+    window.addEventListener('DOMContentLoaded', (event) => {
+        VANTA.FOG({
+            el: "#vanta-canvas",
+            mouseControls: true,
+            touchControls: true,
+            gyroControls: false,
+            minHeight: 200.00,
+            minWidth: 200.00,
+            highlightColor: 0x3f3f46,
+            midtoneColor: 0x1e1b4b,
+            lowlightColor: 0x0f172a,
+            baseColor: 0x0f172a,
+            blurFactor: 0.6,
+            speed: 1.5,
+            zoom: 1.00
+        })
+    });
+</script>
 """
 
 
@@ -347,7 +269,7 @@ def render_risk_badge(level: str):
 
 
 # Animation components
-LOADING_ANIMATION = """
+LOADING_ANIMATION = r"""
 <div style="display: flex; justify-content: center; align-items: center; height: 200px;">
     <div style="
         width: 50px;

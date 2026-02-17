@@ -9,6 +9,8 @@ __pycache__/
 *.pyc
 *.pyo
 .env
+venv/
+.venv/
 
 # OS
 .DS_Store
@@ -21,3 +23,17 @@ Thumbs.db
 # Outputs (regenerated)
 outputs/figures/*.png
 outputs/reports/
+
+.gemini/
+!.gemini/agents/
+!.gemini/settings.json
+gha-creds-*.json
+*.skill
+
+# Research files (keep for hackathon context)
+!research/
+
+# Logs and local databases
+data/*.log
+data/*.db
+data/improvement_log.json
