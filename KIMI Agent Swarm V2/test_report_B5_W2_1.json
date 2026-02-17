@@ -1,0 +1,43 @@
+{
+  "test_id": "B5_W2_1",
+  "timestamp": "2026-02-18T05:20:07.993649",
+  "query": "Analyze drought history for Ozark County, MO (FIPS 29153)",
+  "expected_tool": "get_drought_history",
+  "llm_config": {
+    "model": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort": "Medium"
+  },
+  "execution_summary": {
+    "ngrok_interstitial_cleared": true,
+    "dashboard_accessible": true,
+    "query_submitted": true,
+    "query_processing_observed": true,
+    "response_displayed": false
+  },
+  "tools_called": [],
+  "response_quality": {
+    "accurate": false,
+    "complete": false,
+    "hallucination_free": false
+  },
+  "visual_rendered": {
+    "chart_displayed": false,
+    "map_displayed": false,
+    "data_table_displayed": false,
+    "chart_type": null
+  },
+  "response_time_seconds": null,
+  "notes": "CRITICAL ISSUE: Query was submitted successfully multiple times (observed 'Query sent to LLM...' and 'Reasoning (medium)...' indicators with Stop button), but the page consistently reset/refreshed before displaying any LLM response. No chat history or response area was visible. The Risk Profile section showed Ozark County data (Risk: 0.4807, Population: 8688, Poverty: 22.23%, Uninsured: 16.53%) but this is static reference data, not the drought history analysis requested. Expected tool get_drought_history was not observed being called.",
+  "issues": [
+    "Page resets after query submission, clearing response",
+    "No visible chat/response area found",
+    "LLM response never displayed despite processing indicators",
+    "Expected tool get_drought_history not triggered"
+  ],
+  "recommendations": [
+    "Investigate Streamlit session state management",
+    "Check for JavaScript errors preventing response display",
+    "Verify LLM backend connectivity and response handling",
+    "Add persistent chat history display"
+  ]
+}

@@ -1,0 +1,45 @@
+================================================================================
+TEST EXECUTION SUMMARY - Case B5_W2_1
+================================================================================
+
+Test ID: B5_W2_1
+Timestamp: 2026-02-18T05:20:07.993649
+Query: Analyze drought history for Ozark County, MO (FIPS 29153)
+Expected Tool: get_drought_history
+
+LLM Configuration:
+  - Model: Gemini 2.5 Pro (Cloud)
+  - Reasoning Effort: Medium
+
+Execution Summary:
+  - ngrok_interstitial_cleared: True
+  - dashboard_accessible: True
+  - query_submitted: True
+  - query_processing_observed: True
+  - response_displayed: False
+
+Tools Called: []
+
+Response Quality:
+  - accurate: False
+  - complete: False
+  - hallucination_free: False
+
+Visual Rendered:
+  - chart_displayed: False
+  - map_displayed: False
+  - data_table_displayed: False
+  - chart_type: None
+
+Response Time: None
+
+Issues Identified:
+  1. Page resets after query submission, clearing response
+  2. No visible chat/response area found
+  3. LLM response never displayed despite processing indicators
+  4. Expected tool get_drought_history not triggered
+
+Notes:
+  CRITICAL ISSUE: Query was submitted successfully multiple times (observed 'Query sent to LLM...' and 'Reasoning (medium)...' indicators with Stop button), but the page consistently reset/refreshed before displaying any LLM response. No chat history or response area was visible. The Risk Profile section showed Ozark County data (Risk: 0.4807, Population: 8688, Poverty: 22.23%, Uninsured: 16.53%) but this is static reference data, not the drought history analysis requested. Expected tool get_drought_history was not observed being called.
+
+================================================================================

@@ -1,0 +1,24 @@
+{
+  "test_id": "D4",
+  "query": "What methodology does ResilienceAI use to calculate risk scores?",
+  "status": "PASS",
+  "tools_called": [],
+  "tools_expected": [],
+  "tool_match": true,
+  "response_quality": {
+    "has_specific_numbers": true,
+    "has_county_names": false,
+    "has_recommendations": false,
+    "reasoning_leaked": false,
+    "hallucinated_data": false
+  },
+  "visual_rendered": {
+    "chart_type": "none",
+    "data_table": false,
+    "metric_cards": false
+  },
+  "response_time_seconds": 11.4,
+  "answer_preview": "My disaster vulnerability risk score is a composite metric calculated from 66 distinct features for each of the 3,222 US counties. The score synthesizes complex data into a single, normalized value where a higher score indicates greater vulnerability to disaster impacts...",
+  "issues": [],
+  "severity": "none"
+}

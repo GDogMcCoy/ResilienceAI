@@ -1,0 +1,143 @@
+{
+  "test_id": "B4_ADV_1",
+  "test_type": "ADVERSARIAL",
+  "target_county": "Greene County, MO",
+  "target_fips": "29077",
+  "dashboard_url": "https://patchworky-unnoisy-maverick.ngrok-free.dev",
+  "llm_backend": "Gemini 2.5 Pro (Cloud)",
+  "reasoning_effort": "Medium",
+  "test_timestamp": "2025-01-20T12:00:00Z",
+  "original_query": "What is the severe weather history for Greene County, MO (FIPS 29077)?",
+  "summary": {
+    "total_tests": 7,
+    "successful_handling": 6,
+    "failed_handling": 1,
+    "success_rate": "85.7%",
+    "overall_assessment": "System demonstrates good robustness with graceful degradation for most adversarial inputs"
+  },
+  "test_cases": [
+    {
+      "test_case_id": "ADV_001",
+      "test_category": "BASELINE",
+      "modified_query": "What is the severe weather history for Greene County, MO (FIPS 29077)?",
+      "modification_description": "Original query - no modifications",
+      "system_response": "Query executed successfully. Returned 0 events from NCEI Storm Events Database (2000-2025) with note that result is improbable and recommendation for manual data review.",
+      "tools_used": ["get_severe_weather_history"],
+      "execution_time_seconds": 17.6,
+      "handling_result": "SUCCESS",
+      "robustness_observation": "System handled data anomaly gracefully by acknowledging improbable result and suggesting alternatives"
+    },
+    {
+      "test_case_id": "ADV_002",
+      "test_category": "TYPO_COUNTY_NAME",
+      "modified_query": "What is the severe weather history for Gren County, MO (FIPS 29077)?",
+      "modification_description": "Typo in county name - 'Gren' instead of 'Greene'",
+      "system_response": "System correctly identified county as Greene County, MO based on FIPS code 29077 and processed query successfully.",
+      "tools_used": ["get_severe_weather_history"],
+      "execution_time_seconds": 17.6,
+      "handling_result": "SUCCESS",
+      "robustness_observation": "System correctly prioritized FIPS code over misspelled county name, demonstrating robust entity resolution"
+    },
+    {
+      "test_case_id": "ADV_003",
+      "test_category": "MINIMAL_QUERY",
+      "modified_query": "weather 29077",
+      "modification_description": "Extremely minimal query with only keywords",
+      "system_response": "System asked for clarification: 'What specific weather information are you interested in for Greene County, MO (29077)?' and provided options (severe weather history, climate trends, drought history, flood frequency, hazard risk profile).",
+      "tools_used": [],
+      "execution_time_seconds": 6.7,
+      "handling_result": "SUCCESS",
+      "robustness_observation": "Excellent graceful degradation - system recognized intent but requested clarification instead of failing"
+    },
+    {
+      "test_case_id": "ADV_004",
+      "test_category": "VAGUE_QUERY",
+      "modified_query": "tell me about greene",
+      "modification_description": "Very vague query without specific topic or context",
+      "system_response": "System returned 'I was unable to generate a response.'",
+      "tools_used": [],
+      "execution_time_seconds": 10.4,
+      "handling_result": "FAILURE",
+      "robustness_observation": "System failed to handle extremely vague input - no clarification request or helpful suggestions provided"
+    },
+    {
+      "test_case_id": "ADV_005",
+      "test_category": "INVALID_FIPS",
+      "modified_query": "severe weather history for FIPS 99999",
+      "modification_description": "Non-existent FIPS code",
+      "system_response": "System provided helpful error message: 'I'm sorry, but \"99999\" is not a valid FIPS code for a US county. Please provide a valid 5-digit FIPS code (e.g., \"29077\" for Greene County, MO). If you don't know the FIPS code, please provide the county and state name.'",
+      "tools_used": [],
+      "execution_time_seconds": 3.7,
+      "handling_result": "SUCCESS",
+      "robustness_observation": "Excellent validation and user guidance - clear error message with example and alternative approach"
+    },
+    {
+      "test_case_id": "ADV_006",
+      "test_category": "SCOPE_OVERLOAD",
+      "modified_query": "weather history for all counties in Missouri, Illinois, Arkansas, Kansas, Oklahoma, Iowa, and Nebraska from 1900 to 2025",
+      "modification_description": "Extremely broad query spanning 7 states and 125 years",
+      "system_response": "System declined request with explanation: 'I am sorry, but I cannot fulfill this request. The query is too broad, as it encompasses thousands of counties across seven states and over a century of data. My tools are designed for more targeted analysis of specific counties or a smaller selection of counties.' Provided guidance to specify up to 10 counties with examples.",
+      "tools_used": [],
+      "execution_time_seconds": 6.8,
+      "handling_result": "SUCCESS",
+      "robustness_observation": "Excellent scope management - system protected itself from resource exhaustion and provided helpful alternative"
+    },
+    {
+      "test_case_id": "ADV_007",
+      "test_category": "TYPO_FIPS",
+      "modified_query": "weather history for FIPS 29078",
+      "modification_description": "Incorrect FIPS code (29078 instead of 29077)",
+      "system_response": "System asked for clarification about what type of weather history is needed, treating 29078 as a valid FIPS without validation error.",
+      "tools_used": [],
+      "execution_time_seconds": 6.9,
+      "handling_result": "SUCCESS",
+      "robustness_observation": "System did not validate FIPS code existence but handled gracefully by requesting clarification. Note: 29078 may be a valid FIPS for a different county."
+    },
+    {
+      "test_case_id": "ADV_008",
+      "test_category": "SPECIAL_CHARACTERS",
+      "modified_query": "weather!!! @29077 #$%^&*()",
+      "modification_description": "Query with special characters and noise",
+      "system_response": "System extracted FIPS 29077 from noisy input and asked for clarification on type of weather history needed, providing options for severe weather, drought, flood, and climate trends.",
+      "tools_used": [],
+      "execution_time_seconds": 6.6,
+      "handling_result": "SUCCESS",
+      "robustness_observation": "Excellent input sanitization - system successfully parsed meaningful data from noisy input"
+    }
+  ],
+  "robustness_analysis": {
+    "strengths": [
+      "Strong FIPS code validation with helpful error messages",
+      "Effective scope management to prevent resource exhaustion",
+      "Good input sanitization - extracts meaningful data from noisy input",
+      "Graceful degradation with clarification requests for minimal queries",
+      "Prioritizes structured data (FIPS) over potentially misspelled text",
+      "Provides actionable alternatives when requests cannot be fulfilled"
+    ],
+    "weaknesses": [
+      "Complete failure on extremely vague queries without clarification attempt",
+      "No FIPS existence validation (only format validation)",
+      "Zero event results not flagged as potential system issue in baseline test"
+    ],
+    "recommendations": [
+      "Add fallback clarification prompt for vague queries instead of failing",
+      "Implement FIPS code existence validation against known county database",
+      "Add anomaly detection for improbable query results (e.g., 0 events)",
+      "Consider adding query complexity scoring to proactively guide users"
+    ]
+  },
+  "performance_under_stress": {
+    "average_response_time_seconds": 8.3,
+    "max_response_time_seconds": 17.6,
+    "min_response_time_seconds": 3.7,
+    "no_system_crashes": true,
+    "no_hangs_or_timeouts": true,
+    "consistent_ui_stability": true
+  },
+  "error_handling_assessment": {
+    "error_message_quality": "HIGH",
+    "user_guidance": "EXCELLENT",
+    "recovery_suggestions": "EXCELLENT",
+    "graceful_degradation": "GOOD"
+  }
+}

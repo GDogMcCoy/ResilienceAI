@@ -1,0 +1,29 @@
+{
+  "test_id": "B3",
+  "query": "What are the flood frequency estimates for New Madrid County, MO (FIPS 29143)?",
+  "status": "PARTIAL",
+  "tools_called": ["get_flood_frequency", "get_hazard_risk_profile"],
+  "tools_expected": ["get_flood_frequency"],
+  "tool_match": true,
+  "response_quality": {
+    "has_specific_numbers": false,
+    "has_county_names": true,
+    "has_recommendations": true,
+    "reasoning_leaked": false,
+    "hallucinated_data": false
+  },
+  "visual_rendered": {
+    "chart_type": "none",
+    "data_table": false,
+    "metric_cards": false
+  },
+  "response_time_seconds": 25.1,
+  "answer_preview": "Critical Data Gap Impedes Flood Risk Assessment in New Madrid County. A significant data gap prevents the calculation of standard flood frequency estimates for New Madrid County, Missouri (FIPS 29143). There are zero active USGS streamflow gauges...",
+  "issues": [
+    "No flood frequency data available - get_flood_frequency returned error: 'No USGS streamflow gauges found in this county'",
+    "get_hazard_risk_profile tool failed with error: 'Tool execution failed: Error tokenizing data. C error: Expected 1 fields in line 5, saw 5'",
+    "Expected recurrence interval flow rates (2, 5, 10, 25, 50, 100-year levels) were not returned due to data unavailability",
+    "No data table with flood frequency estimates was rendered"
+  ],
+  "severity": "major"
+}

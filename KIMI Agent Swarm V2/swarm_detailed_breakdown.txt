@@ -1,0 +1,124 @@
+======================================================================
+SWARM TEST AGGREGATE - DETAILED BREAKDOWN
+======================================================================
+
+SUMMARY STATISTICS
+----------------------------------------------------------------------
+Total Tests: 72 (Expected: 100)
+Passed: 28
+Failed: 14
+Partial: 20
+Incomplete: 10
+Pass Rate: 45.2%
+
+CATEGORY BREAKDOWN
+----------------------------------------------------------------------
+
+Category A: 25 tests
+  PASS: 10 (40.0%)
+  FAIL: 4 (16.0%)
+  PARTIAL: 5 (20.0%)
+  INCOMPLETE: 6 (24.0%)
+
+Category B: 17 tests
+  PASS: 8 (47.1%)
+  FAIL: 3 (17.6%)
+  PARTIAL: 4 (23.5%)
+  INCOMPLETE: 2 (11.8%)
+
+Category C: 16 tests
+  PASS: 0 (0.0%)
+  FAIL: 5 (31.2%)
+  PARTIAL: 10 (62.5%)
+  INCOMPLETE: 1 (6.2%)
+
+Category D: 14 tests
+  PASS: 10 (71.4%)
+  FAIL: 2 (14.3%)
+  PARTIAL: 1 (7.1%)
+  INCOMPLETE: 1 (7.1%)
+
+======================================================================
+ALL TEST RESULTS BY WAVE
+======================================================================
+
+WAVE 1 (Primary Testing):
+----------------------------------------------------------------------
+  A1: PARTIAL
+  A2: FAIL
+  A3: PASS
+  A4: PARTIAL
+  A5: INCOMPLETE
+  A6: INCOMPLETE
+  A7: INCOMPLETE
+  A8: PASS
+  B1: FAIL
+  B2: PARTIAL
+  B3: PARTIAL
+  B4: PASS
+  B5: PASS
+  B6: INCOMPLETE
+  C1: INCOMPLETE
+  C2: PARTIAL
+  C3: FAIL
+  C4: FAIL
+  C5: PARTIAL
+  C6: PARTIAL
+  D1: FAIL
+  D2: PASS
+  D3: PARTIAL
+  D4: PASS
+  D5: FAIL
+
+WAVE 2 (Consensus Validation):
+----------------------------------------------------------------------
+  A1_W2_1: PASS
+  A1_W2_2: PASS
+  A2_W2_1: PASS
+  A2_W2_2: FAIL
+  A3_W2_1: PASS
+  A3_W2_2: INCOMPLETE
+  A4_W2_1: FAIL
+  A4_W2_2: INCOMPLETE
+  A7_W2_1: FAIL
+  A7_W2_2: INCOMPLETE
+  A8_W2_1: PASS
+  A8_W2_2: PARTIAL
+  B2_W2_1: PARTIAL
+  B2_W2_2: FAIL
+  B4_W2_1: PASS
+  B4_W2_2: PASS
+  B5_W2_1: FAIL
+  B5_W2_2: PASS
+  D2_W2_1: PASS
+  D2_W2_2: PASS
+  D4_W2_1: PASS
+  D4_W2_2: PASS
+
+WAVE 3 (Adversarial Testing):
+----------------------------------------------------------------------
+  A1_ADV_1: PARTIAL
+  A2_ADV_1: PARTIAL
+  A4_ADV_1: PASS
+  A6_ADV_1: PASS
+  A8_ADV_1: PASS
+  B1_ADV_1: PARTIAL
+  B2_ADV_1: PASS
+  B3_ADV_1: PASS
+  B4_ADV_1: INCOMPLETE
+  B5_ADV_1: PASS
+  C1_HIGH_1: PARTIAL
+  C1_LOW_1: FAIL
+  C2_HIGH_1: PARTIAL
+  C2_LOW_1: FAIL
+  C3_HIGH_1: PARTIAL
+  C3_LOW_1: PARTIAL
+  C4_HIGH_1: PARTIAL
+  C4_LOW_1: PARTIAL
+  C5_HIGH_1: PARTIAL
+  C5_LOW_1: FAIL
+  EMPTY_1: PASS
+  MINIMAL_1: PASS
+  OVERLOAD_1: PASS
+  TYPO_1: INCOMPLETE
+  VAGUE_1: PASS

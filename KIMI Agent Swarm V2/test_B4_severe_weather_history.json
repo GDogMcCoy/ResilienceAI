@@ -1,0 +1,24 @@
+{
+  "test_id": "B4",
+  "query": "What is the severe weather history for Greene County, MO (FIPS 29077)?",
+  "status": "PASS",
+  "tools_called": ["get_severe_weather_history"],
+  "tools_expected": ["get_severe_weather_history"],
+  "tool_match": true,
+  "response_quality": {
+    "has_specific_numbers": true,
+    "has_county_names": true,
+    "has_recommendations": true,
+    "reasoning_leaked": false,
+    "hallucinated_data": false
+  },
+  "visual_rendered": {
+    "chart_type": "none",
+    "data_table": false,
+    "metric_cards": true
+  },
+  "response_time_seconds": 20.8,
+  "answer_preview": "Severe Weather History: Greene County, Missouri. A query for severe weather events in Greene County, Missouri (FIPS 29077) from 2000 to 2025 returned no specific tornado, hail, or damaging wind events from the available real-time database...",
+  "issues": [],
+  "severity": "none"
+}

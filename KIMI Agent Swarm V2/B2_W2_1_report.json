@@ -1,0 +1,32 @@
+{
+  "test_id": "B2_W2_1",
+  "timestamp": "2026-02-18T05:13:44.377676",
+  "query": "What is the FEMA hazard risk profile for New Madrid County, MO (FIPS 29143)?",
+  "expected_tool": "get_hazard_risk_profile",
+  "configuration": {
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort": "Medium"
+  },
+  "results": {
+    "tools_called": [
+      "get_hazard_risk_profile"
+    ],
+    "tool_parameters": {
+      "fips": "29143"
+    },
+    "response_quality": {
+      "correct_tool_called": true,
+      "correct_fips_used": true,
+      "data_returned": false,
+      "error_occurred": true
+    },
+    "visual_rendered": null,
+    "response_time_seconds": 29.66,
+    "ui_reported_time_seconds": 10.5,
+    "steps": 2,
+    "error_details": "Tool execution failed: Error tokenizing data. C error: Expected 1 fields in line 5, saw 5",
+    "llm_response_summary": "I am sorry, the get_hazard_risk_profile tool failed to execute. As an alternative, I can provide a detailed analysis of New Madrid County's primary risks from other sources. Would you like me to proceed with that?"
+  },
+  "status": "PARTIAL_SUCCESS",
+  "notes": "The correct tool (get_hazard_risk_profile) was called with the correct FIPS code (29143), but the tool execution failed due to a data parsing error. The LLM gracefully handled the error and offered an alternative approach."
+}

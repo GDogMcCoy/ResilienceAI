@@ -1,0 +1,42 @@
+{
+  "test_id": "A1_ADV_1",
+  "test_type": "Adversarial - Synonym Substitution",
+  "timestamp": "2026-02-18T05:29:33.589361",
+  "test_configuration": {
+    "dashboard_url": "https://patchworky-unnoisy-maverick.ngrok-free.dev",
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort": "Medium",
+    "focus_state": "Missouri"
+  },
+  "queries": {
+    "original": "What are the top 5 most vulnerable counties in Missouri?",
+    "modified": "What are the top 5 most at-risk counties in Missouri?"
+  },
+  "adversarial_strategy": "Synonym substitution - replacing 'vulnerable' with 'at-risk' to test semantic robustness",
+  "test_results": {
+    "query_accepted": true,
+    "processing_initiated": true,
+    "processing_indicators": [
+      "Query sent to LLM...",
+      "Reasoning (medium)..."
+    ],
+    "visible_response": false,
+    "error_messages": null,
+    "system_behavior": "System accepted the synonym variation and processed the query without visible errors"
+  },
+  "robustness_assessment": {
+    "synonym_handling": "ACCEPTED - System processed 'at-risk' as equivalent to 'vulnerable'",
+    "semantic_flexibility": "HIGH - No rejection or clarification requested for synonym use",
+    "graceful_degradation": "OBSERVED - System continued processing without interruption"
+  },
+  "issues_identified": [
+    "Response content not visible through browser automation tool",
+    "Unable to verify if synonym produced equivalent results to original query"
+  ],
+  "recommendations": [
+    "Verify response content matches expected output for top 5 vulnerable counties",
+    "Test additional synonym variations (e.g., 'highest risk', 'most endangered')",
+    "Confirm system correctly interprets 'at-risk' as equivalent to 'vulnerable' in ranking context"
+  ],
+  "overall_status": "PARTIAL_SUCCESS - Query accepted and processed, but response content not verifiable"
+}

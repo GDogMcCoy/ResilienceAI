@@ -1,0 +1,30 @@
+{
+  "test_id": "C6",
+  "query": "Simulate a 500-year flood hitting New Madrid County, MO (FIPS 29143), then recommend the most cost-effective interventions for the 3 most affected counties.",
+  "status": "PARTIAL",
+  "tools_called": ["simulate_scenario", "simulate_scenario"],
+  "tools_expected": ["simulate_scenario", "calculate_intervention_roi"],
+  "tool_match": false,
+  "response_quality": {
+    "has_specific_numbers": true,
+    "has_county_names": true,
+    "has_recommendations": false,
+    "reasoning_leaked": true,
+    "hallucinated_data": false
+  },
+  "visual_rendered": {
+    "chart_type": "none",
+    "data_table": true,
+    "metric_cards": true
+  },
+  "response_time_seconds": 21.5,
+  "answer_preview": "Intelligence Report: Major Flood Impact Analysis for Southeast Missouri. A simulated major flood event centered in New Madrid County, Missouri (FIPS 29143), would catastrophically increase the vulnerability of the region. New Madrid, Mississippi, and Stoddard counties would bear the most severe impacts...",
+  "issues": [
+    "calculate_intervention_roi tool was NOT called - only simulate_scenario was called twice",
+    "Intervention recommendations were NOT provided despite explicit request in query",
+    "First simulate_scenario call failed: 'Unknown scenario: flood_500yr' - system fell back to flood_major",
+    "Discrepancy in top 3 counties: summary mentions Mississippi County but actual top affected includes Lake County, TN",
+    "Response incomplete - simulation performed but ROI analysis and intervention recommendations missing"
+  ],
+  "severity": "major"
+}

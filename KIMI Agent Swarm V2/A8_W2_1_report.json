@@ -1,0 +1,31 @@
+{
+  "test_id": "A8_W2_1",
+  "query": "Which Missouri counties have the highest population-weighted disaster risk?",
+  "timestamp": "2025-02-18T21:10:00Z",
+  "configuration": {
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort": "Medium",
+    "focus_state": "Missouri"
+  },
+  "execution": {
+    "tools_called": [
+      "calculate_pop_weighted_impact"
+    ],
+    "expected_tool": "calculate_pop_weighted_impact",
+    "tool_match": true,
+    "response_time_seconds": 17.0,
+    "steps": 2
+  },
+  "response_quality": {
+    "accurate": true,
+    "complete": true,
+    "on_topic": true,
+    "notes": "Response correctly identified St. Louis County (pop: 999,703, risk: 0.2403), Jackson County (pop: 715,526, risk: 0.2481), and St. Louis city (pop: 298,018, risk: 0.2735) as the three counties with highest population-weighted disaster risk. Provided detailed vulnerability metrics and actionable recommendations."
+  },
+  "visual_output": {
+    "rendered": true,
+    "type": "Data Explorer with Vulnerability Map and county data table",
+    "details": "Data Explorer panel displays Vulnerability Map for Missouri (115 counties) with color-coded risk scores and a sortable table showing county-level data including risk_score, risk_level, total_population, and vulnerability_index."
+  },
+  "issues": []
+}

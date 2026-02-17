@@ -1,0 +1,115 @@
+{
+  "test_id": "C2_HIGH_1",
+  "test_category": "C",
+  "effort_level": "HIGH",
+  "timestamp": "2026-02-18T05:45:45.547752",
+  "dashboard_url": "https://patchworky-unnoisy-maverick.ngrok-free.dev",
+  "llm_backend": "Gemini 2.5 Pro (Cloud)",
+  "original_query": "What are the climate trends for Boone County, MO? How do they interact with vulnerability?",
+  "adversarial_tests": [
+    {
+      "test_type": "typos_and_misspellings",
+      "modified_query": "wht r the climet trents for Boon Counti, MO? hw do they intreact with vulnerblity?",
+      "test_objective": "Test system tolerance for spelling errors and typos",
+      "result": {
+        "status": "processed",
+        "response_persistence": "page_reset_observed",
+        "notes": "Query accepted but response not visible after page refresh"
+      }
+    },
+    {
+      "test_type": "minimal_vague_query",
+      "modified_query": "climate boone county vulnerability",
+      "test_objective": "Test system handling of minimal, vague input",
+      "result": {
+        "status": "processed",
+        "response_persistence": "page_reset_observed",
+        "notes": "Minimal query accepted, system attempted processing"
+      }
+    },
+    {
+      "test_type": "scope_overload",
+      "modified_query": "Analyze climate trends, healthcare infrastructure, vulnerability metrics, disaster preparedness, economic resilience, population demographics, and intervention strategies for Boone County, Missouri in extreme detail with historical data from 1900-2024 and future projections to 2100",
+      "test_objective": "Test system behavior with excessive scope and unrealistic data requirements",
+      "result": {
+        "status": "failed_gracefully",
+        "response_time_seconds": 9.4,
+        "steps": 1,
+        "tools_used": 0,
+        "reasoning_mode": "direct",
+        "response": "I was unable to generate a response.",
+        "notes": "System failed gracefully with clear error message. No partial response provided."
+      }
+    },
+    {
+      "test_type": "properly_formed_original",
+      "modified_query": "What are the climate trends for Boone County, MO? How do they interact with vulnerability?",
+      "test_objective": "Baseline test with correctly formatted query",
+      "result": {
+        "status": "processed",
+        "response_persistence": "page_reset_observed",
+        "notes": "Query accepted and processed"
+      }
+    }
+  ],
+  "system_behavior_observations": {
+    "ui_settings": {
+      "reasoning_effort": {
+        "default": "Medium",
+        "attempted_change": "HIGH",
+        "change_success": false,
+        "notes": "Dropdown menu visible but 'High' option not selectable via browser automation"
+      },
+      "llm_backend_options": [
+        "Gemini 2.5 Pro (Cloud)",
+        "Nemotron-3-Nano (Local)",
+        "GPT-OSS 20B (Local)"
+      ],
+      "selected_backend": "Gemini 2.5 Pro (Cloud)"
+    },
+    "processing_indicators": {
+      "query_sent_message": "Query sent to LLM...",
+      "reasoning_indicator": "Reasoning (medium)...",
+      "stop_button_available": true,
+      "processing_feedback": "Real-time status updates provided"
+    },
+    "response_format": {
+      "header": "Intelligence Report",
+      "metadata_includes": [
+        "response_time",
+        "tools_used",
+        "llm_model"
+      ],
+      "collapsible_sections": [
+        "Reasoning Trace",
+        "Session History"
+      ],
+      "example_format": "9.4s | 0 tools | gemini-2.5-pro"
+    },
+    "error_handling": {
+      "scope_overload_behavior": "Graceful failure with clear message",
+      "partial_responses": false,
+      "error_message_clarity": "Clear - 'I was unable to generate a response.'"
+    }
+  },
+  "robustness_assessment": {
+    "typos_tolerance": "Medium - Query accepted but results unclear",
+    "vague_query_handling": "Medium - System attempts to process",
+    "scope_overload_handling": "Good - Graceful failure without crashing",
+    "error_recovery": "Good - Clear error message provided",
+    "response_persistence": "Poor - Responses lost on page refresh"
+  },
+  "recommendations": [
+    "Implement response persistence across page refreshes",
+    "Consider partial response generation for scope overload scenarios",
+    "Add reasoning effort validation to ensure setting changes apply",
+    "Consider adding query complexity estimation to warn users about scope overload"
+  ],
+  "test_summary": {
+    "total_tests": 4,
+    "successful_processing": 3,
+    "graceful_failures": 1,
+    "system_crashes": 0,
+    "overall_robustness_score": "7/10"
+  }
+}

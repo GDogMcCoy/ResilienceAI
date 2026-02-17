@@ -1,0 +1,92 @@
+{
+  "test_id": "A6_ADV_1",
+  "test_type": "ADVERSARIAL - Rephrased Query",
+  "timestamp": "2026-02-18T05:27:07.956468",
+  "test_objective": "Test if system infers FIPS code and scenario type from conversational context without explicit parameters",
+  "original_query": "Simulate a 7.0 earthquake centered on New Madrid County, MO (FIPS 29143)",
+  "modified_query": "What would happen if a magnitude 7 earthquake hit New Madrid County?",
+  "adversarial_elements": [
+    "Removed explicit FIPS code (29143)",
+    "Removed explicit 'simulate' command",
+    "Used conversational 'what would happen' format",
+    "Used 'magnitude 7' instead of '7.0'",
+    "Removed state abbreviation (MO)"
+  ],
+  "system_configuration": {
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort": "Medium",
+    "tools_available": 16,
+    "counties_in_database": 3222
+  },
+  "execution_results": {
+    "status": "SUCCESS",
+    "processing_time_seconds": 28.2,
+    "steps_executed": 2,
+    "tools_used": [
+      "simulate_scenario",
+      "simulate_scenario"
+    ],
+    "fips_inferred_correctly": true,
+    "inferred_fips": "29143",
+    "scenario_inferred_correctly": true,
+    "inferred_scenario": "earthquake_m7"
+  },
+  "tool_calls": [
+    {
+      "step": 1,
+      "tool": "simulate_scenario",
+      "parameters": {
+        "scenario": "earthquake_7.0",
+        "epicenter_fips": "29143"
+      },
+      "result": "ERROR - Unknown scenario",
+      "error_message": "Unknown scenario: earthquake_7.0. Available: ['hurricane_cat1', 'hurricane_cat3', 'hurricane_cat5', 'earthquake_m6', 'earthquake_m7', 'flood_major', 'wildfire_large', 'tornado_ef3', 'tornado_ef5', 'winter_storm']"
+    },
+    {
+      "step": 2,
+      "tool": "simulate_scenario",
+      "parameters": {
+        "scenario": "earthquake_m7",
+        "epicenter_fips": "29143"
+      },
+      "result": "SUCCESS",
+      "summary": {
+        "scenario": "Earthquake M7.0",
+        "epicenter_lat": 36.594261,
+        "epicenter_lon": -89.655948,
+        "radius_km": 150,
+        "counties_affected": 53,
+        "total_population_at_risk": 458809,
+        "risk_increase_pct": 71.36,
+        "max_infrastructure_damage_pct": 65.0
+      }
+    }
+  ],
+  "robustness_assessment": {
+    "error_handling": "EXCELLENT",
+    "error_handling_notes": "System gracefully recovered from first tool call failure by automatically retrying with corrected scenario parameter",
+    "context_inference": "EXCELLENT",
+    "context_inference_notes": "Successfully inferred both FIPS code (29143) and scenario type (earthquake_m7) from natural language query without explicit parameters",
+    "graceful_degradation": "EXCELLENT",
+    "graceful_degradation_notes": "When first scenario name failed, system automatically tried alternative format without user intervention"
+  },
+  "response_quality": {
+    "comprehensiveness": "HIGH",
+    "accuracy": "HIGH",
+    "actionable_insights": true,
+    "key_findings": [
+      "65% infrastructure damage at epicenter (New Madrid County)",
+      "Risk score escalated from 0.362 to 1.0 (maximum)",
+      "458,809 people at risk across 53 counties",
+      "150 km impact radius affecting multi-state region",
+      "71.36% average risk increase across affected counties"
+    ]
+  },
+  "vulnerabilities_identified": [],
+  "recommendations": [
+    "System demonstrates strong robustness against rephrased queries",
+    "Error recovery mechanism is effective - no user intervention required",
+    "Consider adding 'earthquake_7.0' as alias for 'earthquake_m7' to reduce retry overhead"
+  ],
+  "overall_assessment": "PASS - System successfully handled adversarial rephrased query with excellent context inference and error recovery"
+}

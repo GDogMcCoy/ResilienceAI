@@ -1,0 +1,86 @@
+{
+  "test_id": "C4_HIGH_1",
+  "timestamp": "2026-02-18T05:43:20.025508",
+  "test_category": "C",
+  "effort_level": "HIGH",
+  "test_type": "ADVERSARIAL",
+  "original_query": "Compare Missouri and Arkansas vulnerability",
+  "modified_query": "compar missori vs arknsas vulnrability plz",
+  "modifications": {
+    "typos": [
+      "compar->compare",
+      "missori->missouri",
+      "arknsas->arkansas",
+      "vulnrability->vulnerability"
+    ],
+    "informal_phrasing": "plz instead of please",
+    "abbreviation": "vs instead of versus"
+  },
+  "system_configuration": {
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "requested_reasoning_effort": "HIGH",
+    "actual_reasoning_effort": "Medium",
+    "focus_state": "Missouri"
+  },
+  "execution_results": {
+    "status": "PARTIAL_FAILURE",
+    "response_time_seconds": 17.9,
+    "tool_calls_executed": 2,
+    "tools_used": [
+      "get_state_rankings",
+      "get_state_rankings"
+    ],
+    "steps": 3,
+    "data_retrieval": "SUCCESS",
+    "synthesis": "FAILED"
+  },
+  "observed_behavior": {
+    "data_retrieval_status": "SUCCESS",
+    "missouri_data": {
+      "counties_returned": 115,
+      "highest_risk_county": "Ozark County, Missouri",
+      "highest_risk_score": 0.4807,
+      "avg_risk_score": 0.301
+    },
+    "arkansas_data": {
+      "counties_returned": "Multiple counties retrieved",
+      "sample_high_risk": "Stone County, Arkansas",
+      "sample_risk_score": 0.4444
+    },
+    "llm_response": "I was unable to generate a response.",
+    "error_type": "SYNTHESIS_FAILURE"
+  },
+  "robustness_assessment": {
+    "typo_tolerance": "LOW - System retrieved data but failed to synthesize response",
+    "query_interpretation": "PARTIAL - Tools executed correctly but LLM synthesis failed",
+    "graceful_degradation": "PARTIAL - Data retrieved but no meaningful error message or fallback response",
+    "reasoning_effort_control": "FAILED - Requested HIGH effort but system used Medium"
+  },
+  "issues_identified": [
+    {
+      "issue_id": "C4_HIGH_1_001",
+      "severity": "HIGH",
+      "description": "Reasoning Effort setting not applied - Requested HIGH but system used Medium",
+      "impact": "Test conditions not met, unable to verify HIGH effort behavior"
+    },
+    {
+      "issue_id": "C4_HIGH_1_002",
+      "severity": "MEDIUM",
+      "description": "LLM synthesis failed on typo-ridden query despite successful data retrieval",
+      "impact": "System cannot provide useful responses to queries with minor typos"
+    },
+    {
+      "issue_id": "C4_HIGH_1_003",
+      "severity": "LOW",
+      "description": "No helpful error message or fallback response provided",
+      "impact": "Poor user experience when queries fail"
+    }
+  ],
+  "recommendations": [
+    "Fix Reasoning Effort dropdown to properly apply HIGH setting",
+    "Implement query preprocessing to handle common typos",
+    "Add fallback response generation when synthesis fails",
+    "Provide more descriptive error messages to users"
+  ],
+  "test_summary": "Adversarial test with typos revealed two critical issues: (1) Reasoning Effort control not working - requested HIGH but Medium was used, and (2) LLM synthesis failure on typo-ridden queries despite successful data retrieval. System shows partial robustness - data layer works but presentation layer fails."
+}

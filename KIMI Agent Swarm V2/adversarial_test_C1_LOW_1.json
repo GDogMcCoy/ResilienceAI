@@ -1,0 +1,132 @@
+{
+  "test_id": "C1_LOW_1",
+  "test_category": "C",
+  "effort_level": "LOW",
+  "timestamp": "2025-01-21T10:30:00Z",
+  "dashboard_url": "https://patchworky-unnoisy-maverick.ngrok-free.dev",
+  "llm_backend": "Gemini 2.5 Pro (Cloud)",
+  "original_query": "For the 5 highest-risk counties in Missouri, what is their emergency infrastructure density?",
+  "modified_query": null,
+  "modification_type": null,
+  "test_objective": "Verify reduced tool usage at LOW effort (expect 1-2 tools vs 3+ at high effort)",
+  "execution_results": {
+    "reasoning_effort_displayed": "Medium",
+    "reasoning_effort_requested": "LOW",
+    "effort_setting_successful": false,
+    "execution_time_seconds": 19.9,
+    "total_steps": 7,
+    "total_tools_used": 6,
+    "tools_called": [
+      {
+        "step": 1,
+        "tool": "get_state_rankings",
+        "parameters": {
+          "state": "MO"
+        }
+      },
+      {
+        "step": 1,
+        "tool": "get_infrastructure_density",
+        "parameters": {
+          "fips": "29155"
+        },
+        "county": "Pemiscot County"
+      },
+      {
+        "step": 1,
+        "tool": "get_infrastructure_density",
+        "parameters": {
+          "fips": "29133"
+        },
+        "county": "Mississippi County"
+      },
+      {
+        "step": 1,
+        "tool": "get_infrastructure_density",
+        "parameters": {
+          "fips": "29143"
+        },
+        "county": "New Madrid County"
+      },
+      {
+        "step": 1,
+        "tool": "get_infrastructure_density",
+        "parameters": {
+          "fips": "29069"
+        },
+        "county": "Dunklin County"
+      },
+      {
+        "step": 1,
+        "tool": "get_infrastructure_density",
+        "parameters": {
+          "fips": "29510"
+        },
+        "county": "St. Louis city"
+      }
+    ]
+  },
+  "response_analysis": {
+    "llm_response_generated": false,
+    "error_message": "I was unable to generate a response.",
+    "data_cards_displayed": true,
+    "counties_identified": [
+      "Pemiscot County, Missouri",
+      "Mississippi County, Missouri",
+      "New Madrid County, Missouri",
+      "Dunklin County, Missouri",
+      "St. Louis city, Missouri"
+    ],
+    "infrastructure_data_quality": "POOR",
+    "all_metrics_zero": true,
+    "metrics_shown": {
+      "Hospitals/10k": 0.0,
+      "EMS/10k": 0.0,
+      "Fire/10k": 0.0,
+      "Nursing/10k": 0.0
+    }
+  },
+  "robustness_assessment": {
+    "graceful_degradation": false,
+    "error_handling": "PARTIAL",
+    "data_retrieval": "SUCCESS",
+    "response_generation": "FAILED",
+    "ui_consistency": "GOOD"
+  },
+  "adversarial_findings": {
+    "tool_usage_efficiency": {
+      "expected_tools_low_effort": "1-2",
+      "actual_tools_used": 6,
+      "assessment": "FAILED - Tool usage did NOT reduce at LOW effort setting",
+      "notes": "System used 6 tools (same as expected for medium/high effort), indicating effort setting may not be functioning properly or was not successfully changed"
+    },
+    "data_quality_issues": {
+      "all_zero_values": true,
+      "severity": "HIGH",
+      "description": "All infrastructure density metrics returned 0.00 for all 5 counties, suggesting either data retrieval failure or actual lack of infrastructure (unlikely for all counties)"
+    },
+    "response_generation_failure": {
+      "occurred": true,
+      "impact": "HIGH",
+      "description": "LLM reported inability to generate response despite successfully retrieving data cards. Indicates potential issue with LLM processing or context handling."
+    },
+    "ui_setting_persistence": {
+      "issue": "Reasoning effort setting did not persist or change to LOW",
+      "displayed": "Medium",
+      "requested": "LOW"
+    }
+  },
+  "recommendations": [
+    "Investigate Reasoning Effort dropdown functionality - setting may not be persisting",
+    "Verify infrastructure density data source - all values returning 0.00 is suspicious",
+    "Review LLM response generation logic - failure to generate response despite data retrieval",
+    "Consider implementing tool usage limits for LOW effort mode",
+    "Add validation for zero-value data responses"
+  ],
+  "overall_assessment": {
+    "test_passed": false,
+    "critical_issues": 2,
+    "warnings": 2,
+    "notes": "Test revealed significant issues: (1) Tool usage did not reduce at LOW effort, (2) All infrastructure data returned zeros, (3) LLM failed to generate narrative response. System showed graceful UI handling but data and processing issues need attention."
+  }
+}

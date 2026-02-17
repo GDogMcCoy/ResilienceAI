@@ -1,0 +1,32 @@
+{
+  "test_id": "D2_W2_2",
+  "timestamp": "2026-02-17T21:19:22.904658Z",
+  "query": "What is the risk profile for FIPS 99999?",
+  "expected_behavior": "Tool returns error, agent gracefully reports county not found",
+  "configuration": {
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort": "Medium"
+  },
+  "results": {
+    "response_time_seconds": 4.3,
+    "tools_called": [],
+    "response_text": "I'm sorry, but FIPS code '99999' is not a valid US county FIPS code. Please provide a valid 5-digit FIPS code (e.g., '29019' for Boone County, MO) for me to retrieve the risk profile.",
+    "steps": 1,
+    "tool_execution_mode": "direct"
+  },
+  "validation": {
+    "error_handled_correctly": true,
+    "graceful_failure": true,
+    "provided_helpful_guidance": true,
+    "no_hallucinated_data": true,
+    "response_appropriate": true
+  },
+  "visual_output": {
+    "visual_rendered": false,
+    "visual_type": null
+  },
+  "assessment": {
+    "test_passed": true,
+    "notes": "Agent correctly identified invalid FIPS code 99999 and gracefully reported the error without attempting tool calls. Provided helpful example of valid FIPS code format. No visualization rendered as expected for error case."
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "test_id": "D5",
+  "query": "Analyze Boone County",
+  "status": "FAIL",
+  "tools_called_low": [],
+  "tools_called_high": [],
+  "low_tool_count": 0,
+  "high_tool_count": 0,
+  "low_answer_length": "unknown",
+  "high_answer_length": "unknown",
+  "effort_difference_observed": false,
+  "response_quality": {
+    "has_specific_numbers": false,
+    "has_county_names": true,
+    "has_recommendations": false,
+    "reasoning_leaked": false,
+    "hallucinated_data": false
+  },
+  "visual_rendered": {
+    "chart_type": "none",
+    "data_table": false,
+    "metric_cards": false
+  },
+  "response_time_seconds": 5.6,
+  "answer_preview": "I found multiple Boone Counties. Please clarify which one you're interested in by providing a state, or let me know if you'd like me to analyze the highest-risk Boone County.",
+  "issues": [
+    "CRITICAL: Reasoning Effort dropdown does not expose clickable option elements",
+    "Unable to select Low effort setting - dropdown options appear as text only without interactive elements",
+    "Unable to select High effort setting - same dropdown interaction failure",
+    "Test cannot be completed as specified due to UI interaction failure",
+    "Attempted: clicking dropdown control, clicking value div, scrolling, find function, JavaScript execution - all failed"
+  ],
+  "severity": "critical"
+}

@@ -1,0 +1,44 @@
+{
+  "test_id": "A4_W2_1",
+  "query": "What are the worst health disparity zones in Missouri based on uninsured rates?",
+  "timestamp": "2026-02-17T21:07:54Z",
+  "configuration": {
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort": "Medium",
+    "state": "Missouri"
+  },
+  "execution": {
+    "ngrok_interstitial_clicked": true,
+    "query_submitted": true,
+    "processing_observed": true,
+    "stop_button_visible": true,
+    "query_sent_to_llm_observed": true,
+    "reasoning_medium_observed": true
+  },
+  "tools_called": [],
+  "response_quality": {
+    "addressed_query": false,
+    "data_accuracy": null,
+    "completeness": null,
+    "hallucination_free": null
+  },
+  "visual_rendered": {
+    "map_generated": false,
+    "chart_generated": false,
+    "table_generated": false,
+    "response_text_displayed": false
+  },
+  "response_time_seconds": null,
+  "notes": [
+    "Query was successfully submitted to the ResilienceAI platform",
+    "Processing indicators were observed (Stop button, 'Query sent to LLM...', 'Reasoning (medium)...')",
+    "Response was NOT displayed on the page after multiple submission attempts",
+    "Page consistently resets after processing, clearing any response that may have been generated",
+    "Expected tool 'get_mo_health_disparities' was not visibly called (no response displayed)",
+    "Multiple submission attempts were made with varying wait times (5-27 seconds)",
+    "Both direct query input and quick-action button (Health Disparities) were attempted",
+    "This appears to be a frontend bug where responses are not being persisted or displayed"
+  ],
+  "verdict": "FAIL - Response not displayed",
+  "severity": "High - Core functionality non-operational"
+}

@@ -372,8 +372,11 @@ class FEMANRIClient(CachedAPIClient):
 
         cache_path = self.cache_dir / "nri_counties.csv"
         if cache_path.exists():
-            self._nri_df = pd.read_csv(cache_path, dtype={"STCOFIPS": str}, low_memory=False)
-            return self._nri_df
+            try:
+                self._nri_df = pd.read_csv(cache_path, dtype={"STCOFIPS": str}, low_memory=False, on_bad_lines="skip")
+                return self._nri_df
+            except Exception:
+                cache_path.unlink(missing_ok=True)  # Delete corrupt cache
 
         try:
             print("[NRI] Downloading FEMA National Risk Index (~50MB)...")

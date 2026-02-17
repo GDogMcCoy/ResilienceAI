@@ -1,0 +1,49 @@
+{
+  "test_id": "A2_W2_1",
+  "timestamp": "2026-02-18T05:01:36.898764",
+  "query": "Give me the full profile for Boone County, MO (FIPS 29019)",
+  "llm_config": {
+    "model": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort": "Medium"
+  },
+  "execution": {
+    "status": "completed",
+    "response_time_seconds": 16.4,
+    "tools_called": [
+      "get_county_detail"
+    ],
+    "tool_call_count": 1
+  },
+  "response_quality": {
+    "fips_correctly_identified": true,
+    "county_name_correct": true,
+    "risk_score_present": true,
+    "demographics_included": true,
+    "infrastructure_data_included": true,
+    "recommendations_provided": true,
+    "data_completeness": "full"
+  },
+  "visual_output": {
+    "charts_generated": false,
+    "map_highlighted": false,
+    "data_cards_rendered": true,
+    "visual_types": [
+      "summary_statistics_cards"
+    ]
+  },
+  "data_verification": {
+    "county_name": "Boone County, Missouri",
+    "fips_code": "29019",
+    "risk_score": 0.221,
+    "risk_level": "Medium",
+    "population": 184043,
+    "poverty_pct": 16.88,
+    "disability_pct": 12.22,
+    "elderly_pct": 12.91,
+    "uninsured_pct": 6.63,
+    "hospital_distance_km": 3.55,
+    "vulnerability_index": 0.198,
+    "disaster_acceleration": 0.462
+  },
+  "issues": []
+}

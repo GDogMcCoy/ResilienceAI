@@ -1,0 +1,45 @@
+{
+  "test_id": "EMPTY_1",
+  "test_type": "Malformed Query - Empty String",
+  "original_query": "",
+  "modified_query": "",
+  "test_objective": "Test system handling of empty input query",
+  "system_configuration": {
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort": "Medium",
+    "focus_state": "Missouri",
+    "counties": 115
+  },
+  "test_execution": {
+    "timestamp": "2025-01-20T00:00:00Z",
+    "query_submitted": "",
+    "submission_method": "Analyze button click"
+  },
+  "system_response": {
+    "response_type": "SILENT_REJECTION",
+    "description": "System silently ignores empty query without producing any visible response, error message, or state change",
+    "visible_feedback": false,
+    "error_message": null,
+    "crash_occurred": false,
+    "page_state_changed": false
+  },
+  "robustness_assessment": {
+    "handled_gracefully": true,
+    "error_prevention": "PASS - No crash or error state",
+    "user_feedback": "FAIL - No indication that query was rejected or why",
+    "degradation_mode": "Silent rejection - no action taken"
+  },
+  "issues_identified": [
+    {
+      "severity": "LOW",
+      "issue": "No user feedback on empty query submission",
+      "description": "User receives no indication that empty queries are invalid or that they should enter text",
+      "recommendation": "Add validation message like 'Please enter a query' or disable Analyze button when input is empty"
+    }
+  ],
+  "conclusion": {
+    "stability": "STABLE - System does not crash or error on empty input",
+    "ux_impact": "MINOR - User may be confused why nothing happens",
+    "overall_rating": "ACCEPTABLE - Graceful degradation but lacks user feedback"
+  }
+}

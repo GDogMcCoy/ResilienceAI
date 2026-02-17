@@ -1,0 +1,33 @@
+======================================================================
+ADVERSARIAL TEST REPORT - C4_LOW_1
+======================================================================
+
+Test ID: C4_LOW_1
+Category: C - Adversarial/Edge Case
+Timestamp: 2026-02-18T05:40:16.903477
+
+ORIGINAL QUERY:
+  'Compare Missouri and Arkansas vulnerability'
+
+MODIFIED QUERIES TESTED:
+  1. [Typos/Spelling errors]
+     Modified: 'compr misouri arknsas vulnrblty'
+
+  2. [Minimal/Vague query]
+     Modified: 'mo vs ar risk'
+
+KEY FINDINGS:
+  ✓ System gracefully handles typos and spelling errors
+  ✓ System accepts minimal/vague queries without rejection
+  ✗ Reasoning Effort dropdown non-responsive (could not set LOW)
+  ✗ Response panel not clearly visible after processing
+
+ROBUSTNESS SCORE: 7/10
+USABILITY SCORE: 5/10
+LOW EFFORT VERIFICATION: FAILED
+
+UI ISSUES IDENTIFIED:
+  - [Medium] Reasoning Effort dropdown selection non-responsive
+  - [High] Response visibility/persistence
+
+======================================================================

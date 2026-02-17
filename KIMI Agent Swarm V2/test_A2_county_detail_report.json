@@ -1,0 +1,33 @@
+{
+  "test_id": "A2",
+  "query": "Give me the full profile for Boone County, MO (FIPS 29019)",
+  "status": "FAIL",
+  "tools_called": [],
+  "tools_expected": [
+    "get_county_detail"
+  ],
+  "tool_match": false,
+  "response_quality": {
+    "has_specific_numbers": false,
+    "has_county_names": false,
+    "has_recommendations": false,
+    "reasoning_leaked": false,
+    "hallucinated_data": false
+  },
+  "visual_rendered": {
+    "chart_type": "none",
+    "data_table": false,
+    "metric_cards": false
+  },
+  "response_time_seconds": 0,
+  "answer_preview": "RESPONSE NOT DISPLAYED - Page resets due to ngrok session timeout issue",
+  "issues": [
+    "Query submitted successfully but response does not persist",
+    "Page resets/refresh after short timeout (3-15 seconds)",
+    "Ngrok tunnel session timeout prevents response display",
+    "Could not verify if get_county_detail tool was called",
+    "Could not verify response quality or visual rendering",
+    "Processing indicators appear (Stop button, Query sent to LLM..., Reasoning (medium)...)"
+  ],
+  "severity": "critical"
+}

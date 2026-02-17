@@ -1,0 +1,21 @@
+{
+  "test_id": "D2_W2_1",
+  "query": "What is the risk profile for FIPS 99999?",
+  "expected_behavior": "Tool returns error, agent gracefully reports county not found",
+  "actual_behavior": "LLM responded directly without calling tools, recognizing FIPS 99999 as invalid",
+  "llm_backend": "Gemini 2.5 Pro (Cloud)",
+  "reasoning_effort": "Medium",
+  "response_time_seconds": 5.0,
+  "tools_called": [],
+  "response_quality": {
+    "correct_fips_handling": true,
+    "appropriate_visualization": true,
+    "accurate_information": true
+  },
+  "visual_rendered": {
+    "type": "none",
+    "description": "No visual rendered - direct text response explaining invalid FIPS code"
+  },
+  "agent_response": "I'm sorry, but FIPS code 99999 is not a valid US county FIPS code. They are 5-digit codes, where the first two digits represent the state and the last three represent the county. Please provide a valid 5-digit FIPS code. You can find these on the US Census Bureau website or by searching for \"[County Name] [State] FIPS code\".",
+  "notes": "The LLM used its internal knowledge to recognize that FIPS 99999 is invalid (state code 99 does not exist) and responded directly without attempting tool calls. This is acceptable behavior as the agent gracefully handled the invalid input."
+}

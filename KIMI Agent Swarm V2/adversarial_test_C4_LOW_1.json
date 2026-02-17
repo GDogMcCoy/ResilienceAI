@@ -1,0 +1,88 @@
+{
+  "test_id": "C4_LOW_1",
+  "timestamp": "2026-02-18T05:40:16.903477",
+  "test_category": "C",
+  "test_type": "Adversarial/Edge Case Testing",
+  "reasoning_effort": {
+    "requested": "LOW",
+    "actual": "Medium (UI did not allow easy selection of LOW)",
+    "observed_behavior": "System defaulted to Medium reasoning effort. Dropdown showed options but selection mechanism was not responsive to standard click interactions."
+  },
+  "llm_backend": {
+    "requested": "Gemini 2.5 Pro (Cloud)",
+    "actual": "Gemini 2.5 Pro (Cloud)",
+    "confirmed": true
+  },
+  "test_queries": [
+    {
+      "original_query": "Compare Missouri and Arkansas vulnerability",
+      "modified_query": "compr misouri arknsas vulnrblty",
+      "modification_type": "Typos/Spelling errors",
+      "modification_rationale": "Category C adversarial - testing robustness to misspelled state names and keywords"
+    },
+    {
+      "original_query": "Compare Missouri and Arkansas vulnerability",
+      "modified_query": "mo vs ar risk",
+      "modification_type": "Minimal/Vague query",
+      "modification_rationale": "Category C adversarial - testing handling of abbreviated state names and minimal context"
+    }
+  ],
+  "system_behavior": {
+    "query_acceptance": {
+      "typos": "ACCEPTED - System processed query with multiple spelling errors without rejection",
+      "minimal_query": "ACCEPTED - System processed abbreviated state references",
+      "validation": "NO VISIBLE VALIDATION - No error messages or clarification requests observed"
+    },
+    "processing_observed": {
+      "status_indicator": "Query sent to LLM... \u2192 Reasoning (medium)...",
+      "stop_button_available": true,
+      "processing_time": "~3-5 seconds observed"
+    },
+    "response_handling": {
+      "response_persistence": "CLEARED AFTER COMPLETION - Response not visible after page refresh",
+      "response_location": "NOT IDENTIFIED - Could not locate response panel in UI",
+      "graceful_degradation": "PARTIAL - System accepted adversarial input but response accessibility is unclear"
+    }
+  },
+  "robustness_assessment": {
+    "error_handling": {
+      "typos": "GRACEFUL - No crashes or errors with misspelled input",
+      "vague_queries": "GRACEFUL - Accepted minimal input",
+      "user_feedback": "LIMITED - No clarification requests for ambiguous input"
+    },
+    "edge_case_resilience": {
+      "spelling_errors": "TOLERANT",
+      "abbreviations": "TOLERANT",
+      "minimal_context": "TOLERANT",
+      "incomplete_sentences": "TOLERANT"
+    }
+  },
+  "tool_usage_analysis": {
+    "expected_at_low_effort": "Reduced tool calls, minimal data retrieval",
+    "observed": "Could not verify - response panel not accessible",
+    "reasoning_indicator": "System showed 'Reasoning (medium)' despite LOW being requested"
+  },
+  "ui_issues_identified": [
+    {
+      "issue": "Reasoning Effort dropdown selection non-responsive",
+      "severity": "Medium",
+      "description": "Dropdown displays Medium/Low/High options but clicking on 'Low' did not change selection"
+    },
+    {
+      "issue": "Response visibility/persistence",
+      "severity": "High",
+      "description": "Query responses not clearly displayed or persistently accessible after processing"
+    }
+  ],
+  "recommendations": [
+    "Fix Reasoning Effort dropdown to allow proper selection of LOW effort",
+    "Add response history panel or persistent display area",
+    "Consider adding input validation or clarification prompts for highly ambiguous queries",
+    "Implement spell-check or query suggestion for misspelled state names"
+  ],
+  "overall_assessment": {
+    "robustness_score": "7/10 - System handles adversarial input gracefully without crashing",
+    "usability_score": "5/10 - Response visibility and configuration issues impact usability",
+    "low_effort_verification": "FAILED - Could not confirm LOW effort setting due to UI issues"
+  }
+}

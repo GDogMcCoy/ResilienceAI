@@ -1,0 +1,26 @@
+{
+  "test_id": "A3",
+  "query": "What is the emergency infrastructure density for Ozark County, MO (FIPS 29153)?",
+  "status": "PASS",
+  "tools_called": ["get_infrastructure_density"],
+  "tools_expected": ["get_infrastructure_density"],
+  "tool_match": true,
+  "response_quality": {
+    "has_specific_numbers": true,
+    "has_county_names": true,
+    "has_recommendations": true,
+    "reasoning_leaked": false,
+    "hallucinated_data": false
+  },
+  "visual_rendered": {
+    "chart_type": "none",
+    "data_table": false,
+    "metric_cards": true
+  },
+  "response_time_seconds": 16.7,
+  "answer_preview": "Ozark County, Missouri (FIPS 29153), faces a critical gap in emergency medical services. The county has zero EMS stations, alongside very low hospital density, indicating potential access-to-care challenges for its residents during emergencies...",
+  "issues": [
+    "Metric cards display 0.00 for all values despite text showing correct values (EMS: 0.0, Hospitals: 1.15, Nursing Homes: 8.06, Fire Stations: 67.91) - visual rendering bug"
+  ],
+  "severity": "minor"
+}

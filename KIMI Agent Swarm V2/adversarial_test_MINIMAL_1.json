@@ -1,0 +1,93 @@
+{
+  "test_id": "MINIMAL_1",
+  "test_type": "Malformed Query - Minimal",
+  "timestamp": "2026-02-18T05:47:22.714426",
+  "test_metadata": {
+    "agent": 97,
+    "wave": 3,
+    "test_category": "adversarial"
+  },
+  "query": {
+    "original": "FIPS 29019 risk",
+    "modified": null,
+    "modification_type": "minimal_query",
+    "description": "Bare minimum query with just FIPS code and keyword - testing system ability to interpret sparse input"
+  },
+  "system_config": {
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort": "Medium",
+    "tools_available": 16,
+    "counties_in_db": 3222
+  },
+  "execution": {
+    "status": "completed",
+    "processing_time_seconds": 16.1,
+    "steps": 2,
+    "tools_used": 1,
+    "tool_calls": [
+      {
+        "tool": "get_county_detail",
+        "parameters": {
+          "fips": "29019"
+        },
+        "step": 1
+      }
+    ]
+  },
+  "response": {
+    "interpreted_fips": "29019",
+    "county_identified": "Boone County, Missouri",
+    "risk_score": 0.221,
+    "risk_level": "Medium",
+    "population": 184043,
+    "poverty_rate": 16.88,
+    "disability_rate": 12.22,
+    "uninsured_rate": 6.63,
+    "hospital_distance_km": 3.5,
+    "recommendations_provided": true
+  },
+  "robustness_assessment": {
+    "query_parsing": {
+      "status": "success",
+      "notes": "System correctly extracted FIPS 29019 from minimal query without explicit formatting"
+    },
+    "error_handling": {
+      "status": "none_required",
+      "notes": "No errors encountered - system gracefully handled minimal input"
+    },
+    "graceful_degradation": {
+      "status": "excellent",
+      "notes": "System inferred intent and provided comprehensive response despite minimal query structure"
+    },
+    "intent_recognition": {
+      "status": "success",
+      "notes": "Correctly identified user wanted risk assessment for specific FIPS code"
+    }
+  },
+  "edge_case_analysis": {
+    "missing_context": {
+      "issue": "No explicit request for specific metrics",
+      "system_response": "Provided comprehensive vulnerability assessment with key metrics"
+    },
+    "ambiguous_keywords": {
+      "issue": "Single word 'risk' could mean multiple things",
+      "system_response": "Interpreted as disaster vulnerability risk score"
+    },
+    "minimal_structure": {
+      "issue": "No complete sentence or question format",
+      "system_response": "Parsed FIPS code and keyword successfully"
+    }
+  },
+  "vulnerabilities_found": [],
+  "recommendations": [
+    "System demonstrates strong robustness against minimal queries",
+    "FIPS code parsing is resilient to lack of formatting",
+    "Intent recognition works well with sparse input",
+    "Consider adding query clarification prompts for extremely minimal inputs to improve user experience"
+  ],
+  "overall_assessment": {
+    "robustness_score": 9.5,
+    "max_score": 10,
+    "summary": "System handled minimal query exceptionally well. Correctly identified FIPS 29019 as Boone County, MO and provided comprehensive risk assessment without requiring additional context or clarification."
+  }
+}

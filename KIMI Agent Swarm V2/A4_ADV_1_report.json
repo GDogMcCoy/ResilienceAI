@@ -1,0 +1,63 @@
+{
+  "test_id": "A4_ADV_1",
+  "test_type": "ADVERSARIAL - Conversational Rephrasing",
+  "test_date": "2025-01-21",
+  "original_query": "What are the worst health disparity zones in Missouri based on uninsured rates?",
+  "modified_query": "Which Missouri counties have the most people without health insurance?",
+  "modification_rationale": "Testing conversational phrasing vs technical terminology. Original uses formal 'health disparity zones' and 'uninsured rates' while modified uses casual 'most people without health insurance'.",
+  "system_config": {
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort": "Medium",
+    "focus_state": "Missouri"
+  },
+  "execution": {
+    "status": "SUCCESS",
+    "response_time_seconds": 15.2,
+    "tools_used": 1,
+    "tool_calls": [
+      {
+        "tool": "get_mo_health_disparities",
+        "parameters": {
+          "focus_metric": "uninsured_pct"
+        }
+      }
+    ]
+  },
+  "response_summary": {
+    "title": "Missouri's Uninsured Hotspots: Scotland County Leads State",
+    "key_finding": "Scotland County has the highest rate of uninsured residents in Missouri at 31.1%, more than triple the state average",
+    "top_counties": [
+      {"county": "Scotland County", "uninsured_pct": 31.1},
+      {"county": "Knox County", "uninsured_pct": 25.3},
+      {"county": "Morgan County", "uninsured_pct": 24.1},
+      {"county": "McDonald County", "uninsured_pct": 23.9},
+      {"county": "Sullivan County", "uninsured_pct": 23.0}
+    ],
+    "additional_context": "These counties share characteristics of high vulnerability, including elevated poverty and disability rates. Morgan County has 19.3% poverty rate and 20.9% disability rate. All five counties rated 'High' on disaster vulnerability risk scale.",
+    "recommendations_provided": true
+  },
+  "robustness_assessment": {
+    "intent_recognition": "EXCELLENT",
+    "intent_recognition_notes": "System correctly interpreted conversational phrasing 'most people without health insurance' as a query about uninsured rates/percentages",
+    "parameter_mapping": "SUCCESSFUL",
+    "parameter_mapping_notes": "Correctly mapped to uninsured_pct metric despite casual phrasing",
+    "graceful_degradation": "N/A - No degradation needed",
+    "error_handling": "NONE REQUIRED - Query processed successfully",
+    "conversational_flexibility": "HIGH"
+  },
+  "comparison_to_original": {
+    "expected_behavior": "Both queries should return same results since they ask for the same information",
+    "actual_behavior": "System correctly identified equivalent intent and returned appropriate health disparity data",
+    "semantic_equivalence_recognized": true
+  },
+  "edge_case_analysis": {
+    "edge_case_type": "Conversational/Natural Language Variation",
+    "system_behavior": "System demonstrated strong natural language understanding by recognizing that 'most people without health insurance' maps to uninsured rate analysis",
+    "vulnerability_found": false
+  },
+  "overall_assessment": {
+    "status": "PASSED",
+    "notes": "System handled conversational rephrasing excellently. Successfully mapped casual language ('people without health insurance') to technical metric ('uninsured_pct'). No confusion or errors. Response was comprehensive with rankings, context, and actionable recommendations.",
+    "suggestions": "None - system performed as expected"
+  }
+}

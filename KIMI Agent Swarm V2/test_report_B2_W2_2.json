@@ -1,0 +1,56 @@
+{
+  "test_id": "B2_W2_2",
+  "timestamp": "2026-02-18T05:17:37.743763",
+  "query": "What is the FEMA hazard risk profile for New Madrid County, MO (FIPS 29143)?",
+  "expected_tool": "get_hazard_risk_profile",
+  "test_configuration": {
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort": "Medium",
+    "dashboard_url": "https://patchworky-unnoisy-maverick.ngrok-free.dev"
+  },
+  "execution_steps": {
+    "ngrok_interstitial_cleared": true,
+    "dashboard_accessible": true,
+    "settings_verified": true,
+    "query_submitted": true,
+    "processing_observed": true
+  },
+  "tools_called": [],
+  "response_quality": {
+    "factual_accuracy": null,
+    "completeness": null,
+    "citation_quality": null
+  },
+  "visual_rendered": {
+    "map_displayed": false,
+    "chart_displayed": false,
+    "data_table_displayed": false,
+    "response_text_displayed": false
+  },
+  "response_time_seconds": null,
+  "test_status": "FAILED",
+  "failure_details": {
+    "issue": "Response not displayed on page after query submission",
+    "observations": [
+      "Query submission confirmed - 'Query sent to LLM...' message observed",
+      "Processing confirmed - 'Reasoning (medium)...' message observed",
+      "Stop button appeared during processing, indicating active query",
+      "After processing completed, no response text or visual output appeared",
+      "Page returned to initial state after query processing",
+      "Multiple submission attempts yielded same result",
+      "Searches for response content (New Madrid, FEMA, 29143) returned no results"
+    ],
+    "possible_causes": [
+      "Response display component not rendering correctly",
+      "API/backend error preventing response generation",
+      "Frontend JavaScript error preventing response display",
+      "Response being displayed in non-visible area or different panel"
+    ]
+  },
+  "recommendations": [
+    "Check browser console for JavaScript errors",
+    "Verify API endpoint connectivity and response format",
+    "Inspect DOM for hidden response elements",
+    "Test with different query types to isolate issue"
+  ]
+}

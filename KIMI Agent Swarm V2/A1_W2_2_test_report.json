@@ -1,0 +1,80 @@
+{
+  "test_id": "A1_W2_2",
+  "timestamp": "2026-02-18T05:01:18.514533",
+  "agent_id": 2,
+  "wave": 2,
+  "test_case": "A1",
+  "query": "What are the top 5 most vulnerable counties in Missouri?",
+  "configuration": {
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort": "Medium",
+    "state": "Missouri"
+  },
+  "execution": {
+    "ngrok_interstitial_passed": true,
+    "query_submitted_successfully": true,
+    "response_received": true,
+    "response_time_seconds": 16.3
+  },
+  "tools_called": [
+    {
+      "tool_name": "query_counties",
+      "parameters": {
+        "state": "MO",
+        "max_results": 5
+      },
+      "call_order": 1
+    }
+  ],
+  "response_quality": {
+    "counties_count_correct": true,
+    "counties_data_complete": true,
+    "risk_scores_present": true,
+    "explanations_provided": true,
+    "state_correct": true
+  },
+  "visual_rendered": {
+    "intelligence_report": true,
+    "county_listing": true,
+    "risk_scores_displayed": true,
+    "key_factors_included": true,
+    "reasoning_trace_available": true
+  },
+  "counties_identified": [
+    {
+      "rank": 1,
+      "name": "Ozark County",
+      "fips": "29153",
+      "risk_score": 0.481,
+      "risk_level": "High",
+      "key_factors": "High poverty (22.2%), large elderly population (28.8%), high uninsured rate (16.5%). Nearest hospital nearly 35 km away."
+    },
+    {
+      "rank": 2,
+      "name": "Wayne County",
+      "fips": "29223",
+      "risk_score": 0.471,
+      "risk_level": "High",
+      "key_factors": "Highest poverty rate in top five (24.7%), very high disability rate (28.7%)."
+    },
+    {
+      "rank": 3,
+      "name": "Hickory County",
+      "fips": "29085",
+      "risk_score": 0.451,
+      "risk_level": "High",
+      "key_factors": "Exceptionally large elderly population (33.6%), significant poverty (17.3%), long distance to nearest hospital (36+ km)."
+    }
+  ],
+  "determination": "PASS",
+  "notes": [
+    "Query executed successfully using query_counties tool",
+    "Response time of 16.3s within acceptable range",
+    "Tool called with correct parameters (state: MO, max_results: 5)",
+    "Response included detailed risk scores and key vulnerability factors",
+    "Formatted intelligence report was displayed with clear county rankings",
+    "Raw JSON data with complete county details was available in reasoning trace",
+    "All 3 visible counties confirmed as High risk level",
+    "Note: Formatted display showed 3 counties complete, 4th and 5th were in raw data but truncated in display"
+  ]
+}

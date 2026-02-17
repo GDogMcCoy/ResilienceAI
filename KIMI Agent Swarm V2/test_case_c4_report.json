@@ -1,0 +1,30 @@
+{
+  "test_id": "C4",
+  "query": "Compare the top 3 most vulnerable counties in Missouri vs Arkansas. What structural differences explain the gap?",
+  "status": "FAIL",
+  "tools_called": ["get_state_rankings", "get_state_rankings"],
+  "tools_expected": ["query_counties", "query_counties"],
+  "tool_match": false,
+  "response_quality": {
+    "has_specific_numbers": true,
+    "has_county_names": true,
+    "has_recommendations": false,
+    "reasoning_leaked": false,
+    "hallucinated_data": false
+  },
+  "visual_rendered": {
+    "chart_type": "none",
+    "data_table": false,
+    "metric_cards": false
+  },
+  "response_time_seconds": 18.3,
+  "answer_preview": "I was unable to generate a response.",
+  "issues": [
+    "Wrong tools called: used 'get_state_rankings' instead of expected 'query_counties'",
+    "LLM failed to generate any response or analysis",
+    "No side-by-side comparison rendered",
+    "No structural differences analysis provided",
+    "Raw tool data was returned but not synthesized into an answer"
+  ],
+  "severity": "major"
+}

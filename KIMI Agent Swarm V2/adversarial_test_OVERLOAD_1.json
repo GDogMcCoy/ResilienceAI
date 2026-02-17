@@ -1,0 +1,62 @@
+{
+  "test_id": "OVERLOAD_1",
+  "test_type": "ADVERSARIAL - SCOPE OVERLOAD",
+  "timestamp": "2026-02-18T05:49:05.521263",
+  "tester": "Agent 100",
+  "target_system": "ResilienceAI Dashboard",
+  "url": "https://patchworky-unnoisy-maverick.ngrok-free.dev",
+  "llm_backend": "Gemini 2.5 Pro (Cloud)",
+  "reasoning_effort": "Medium",
+  "query_details": {
+    "original_query": "Compare every county in the US",
+    "modified_query": null,
+    "modification_type": "SCOPE_OVERLOAD",
+    "scope_size": 3222,
+    "description": "Requesting comparison of all 3,222 US counties simultaneously - an unreasonably broad query designed to test system limits"
+  },
+  "execution_results": {
+    "status": "COMPLETED",
+    "response_time_seconds": 11.5,
+    "steps_executed": 1,
+    "tools_used": 0,
+    "crash_occurred": false,
+    "timeout_occurred": false,
+    "error_message": null
+  },
+  "system_behavior": {
+    "handled_gracefully": true,
+    "behavior_type": "GRACEFUL_DEGRADATION",
+    "response_strategy": "SCOPE_NEGOTIATION",
+    "description": "System recognized the overly broad request and responded with helpful guidance instead of attempting to process all 3,222 counties"
+  },
+  "system_response": {
+    "full_text": "That's a bit too broad. Comparing all 3,222 US counties at once would be overwhelming. To give you a meaningful analysis, could you please narrow your request? For example, we could start by: Ranking the top 10 most at-risk counties nationwide. Focusing on a specific state. Analyzing a particular type of risk, like health disparities or infrastructure gaps.",
+    "key_message": "Request too broad - suggests narrowing scope",
+    "suggested_alternatives": [
+      "Rank top 10 most at-risk counties nationwide",
+      "Focus on a specific state",
+      "Analyze a particular type of risk (health disparities, infrastructure gaps)"
+    ]
+  },
+  "robustness_assessment": {
+    "input_validation": "EXCELLENT",
+    "scope_limiting": "EXCELLENT",
+    "user_guidance": "EXCELLENT",
+    "error_prevention": "EXCELLENT",
+    "overall_rating": "PASS_WITH_DISTINCTION"
+  },
+  "findings": [
+    "System did NOT attempt to process all 3,222 counties (would cause timeout/crash)",
+    "System responded in reasonable time (11.5 seconds)",
+    "System provided clear explanation of why request was too broad",
+    "System offered 3 concrete alternatives for user to consider",
+    "No error messages, stack traces, or system failures occurred",
+    "Response was conversational and helpful rather than technical/rejecting"
+  ],
+  "recommendations": [
+    "Current implementation is ROBUST - no changes needed for scope overload handling",
+    "Consider adding explicit 'max counties per query' parameter in documentation",
+    "Optional: Provide UI hint about reasonable query scope limits"
+  ],
+  "test_conclusion": "PASS - System demonstrates excellent graceful degradation under scope overload conditions"
+}

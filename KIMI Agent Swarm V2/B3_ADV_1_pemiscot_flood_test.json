@@ -1,0 +1,71 @@
+{
+  "test_id": "B3_ADV_1",
+  "test_type": "ADVERSARIAL",
+  "wave": 3,
+  "timestamp": "2026-02-18T05:33:39.742106",
+  "test_configuration": {
+    "dashboard_url": "https://patchworky-unnoisy-maverick.ngrok-free.dev",
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort": "Medium",
+    "focus_state": "Missouri"
+  },
+  "query_details": {
+    "original_query": "What are the flood frequency estimates for Pemiscot County, MO (FIPS 29155)?",
+    "modified_query": null,
+    "modification_type": "Different FIPS - Pemiscot County (29155) instead of New Madrid County",
+    "fips_code": "29155",
+    "county_name": "Pemiscot County",
+    "state": "Missouri"
+  },
+  "system_response": {
+    "status": "COMPLETED",
+    "response_time_seconds": 28.1,
+    "tools_used": [
+      "get_flood_frequency",
+      "get_hazard_risk_profile"
+    ],
+    "steps": 2,
+    "key_finding": "Critical Data Gap in Flood Monitoring",
+    "summary": "Quantitative flood frequency estimates for Pemiscot County cannot be determined from historical streamflow data due to a lack of United States Geological Survey (USGS) streamflow gauges within the county's borders.",
+    "detailed_response": {
+      "data_unavailability": "A query for active and historical USGS streamflow gauges within Pemiscot County returned no results.",
+      "impact": "Without local gauge data, it is not possible to calculate key flood frequency metrics, such as the discharge rates for 10-year, 50-year, or 100-year flood events.",
+      "recommendations": [
+        "Utilize Alternative Flood Risk Models: Rely on FEMA's National Flood Hazard Layer (NFHL) and associated Flood Insurance Rate Maps (FIRMs)",
+        "Advocate for Monitoring Infrastructure: Engage with USGS and Missouri Department of Natural Resources to assess feasibility of installing new streamflow gauges on critical waterways"
+      ]
+    }
+  },
+  "adversarial_analysis": {
+    "test_objective": "Test system behavior with different FIPS code (Pemiscot County vs New Madrid County)",
+    "edge_case_type": "Data Unavailability / Missing Data",
+    "system_behavior": "GRACEFUL_DEGRADATION",
+    "error_handling": "EXCELLENT",
+    "robustness_assessment": {
+      "did_system_crash": false,
+      "did_system_return_error": false,
+      "did_system_provide_alternatives": true,
+      "did_system_explain_limitations": true,
+      "response_quality": "HIGH"
+    },
+    "observations": [
+      "System correctly identified that Pemiscot County has no USGS streamflow gauge data",
+      "System did not crash or return a generic error when data was unavailable",
+      "System provided clear explanation of the data gap and its implications",
+      "System offered actionable recommendations for alternative data sources (FEMA NFHL, FIRMs)",
+      "System suggested proactive measures (advocating for monitoring infrastructure)",
+      "Response maintained professional tone and provided value despite data limitations"
+    ]
+  },
+  "performance_metrics": {
+    "total_response_time": "28.1s",
+    "tool_calls": 2,
+    "reasoning_steps": 2,
+    "data_quality": "N/A - No local data available"
+  },
+  "comparison_to_expected": {
+    "expected_behavior": "System should handle missing data gracefully",
+    "actual_behavior": "System exceeded expectations by providing detailed explanation and actionable alternatives",
+    "deviation_notes": "None - System performed optimally given data constraints"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "test_id": "A1",
+  "query": "What are the top 5 most vulnerable counties in Missouri?",
+  "status": "PARTIAL",
+  "tools_called": [
+    "query_counties"
+  ],
+  "tools_expected": [
+    "query_counties",
+    "get_state_rankings"
+  ],
+  "tool_match": false,
+  "response_quality": {
+    "has_specific_numbers": true,
+    "has_county_names": true,
+    "has_recommendations": false,
+    "reasoning_leaked": false,
+    "hallucinated_data": true
+  },
+  "visual_rendered": {
+    "chart_type": "none",
+    "data_table": true,
+    "metric_cards": false
+  },
+  "response_time_seconds": 13.5,
+  "answer_preview": "Missouri Disaster Vulnerability Intelligence Report. Key Finding: Southern Missouri contains the state's five most vulnerable counties, with Ozark, Wayne, Hickory, Taney, and Carter counties all rated as 'High'...",
+  "issues": [
+    "Text response mentions 'Taney' and 'Carter' in top 5, but data table shows 'Morgan' (0.4438) and 'Reynolds' (0.4408) as #4 and #5; Carter is actually #7 (0.4268)",
+    "Expected horizontal bar chart not rendered - only data table visible in Risk Profile panel",
+    "No explanations provided for WHY each county is vulnerable (no vulnerability factors discussed)",
+    "Only 1 tool called (query_counties), expected get_state_rankings as alternative"
+  ],
+  "severity": "minor"
+}

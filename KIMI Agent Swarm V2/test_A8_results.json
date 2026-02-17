@@ -1,0 +1,30 @@
+{
+  "test_id": "A8",
+  "query": "Which Missouri counties have the highest population-weighted disaster risk?",
+  "status": "PASS",
+  "tools_called": [
+    "calculate_pop_weighted_impact"
+  ],
+  "tools_expected": [
+    "calculate_pop_weighted_impact"
+  ],
+  "tool_match": true,
+  "response_quality": {
+    "has_specific_numbers": true,
+    "has_county_names": true,
+    "has_recommendations": true,
+    "reasoning_leaked": true,
+    "hallucinated_data": false
+  },
+  "visual_rendered": {
+    "chart_type": "none",
+    "data_table": false,
+    "metric_cards": false
+  },
+  "response_time_seconds": 14.1,
+  "answer_preview": "Missouri's Urban Centers Pose Highest Population-Weighted Risk. The largest metropolitan areas in Missouri, including St. Louis County, Jackson County (Kansas City), and the city of St. Louis, represent the highest population-weighted disaster risk...",
+  "issues": [
+    "Expected horizontal bar chart was not rendered"
+  ],
+  "severity": "minor"
+}

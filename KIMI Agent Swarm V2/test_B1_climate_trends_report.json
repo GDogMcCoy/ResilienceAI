@@ -1,0 +1,33 @@
+{
+  "test_id": "B1",
+  "query": "What are the temperature and precipitation trends for Boone County, MO (FIPS 29019)?",
+  "status": "FAIL",
+  "tools_called": [],
+  "tools_expected": ["get_climate_trends"],
+  "tool_match": false,
+  "response_quality": {
+    "has_specific_numbers": false,
+    "has_county_names": false,
+    "has_recommendations": false,
+    "reasoning_leaked": false,
+    "hallucinated_data": false
+  },
+  "visual_rendered": {
+    "chart_type": "none",
+    "data_table": false,
+    "metric_cards": false
+  },
+  "response_time_seconds": 0,
+  "answer_preview": "No response displayed - page resets after query submission without showing results",
+  "issues": [
+    "Query submitted successfully to Gemini 2.5 Pro (Cloud) with Medium reasoning effort",
+    "Page shows 'Query sent to LLM...' and 'Reasoning (medium)...' during processing",
+    "After processing completes, page resets to initial state without displaying response",
+    "No response content visible in any area of the dashboard",
+    "Searched for 'Boone', 'temperature', 'FIPS', 'Response' - none found on page",
+    "Expected 3 metric cards (avg temp, temp trend, avg precip) not rendered",
+    "Expected tool get_climate_trends not visibly called",
+    "Data Explorer panels show reference data but not query-specific results"
+  ],
+  "severity": "critical"
+}

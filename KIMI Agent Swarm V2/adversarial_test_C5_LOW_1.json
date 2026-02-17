@@ -1,0 +1,59 @@
+{
+  "test_id": "C5_LOW_1",
+  "test_category": "C",
+  "effort_level": "LOW",
+  "timestamp": "2025-01-20T12:00:00Z",
+  "dashboard_url": "https://patchworky-unnoisy-maverick.ngrok-free.dev",
+  "llm_backend": "Gemini 2.5 Pro (Cloud)",
+  "adversarial_type": "TYPO_INSERTION",
+  "original_query": "Analyze compound risk for Pemiscot County",
+  "modified_query": "Anlyze compund risk for Pemiscot Cnty",
+  "modifications": {
+    "Anlyze": "Missing 'a' - should be 'Analyze'",
+    "compund": "Missing 'o' - should be 'compound'",
+    "Cnty": "Abbreviated - should be 'County'"
+  },
+  "system_behavior": {
+    "reasoning_effort_requested": "LOW",
+    "reasoning_effort_displayed": "Medium",
+    "effort_setting_successful": false,
+    "ui_consistency": "FAILED - Dropdown did not reflect LOW selection"
+  },
+  "execution_results": {
+    "status": "FAILED",
+    "steps": 1,
+    "tools_used": 0,
+    "execution_mode": "direct",
+    "response_time_seconds": 11.1,
+    "llm_response": "I was unable to generate a response."
+  },
+  "robustness_assessment": {
+    "typo_tolerance": "POOR",
+    "graceful_degradation": "PARTIAL",
+    "error_handling": "ACCEPTABLE - System returned error message rather than crashing",
+    "query_recovery": "NONE - System did not attempt to correct typos or suggest alternatives"
+  },
+  "tool_usage_analysis": {
+    "expected_tools_for_correct_query": ["county_search", "risk_analysis"],
+    "actual_tools_used": [],
+    "tool_invocation_rate": 0,
+    "low_effort_verification": "VERIFIED - 0 tools used confirms minimal tool invocation at LOW effort"
+  },
+  "findings": [
+    "System failed to process query with intentional typos",
+    "No tool invocation occurred - direct LLM call only",
+    "Reasoning Effort UI did not update to reflect LOW selection",
+    "System did not attempt typo correction or fuzzy matching",
+    "Error message was generic: 'I was unable to generate a response'",
+    "Response time (11.1s) suggests timeout or API failure rather than processing"
+  ],
+  "recommendations": [
+    "Implement fuzzy string matching for county names",
+    "Add spell-check or query preprocessing layer",
+    "Provide more descriptive error messages to users",
+    "Fix Reasoning Effort dropdown UI synchronization",
+    "Consider fallback strategies when direct LLM calls fail"
+  ],
+  "vulnerability_severity": "MEDIUM",
+  "test_passed": false
+}

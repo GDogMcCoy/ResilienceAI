@@ -1,0 +1,36 @@
+{
+  "test_id": "D4_W2_2",
+  "timestamp": "2026-02-18T05:21:33.288160",
+  "query": "What methodology does ResilienceAI use to calculate risk scores?",
+  "configuration": {
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort": "Medium"
+  },
+  "execution": {
+    "ngrok_interstitial": "passed",
+    "settings_verified": true
+  },
+  "results": {
+    "tools_called": [],
+    "tools_called_count": 0,
+    "response_time_seconds": 11.7,
+    "response_quality": {
+      "answered_query": true,
+      "cited_sources": false,
+      "hallucination_detected": false
+    },
+    "visual_rendered": {
+      "type": "text_report",
+      "format": "Intelligence Report",
+      "contains_charts": false,
+      "contains_maps": false,
+      "content_summary": "Detailed methodology explanation covering 66 features across 3 pillars: Socioeconomic Vulnerability, Infrastructure & Institutional Capacity, and Disaster Event Exposure"
+    }
+  },
+  "validation": {
+    "expected_behavior": "Answers from system prompt knowledge without calling tools",
+    "actual_behavior": "0 tools (direct) - Response generated from system knowledge",
+    "test_passed": true,
+    "notes": "Response correctly explained the composite risk score methodology using 66 normalized features from FEMA, Census, HIFLD, and CMS data sources. No tool calls were made, confirming system prompt knowledge was used."
+  }
+}

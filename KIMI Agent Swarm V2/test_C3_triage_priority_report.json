@@ -1,0 +1,36 @@
+{
+  "test_id": "C3",
+  "query": "If Missouri had $10M for disaster resilience, which 3 counties should receive funding first? Use risk scores, population impact, and infrastructure gaps to justify.",
+  "status": "FAIL",
+  "tools_called": [],
+  "tools_expected": [
+    "get_state_rankings",
+    "calculate_pop_weighted_impact",
+    "get_infrastructure_density",
+    "calculate_intervention_roi"
+  ],
+  "tool_match": false,
+  "response_quality": {
+    "has_specific_numbers": false,
+    "has_county_names": false,
+    "has_recommendations": false,
+    "reasoning_leaked": false,
+    "hallucinated_data": false
+  },
+  "visual_rendered": {
+    "chart_type": "none",
+    "data_table": false,
+    "metric_cards": false
+  },
+  "response_time_seconds": 0,
+  "answer_preview": "No response captured - Application failed to display LLM response after multiple submission attempts",
+  "issues": [
+    "Application page resets after query submission",
+    "LLM response not displayed or captured",
+    "No tools called visible in UI",
+    "Unable to verify expected tool execution",
+    "Response area not found after multiple wait periods (5s, 10s, 15s, 20s)",
+    "Page consistently returns to initial state after query processing"
+  ],
+  "severity": "critical"
+}

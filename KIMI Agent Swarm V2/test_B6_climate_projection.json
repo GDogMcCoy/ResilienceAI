@@ -1,0 +1,34 @@
+{
+  "test_id": "B6",
+  "query": "Project climate risk for Jackson County, MO (FIPS 29095) under the worst-case SSP5-8.5 scenario over 30 years",
+  "status": "FAIL",
+  "tools_called": [],
+  "tools_expected": [
+    "project_climate_risk_enhanced"
+  ],
+  "tool_match": false,
+  "response_quality": {
+    "has_specific_numbers": false,
+    "has_county_names": false,
+    "has_recommendations": false,
+    "reasoning_leaked": false,
+    "hallucinated_data": false
+  },
+  "visual_rendered": {
+    "chart_type": "none",
+    "data_table": false,
+    "metric_cards": false
+  },
+  "response_time_seconds": 0,
+  "answer_preview": "No response displayed - Query submitted but response not rendered in UI",
+  "issues": [
+    "Query was submitted successfully (observed 'Query sent to LLM...' and 'Reasoning (medium)...' indicators)",
+    "Response was not displayed on the page after multiple attempts",
+    "Searched for response content (Jackson, FIPS, SSP5, temperature, precipitation, projection, scenario) - none found",
+    "Page appears to reset/clear query responses after processing",
+    "Unable to verify if project_climate_risk_enhanced tool was called",
+    "Unable to verify response quality metrics due to missing response",
+    "Unable to verify visual output (metric cards) due to missing response"
+  ],
+  "severity": "major"
+}

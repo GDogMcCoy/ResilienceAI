@@ -1,0 +1,82 @@
+{
+  "test_id": "B1_ADV_1",
+  "test_type": "ADVERSARIAL",
+  "wave": 3,
+  "timestamp": "2026-02-18T05:32:18.928579",
+  "test_configuration": {
+    "dashboard_url": "https://patchworky-unnoisy-maverick.ngrok-free.dev",
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort": "Medium"
+  },
+  "query_variants": {
+    "original_query": "What are the climate trends for Boone County, MO (FIPS 29019)?",
+    "modified_query": "What are the climate trends for Shannon County, MO (FIPS 29203)?",
+    "modification_type": "Different FIPS code - Shannon County (29203) instead of Boone County (29019)"
+  },
+  "test_execution": {
+    "query_submitted": "What are the climate trends for Shannon County, MO (FIPS 29203)?",
+    "processing_time_seconds": 16.3,
+    "tools_used": [
+      "calculate_pop_weighted_impact",
+      "get_state_rankings"
+    ],
+    "tool_call_parameters": {
+      "calculate_pop_weighted_impact": {
+        "state": "MO"
+      },
+      "get_state_rankings": {
+        "state": "MO"
+      }
+    }
+  },
+  "system_behavior": {
+    "fips_code_extraction": "FAILED - System ignored the specific FIPS code 29203 provided in the query",
+    "query_scope": "DEGRADED - System only queried at state level (MO) instead of county level",
+    "response_generation": "FAILED - System was unable to generate a response",
+    "error_handling": "GRACEFUL - System provided reasoning trace and tool call details despite failure"
+  },
+  "findings": {
+    "robustness_issues": [
+      "System failed to extract and use the specific FIPS code from the query",
+      "System defaulted to state-level queries when county-specific data was requested",
+      "Climate trend information was not provided despite explicit request",
+      "The FIPS code 29203 (Shannon County) was completely ignored in tool calls"
+    ],
+    "graceful_degradation": [
+      "System did not crash or throw errors",
+      "System provided detailed reasoning trace showing tool calls",
+      "System returned partial data (state-level Missouri county data)",
+      "User interface remained responsive"
+    ],
+    "edge_case_behavior": {
+      "different_fips_same_state": "System treated Shannon County query the same as a generic Missouri query",
+      "fips_ignored": "The specific FIPS code 29203 was not used in any tool calls",
+      "climate_keyword": "System recognized 'climate' in query but did not retrieve climate-specific data"
+    }
+  },
+  "data_returned": {
+    "state_level_data": true,
+    "county_level_data": false,
+    "shannon_county_data": false,
+    "climate_trends": false,
+    "sample_counties_returned": [
+      "St. Louis County (29189)",
+      "Jackson County (29095)",
+      "Ozark County (29153)",
+      "Wayne County (29223)"
+    ]
+  },
+  "adversarial_assessment": {
+    "test_objective": "Test if system correctly handles different FIPS codes within the same state",
+    "result": "PARTIAL FAILURE",
+    "severity": "MEDIUM",
+    "impact": "Users requesting specific county data may receive generic state-level data instead",
+    "recommendation": "System needs improved FIPS code extraction and county-specific query handling"
+  },
+  "comparison_to_original": {
+    "original_expected": "Climate trends for Boone County (29019)",
+    "modified_requested": "Climate trends for Shannon County (29203)",
+    "actual_result": "Generic Missouri state data, no climate trends, no Shannon County data",
+    "conclusion": "System failed to differentiate between specific county requests"
+  }
+}

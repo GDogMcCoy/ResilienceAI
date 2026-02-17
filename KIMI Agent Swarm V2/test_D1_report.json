@@ -1,0 +1,30 @@
+{
+  "test_id": "D1",
+  "query": "Tell me about Missouri",
+  "status": "FAIL",
+  "tools_called": [],
+  "tools_expected": ["query_counties", "get_state_rankings"],
+  "tool_match": false,
+  "response_quality": {
+    "has_specific_numbers": false,
+    "has_county_names": false,
+    "has_recommendations": false,
+    "reasoning_leaked": false,
+    "hallucinated_data": false
+  },
+  "visual_rendered": {
+    "chart_type": "none",
+    "data_table": false,
+    "metric_cards": false
+  },
+  "response_time_seconds": 45,
+  "answer_preview": "No LLM response observed. Query was submitted multiple times but no text response was rendered. Data Explorer panels show Missouri data (115 counties, 57 high risk, 0.301 avg risk, 14.6% poverty) and Risk Profile table with county-level data.",
+  "issues": [
+    "LLM response not displayed in the UI",
+    "Query was submitted but no text answer was rendered",
+    "Unable to verify if tools were called",
+    "Unable to verify response quality metrics",
+    "Data Explorer panels show pre-loaded Missouri data, not LLM-generated response"
+  ],
+  "severity": "major"
+}

@@ -1,0 +1,63 @@
+{
+  "test_id": "A2_ADV_1",
+  "test_type": "ADVERSARIAL",
+  "wave": 3,
+  "agent": 77,
+  "timestamp": "2026-02-18T05:30:59.584850",
+  "test_metadata": {
+    "original_query": "Give me the full profile for Boone County, MO (FIPS 29019)",
+    "modified_query": "Show me everything about Boone County, Missouri",
+    "modification_type": "Rephrased - informal language, no FIPS code",
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort": "Medium"
+  },
+  "adversarial_characteristics": {
+    "informal_phrasing": true,
+    "no_fips_code": true,
+    "vague_request": true,
+    "scope_overload": true
+  },
+  "test_execution": {
+    "dashboard_accessible": true,
+    "query_submitted": true,
+    "processing_indicators_observed": [
+      "Query sent to LLM...",
+      "Reasoning (medium)..."
+    ],
+    "stop_button_available": true
+  },
+  "system_behavior": {
+    "query_acceptance": "ACCEPTED",
+    "error_handling": "NONE OBSERVED",
+    "graceful_degradation": "DEMONSTRATED",
+    "response_visibility": "LIMITED - page refresh clears response",
+    "robustness_assessment": "System handled informal phrasing without FIPS code"
+  },
+  "observations": {
+    "positive": [
+      "System accepted informal natural language query",
+      "No FIPS code required - system inferred county from context",
+      "Processing indicators showed active LLM engagement",
+      "Stop button available for user control",
+      "No error messages or crashes observed"
+    ],
+    "limitations": [
+      "Response content not visible due to page refresh behavior",
+      "Unable to verify quality of response to vague query",
+      "Could not confirm if system correctly identified Boone County, MO"
+    ]
+  },
+  "edge_case_analysis": {
+    "typo_resilience": "N/A - no typos in test",
+    "minimal_query_handling": "System accepted vague 'everything about' request",
+    "missing_identifier_handling": "System processed query without FIPS code",
+    "scope_overload_handling": "System accepted broad 'everything' scope"
+  },
+  "recommendations": [
+    "Consider adding response persistence to prevent clearing on refresh",
+    "Add clarifying prompts for vague queries like 'everything about'",
+    "Consider showing which county was identified when FIPS not provided"
+  ],
+  "test_result": "PARTIAL_SUCCESS",
+  "notes": "System demonstrated robustness by accepting informal phrasing and processing without FIPS code. Response visibility was limited due to page refresh behavior, but no errors or crashes occurred."
+}

@@ -1,0 +1,173 @@
+{
+  "test_id": "B5_ADV_1",
+  "test_type": "Adversarial/Stress Testing",
+  "target": "ResilienceAI Dashboard",
+  "url": "https://patchworky-unnoisy-maverick.ngrok-free.dev",
+  "llm_backend": "Gemini 2.5 Pro (Cloud)",
+  "reasoning_effort": "Medium",
+  "target_county": {
+    "name": "Shannon County",
+    "state": "Missouri",
+    "fips": "29203"
+  },
+  "baseline_query": "Analyze drought history for Shannon County, MO (FIPS 29203)",
+  "test_summary": {
+    "total_tests": 8,
+    "passed": 8,
+    "failed": 0,
+    "success_rate": "100%"
+  },
+  "tests": [
+    {
+      "test_number": 1,
+      "test_name": "Baseline Query",
+      "original_query": "Analyze drought history for Shannon County, MO (FIPS 29203)",
+      "modified_query": "Analyze drought history for Shannon County, MO (FIPS 29203)",
+      "modification_type": "None - Baseline",
+      "input": "Analyze drought history for Shannon County, MO (FIPS 29203)",
+      "expected_behavior": "Normal processing with correct FIPS",
+      "actual_behavior": "Successfully processed with get_drought_history tool, returned 0% drought frequency",
+      "tools_used": [
+        "get_drought_history"
+      ],
+      "steps": 2,
+      "response_time_seconds": 17.0,
+      "result": "PASS",
+      "robustness_observation": "System correctly identified FIPS 29203 and returned accurate drought data (0% frequency over 26 years)"
+    },
+    {
+      "test_number": 2,
+      "test_name": "Typo in County Name",
+      "original_query": "Analyze drought history for Shannon County, MO (FIPS 29203)",
+      "modified_query": "Analyze drought history for Shanon County, MO (FIPS 29203)",
+      "modification_type": "Typo - missing second 'n' in Shannon",
+      "input": "Analyze drought history for Shanon County, MO (FIPS 29203)",
+      "expected_behavior": "May fail or autocorrect",
+      "actual_behavior": "LLM autocorrected 'Shanon' to 'Shannon', used correct FIPS 29203",
+      "tools_used": [
+        "get_drought_history"
+      ],
+      "steps": 2,
+      "response_time_seconds": 15.5,
+      "result": "PASS",
+      "robustness_observation": "Excellent - LLM gracefully handled typo without error, autocorrected and proceeded"
+    },
+    {
+      "test_number": 3,
+      "test_name": "Wrong FIPS Code",
+      "original_query": "Analyze drought history for Shannon County, MO (FIPS 29203)",
+      "modified_query": "Analyze drought history for Shannon County, MO (FIPS 29202)",
+      "modification_type": "Incorrect FIPS (29202 vs 29203)",
+      "input": "Analyze drought history for Shannon County, MO (FIPS 29202)",
+      "expected_behavior": "May use provided FIPS or detect mismatch",
+      "actual_behavior": "Explicitly detected mismatch: 'I noticed you provided FIPS code 29202 for Shannon County, but the correct FIPS is 29203'",
+      "tools_used": [
+        "get_drought_history"
+      ],
+      "steps": 2,
+      "response_time_seconds": 16.8,
+      "result": "PASS",
+      "robustness_observation": "Excellent - System detected conflicting information, notified user, and auto-corrected to valid FIPS"
+    },
+    {
+      "test_number": 4,
+      "test_name": "Minimal Query",
+      "original_query": "Analyze drought history for Shannon County, MO (FIPS 29203)",
+      "modified_query": "drought 29203",
+      "modification_type": "Minimal - just keyword and FIPS",
+      "input": "drought 29203",
+      "expected_behavior": "May fail due to lack of context",
+      "actual_behavior": "Successfully parsed FIPS 29203, identified as Shannon County, returned full analysis",
+      "tools_used": [
+        "get_drought_history"
+      ],
+      "steps": 2,
+      "response_time_seconds": 11.7,
+      "result": "PASS",
+      "robustness_observation": "Excellent - System extracted FIPS from minimal input and provided complete analysis"
+    },
+    {
+      "test_number": 5,
+      "test_name": "Invalid FIPS Code",
+      "original_query": "Analyze drought history for Shannon County, MO (FIPS 29203)",
+      "modified_query": "Analyze drought history for FIPS 99999",
+      "modification_type": "Non-existent FIPS code",
+      "input": "Analyze drought history for FIPS 99999",
+      "expected_behavior": "Graceful error handling",
+      "actual_behavior": "Clear error message: '99999 is not a valid county FIPS code. Please provide a valid 5-digit FIPS code'",
+      "tools_used": [],
+      "steps": 1,
+      "response_time_seconds": 3.8,
+      "result": "PASS",
+      "robustness_observation": "Excellent - Graceful degradation, clear error message, no crash, suggested solution"
+    },
+    {
+      "test_number": 6,
+      "test_name": "Vague Query",
+      "original_query": "Analyze drought history for Shannon County, MO (FIPS 29203)",
+      "modified_query": "drought history please",
+      "modification_type": "No location specified",
+      "input": "drought history please",
+      "expected_behavior": "Request for clarification",
+      "actual_behavior": "Polite clarification request: 'Please provide the 5-digit FIPS code for the county you would like me to analyze'",
+      "tools_used": [],
+      "steps": 1,
+      "response_time_seconds": 4.5,
+      "result": "PASS",
+      "robustness_observation": "Good - System recognized missing location and asked for clarification politely"
+    },
+    {
+      "test_number": 7,
+      "test_name": "Empty/Whitespace Query",
+      "original_query": "Analyze drought history for Shannon County, MO (FIPS 29203)",
+      "modified_query": "   ",
+      "modification_type": "Empty/whitespace only",
+      "input": "   ",
+      "expected_behavior": "Error or clarification request",
+      "actual_behavior": "Helpful response: 'I can provide a drought history report, but I need a specific location. Please provide the 5-digit FIPS code... or county and state name'",
+      "tools_used": [],
+      "steps": 1,
+      "response_time_seconds": 4.8,
+      "result": "PASS",
+      "robustness_observation": "Excellent - Handled empty input gracefully, provided helpful guidance with examples"
+    },
+    {
+      "test_number": 8,
+      "test_name": "State/FIPS Mismatch",
+      "original_query": "Analyze drought history for Shannon County, MO (FIPS 29203)",
+      "modified_query": "Analyze drought history for Shannon County, TX (FIPS 29203)",
+      "modification_type": "Wrong state (TX vs MO) for FIPS 29203",
+      "input": "Analyze drought history for Shannon County, TX (FIPS 29203)",
+      "expected_behavior": "May use FIPS or state name",
+      "actual_behavior": "Detected mismatch: 'FIPS code 29203 corresponds to Shannon County in Missouri, not Texas. Would you like me to proceed... or provide a different county in Texas?'",
+      "tools_used": [],
+      "steps": 1,
+      "response_time_seconds": 7.2,
+      "result": "PASS",
+      "robustness_observation": "Excellent - System detected state/FIPS conflict, provided clarification options, let user decide"
+    }
+  ],
+  "robustness_assessment": {
+    "overall_rating": "EXCELLENT",
+    "error_handling": "Graceful degradation with helpful error messages",
+    "autocorrection_capabilities": [
+      "Typo correction in county names",
+      "FIPS code validation and correction",
+      "State/FIPS mismatch detection"
+    ],
+    "input_validation": [
+      "FIPS format validation (5-digit check)",
+      "FIPS existence validation",
+      "County/state consistency validation"
+    ],
+    "user_guidance": "Provides clear instructions and examples when input is insufficient",
+    "crash_resistance": "No crashes observed across all adversarial tests"
+  },
+  "vulnerabilities_found": [],
+  "recommendations": [
+    "System demonstrates excellent robustness against adversarial inputs",
+    "LLM effectively handles typos, minimal queries, and conflicting information",
+    "Error messages are user-friendly and provide actionable guidance",
+    "No security vulnerabilities detected in input handling"
+  ]
+}

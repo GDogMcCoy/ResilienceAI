@@ -1,0 +1,204 @@
+{
+  "test_id": "C1_HIGH_1",
+  "test_category": "C",
+  "effort_level": "HIGH",
+  "timestamp": "2026-02-18T05:39:49.258914",
+  "query": {
+    "original": "For the 5 highest-risk counties in Missouri, what is their emergency infrastructure density?",
+    "modified": null,
+    "modification_type": null
+  },
+  "system_configuration": {
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort_setting": "Medium (attempted HIGH but UI remained on Medium)",
+    "available_tools": 16,
+    "total_counties": 3222
+  },
+  "execution_metrics": {
+    "total_steps": 7,
+    "tool_calls_count": 6,
+    "execution_time_seconds": 16.4,
+    "tools_used": [
+      "get_state_rankings",
+      "get_infrastructure_density",
+      "get_infrastructure_density",
+      "get_infrastructure_density",
+      "get_infrastructure_density",
+      "get_infrastructure_density"
+    ]
+  },
+  "tool_call_details": [
+    {
+      "step": 1,
+      "tool": "get_state_rankings",
+      "parameters": {
+        "state": "MO"
+      },
+      "purpose": "Retrieve ranked list of Missouri counties by risk score"
+    },
+    {
+      "step": 2,
+      "tool": "get_infrastructure_density",
+      "parameters": {
+        "fips": "29155"
+      },
+      "county": "Pemiscot County",
+      "response": {
+        "hospital_density": 2.57,
+        "ems_density": 6.43,
+        "fire_density": 25.72,
+        "nursing_home_density": 10.29
+      }
+    },
+    {
+      "step": 3,
+      "tool": "get_infrastructure_density",
+      "parameters": {
+        "fips": "29143"
+      },
+      "county": "New Madrid County",
+      "response": {
+        "hospital_density": 1.84,
+        "ems_density": 3.67,
+        "fire_density": 22.64,
+        "nursing_home_density": 13.46
+      }
+    },
+    {
+      "step": 4,
+      "tool": "get_infrastructure_density",
+      "parameters": {
+        "fips": "29133"
+      },
+      "county": "Mississippi County",
+      "response": {
+        "hospital_density": 0.81,
+        "ems_density": 6.5,
+        "fire_density": 37.38,
+        "nursing_home_density": 12.19
+      }
+    },
+    {
+      "step": 5,
+      "tool": "get_infrastructure_density",
+      "parameters": {
+        "fips": "29069"
+      },
+      "county": "Dunklin County",
+      "response": {
+        "hospital_density": 1.77,
+        "ems_density": 3.55,
+        "fire_density": 14.2,
+        "nursing_home_density": 4.97
+      }
+    },
+    {
+      "step": 6,
+      "tool": "get_infrastructure_density",
+      "parameters": {
+        "fips": "29510"
+      },
+      "county": "St. Louis city",
+      "response": {
+        "hospital_density": 1.64,
+        "ems_density": 1.01,
+        "fire_density": 8.22,
+        "nursing_home_density": 4.19
+      }
+    }
+  ],
+  "response_analysis": {
+    "narrative_response": "I was unable to generate a response.",
+    "data_present": true,
+    "structured_data": {
+      "counties_analyzed": 5,
+      "counties": [
+        {
+          "name": "Pemiscot County",
+          "fips": "29155",
+          "hospitals_per10k": 2.57,
+          "ems_per10k": 6.43,
+          "fire_per10k": 25.72,
+          "nursing_per10k": 10.29
+        },
+        {
+          "name": "New Madrid County",
+          "fips": "29143",
+          "hospitals_per10k": 1.84,
+          "ems_per10k": 3.67,
+          "fire_per10k": 22.64,
+          "nursing_per10k": 13.46
+        },
+        {
+          "name": "Mississippi County",
+          "fips": "29133",
+          "hospitals_per10k": 0.81,
+          "ems_per10k": 6.5,
+          "fire_per10k": 37.38,
+          "nursing_per10k": 12.19
+        },
+        {
+          "name": "Dunklin County",
+          "fips": "29069",
+          "hospitals_per10k": 1.77,
+          "ems_per10k": 3.55,
+          "fire_per10k": 14.2,
+          "nursing_per10k": 4.97
+        },
+        {
+          "name": "St. Louis city",
+          "fips": "29510",
+          "hospitals_per10k": 1.64,
+          "ems_per10k": 1.01,
+          "fire_per10k": 8.22,
+          "nursing_per10k": 4.19
+        }
+      ]
+    },
+    "response_depth": "Data retrieval successful with structured infrastructure metrics for all 5 counties. Narrative synthesis failed."
+  },
+  "observed_issues": [
+    {
+      "issue_type": "UI_DISPLAY_BUG",
+      "severity": "Medium",
+      "description": "Infrastructure density cards display all 0.00 values despite API returning correct non-zero values",
+      "api_values": "Non-zero densities returned (e.g., Pemiscot: 2.57 hospitals/10k)",
+      "ui_display": "All cards show 0.00 for all metrics"
+    },
+    {
+      "issue_type": "NARRATIVE_GENERATION_FAILURE",
+      "severity": "Medium",
+      "description": "System returned 'I was unable to generate a response' despite successful data retrieval",
+      "impact": "User sees error message but structured data is available"
+    },
+    {
+      "issue_type": "REASONING_EFFORT_SETTING",
+      "severity": "Low",
+      "description": "Attempted to set HIGH reasoning effort but UI remained on Medium",
+      "impact": "Unclear if HIGH effort was actually applied"
+    }
+  ],
+  "robustness_assessment": {
+    "query_handling": "Good - System correctly parsed and executed multi-part query",
+    "tool_orchestration": "Excellent - Made 6 sequential tool calls correctly",
+    "error_handling": "Partial - Data retrieval succeeded but narrative generation failed",
+    "graceful_degradation": "Fair - Structured data displayed despite narrative failure",
+    "edge_case_resilience": "Good - Handled specific FIPS-based queries without errors"
+  },
+  "adversarial_observations": {
+    "test_type": "Standard execution (no adversarial modifications)",
+    "system_behavior": "System executed query as intended with proper tool selection",
+    "vulnerabilities_found": [
+      "UI display inconsistency between API response and visual cards",
+      "Narrative generation failure on valid data"
+    ]
+  },
+  "recommendations": [
+    "Fix UI display bug showing 0.00 instead of actual infrastructure density values",
+    "Investigate narrative generation failure despite successful data retrieval",
+    "Verify Reasoning Effort setting is properly applied when changed in UI",
+    "Add fallback narrative generation when primary synthesis fails"
+  ],
+  "test_result": "COMPLETED_WITH_ISSUES",
+  "verdict": "System successfully executed 6 tool calls and retrieved correct data, but displayed incorrect values in UI and failed to generate narrative response."
+}

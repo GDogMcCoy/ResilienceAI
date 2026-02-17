@@ -1,0 +1,50 @@
+{
+  "test_id": "B4_W2_2",
+  "timestamp": "2026-02-17T21:16:59Z",
+  "query": "What is the severe weather history for Greene County, MO (FIPS 29077)?",
+  "expected_tool": "get_severe_weather_history",
+  "llm_backend": "Gemini 2.5 Pro (Cloud)",
+  "reasoning_effort": "Medium",
+  "response_time_seconds": 17.0,
+  "tools_called": [
+    {
+      "tool_name": "get_severe_weather_history",
+      "parameters": {
+        "fips": "29077",
+        "start_year": 2000,
+        "end_year": 2024
+      },
+      "called_correctly": true
+    }
+  ],
+  "response_quality": {
+    "correct_tool_used": true,
+    "correct_fips": true,
+    "data_returned": true,
+    "narrative_summary": true,
+    "visual_rendered": true
+  },
+  "visual_output": {
+    "type": "Intelligence Report",
+    "title": "Severe Weather Event Summary: Greene County, Missouri",
+    "sections": [
+      "Supporting Data",
+      "Recommendation",
+      "Raw JSON Response"
+    ],
+    "content_summary": "Report shows 0 severe weather events for Greene County, MO (FIPS 29077) from 2000-2024 per NCEI Storm Events Database"
+  },
+  "actual_response": {
+    "total_events": 0,
+    "period": "2000-2024",
+    "data_source": "NCEI Storm Events Database",
+    "note": "Use bulk CSV download for complete historical records"
+  },
+  "notes": [
+    "Tool correctly identified and called with proper FIPS code",
+    "Response correctly indicates zero events found in database",
+    "Includes helpful recommendation about API limitations",
+    "Formatted as Intelligence Report with clear sections",
+    "Response time: 17.0 seconds for 2 steps, 1 tool call"
+  ]
+}

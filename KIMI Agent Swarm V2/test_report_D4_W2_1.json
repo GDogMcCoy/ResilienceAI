@@ -1,0 +1,45 @@
+{
+  "test_id": "D4_W2_1",
+  "wave": 2,
+  "test_type": "CONSENSUS_VALIDATION",
+  "agent": 1,
+  "timestamp": "2025-01-21T10:30:00Z",
+  "query": "What methodology does ResilienceAI use to calculate risk scores?",
+  "expected_behavior": "Answers from system prompt knowledge without calling tools",
+  "configuration": {
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort": "Medium"
+  },
+  "execution": {
+    "ngrok_interstitial_cleared": true,
+    "settings_verified": true
+  },
+  "results": {
+    "tools_called": [],
+    "tools_called_count": 0,
+    "response_time_seconds": 12.3,
+    "response_quality": {
+      "answered_question": true,
+      "cited_methodology": true,
+      "mentioned_dimensions": true,
+      "mentioned_feature_count": true
+    },
+    "visual_rendered": {
+      "type": "text_report",
+      "content_summary": "Intelligence Report with methodology explanation",
+      "has_formatting": true
+    },
+    "response_summary": "ResilienceAI risk score is a composite metric integrating 66 distinct features across three core dimensions: Social Vulnerability, Infrastructure & Institutional Capacity, and Hazard Exposure. Higher score indicates greater vulnerability."
+  },
+  "validation": {
+    "no_tools_used": true,
+    "answered_from_knowledge": true,
+    "test_passed": true
+  },
+  "notes": [
+    "Query completed successfully with 0 tools (direct) as expected",
+    "Response provided comprehensive methodology explanation from system knowledge",
+    "Response correctly identified 66 features and 3 core dimensions",
+    "No data retrieval tools were invoked, confirming knowledge-based response"
+  ]
+}

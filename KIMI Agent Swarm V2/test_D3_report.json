@@ -1,0 +1,41 @@
+{
+  "test_id": "D3",
+  "query": "What are the top 5 most vulnerable counties in California?",
+  "status": "PARTIAL",
+  "tools_called": [],
+  "tools_expected": ["query_counties"],
+  "tool_match": false,
+  "response_quality": {
+    "has_specific_numbers": false,
+    "has_county_names": false,
+    "has_recommendations": false,
+    "reasoning_leaked": false,
+    "hallucinated_data": false
+  },
+  "visual_rendered": {
+    "chart_type": "none",
+    "data_table": false,
+    "metric_cards": false
+  },
+  "response_time_seconds": 0,
+  "answer_preview": "Response not captured - page resets after query submission. Dashboard continues to display Missouri data (115 counties) despite California query.",
+  "issues": [
+    "Browser automation unable to capture LLM response - page resets after query submission",
+    "Dashboard maintains Missouri focus state after California query submitted",
+    "Vulnerability Map continues showing Missouri (115 counties) instead of California (58 counties)",
+    "No visible chat history or response persistence mechanism observed",
+    "Unable to verify if query_counties tool was called with state='CA' parameter",
+    "Streamlit app may require different automation approach for response capture"
+  ],
+  "severity": "major",
+  "observations": {
+    "focus_state_after_query": "Missouri (unchanged)",
+    "counties_displayed": 115,
+    "expected_california_counties": 58,
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort": "Medium",
+    "query_processing_observed": true,
+    "response_persistence": false
+  },
+  "test_notes": "Test Case D3: Non-Missouri Query - Attempted to query California counties but unable to verify response due to page reset behavior. Dashboard UI remained focused on Missouri data throughout test."
+}

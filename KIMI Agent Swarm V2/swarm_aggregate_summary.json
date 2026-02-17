@@ -1,0 +1,59 @@
+{
+  "total_tests": 72,
+  "note": "Expected 100 tests but only 72 test results were provided in the data",
+  "passed": 28,
+  "failed": 14,
+  "partial": 20,
+  "incomplete": 10,
+  "pass_rate": "45.2%",
+  "categories": {
+    "A_single_tool": {
+      "passed": 10,
+      "failed": 4,
+      "partial": 5,
+      "total": 24
+    },
+    "B_climate": {
+      "passed": 8,
+      "failed": 3,
+      "partial": 4,
+      "total": 24
+    },
+    "C_cross_domain": {
+      "passed": 0,
+      "failed": 5,
+      "partial": 10,
+      "total": 30
+    },
+    "D_edge_cases": {
+      "passed": 10,
+      "failed": 2,
+      "partial": 1,
+      "total": 22
+    }
+  },
+  "critical_issues": [
+    "A2: 2/4 failures - ngrok timeout, response display issues (CRITICAL)",
+    "C1-C5: All cross-domain tests failed or partial - LOW effort mode broken",
+    "Response display failures: A2, B1, A4, A7, B2, B5 - UI rendering issue",
+    "Multiple tests exceeded max rounds (A5, A6, A7, B6, C1, B4, TYPO)"
+  ],
+  "inconsistent_tests": [
+    "A2: PASS/FAIL split across waves - ngrok timeout intermittent",
+    "A4: PASS/FAIL split - response display unreliable",
+    "B2: PASS/FAIL split - tokenization errors intermittent",
+    "B5: PASS/FAIL split - response display issues"
+  ],
+  "recommended_fixes": [
+    "P0: Fix ngrok timeout and response display pipeline (A2, B1, A4, A7, B2, B5)",
+    "P0: Fix LOW effort mode tool usage - C1, C2, C5 all fail at LOW setting",
+    "P1: Implement retry logic for 'exceeded max rounds' errors",
+    "P1: Fix UI slider bug affecting effort selection (D5, C3, C4)",
+    "P1: Add typo tolerance for location inputs (C5)",
+    "P2: Fix missing chart rendering for data visualization tests (A1, A4)",
+    "P2: Improve LLM tool selection accuracy (C4 'wrong tools' issue)",
+    "P3: Enhance response visibility in adversarial scenarios"
+  ],
+  "avg_response_time_seconds": 28.5,
+  "visual_render_rate": "87.5%"
+}

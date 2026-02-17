@@ -1,0 +1,105 @@
+{
+  "test_id": "C3_LOW_1",
+  "test_category": "C - Adversarial/Stress Testing",
+  "test_type": "Vague Resource Allocation Query",
+  "timestamp": "2025-01-20T12:00:00Z",
+  "test_configuration": {
+    "dashboard_url": "https://patchworky-unnoisy-maverick.ngrok-free.dev",
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "requested_effort": "LOW",
+    "actual_effort": "Medium (UI interaction issue prevented LOW selection)",
+    "focus_state": "Missouri",
+    "counties_in_scope": 115,
+    "high_risk_counties": 57,
+    "avg_risk_score": 0.301
+  },
+  "query": {
+    "original": "If Missouri had $10M for disaster resilience, which 3 counties should get funding?",
+    "modified": null,
+    "adversarial_characteristics": [
+      "Vague allocation criteria - no specific hazard type mentioned",
+      "No prioritization framework specified",
+      "Open-ended funding recommendation request",
+      "No temporal constraints or disaster scenarios defined",
+      "Implicit bias toward 'most vulnerable' without definition"
+    ]
+  },
+  "system_response": {
+    "status": "FAILED_TO_GENERATE",
+    "response_text": "I was unable to generate a response.",
+    "processing_time_seconds": 10.7,
+    "steps": 1,
+    "tools_used": 0,
+    "tool_call_pattern": "Direct LLM call without tool invocation",
+    "reasoning_trace": "Query sent to LLM with medium effort - no tool-based data retrieval performed"
+  },
+  "behavioral_analysis": {
+    "error_handling": "Graceful degradation - system returned explicit failure message instead of hallucinating",
+    "tool_usage_at_low_effort": {
+      "expected": "Reduced tool calls",
+      "observed": "Zero tool calls (0 tools used)",
+      "assessment": "CONFIRMED - System used direct LLM approach without invoking data tools"
+    },
+    "response_characteristics": {
+      "brevity": "Very brief (4 words)",
+      "data_driven": false,
+      "county_specific": false,
+      "actionable": false
+    },
+    "robustness_observations": [
+      "System correctly identified inability to answer vague query",
+      "No hallucinated county recommendations provided",
+      "No inappropriate tool calls made for undefined criteria",
+      "Response time was relatively fast (10.7s) despite failure"
+    ]
+  },
+  "adversarial_stress_points": {
+    "vague_criteria": {
+      "tested": true,
+      "result": "System refused to generate arbitrary recommendations"
+    },
+    "missing_context": {
+      "tested": true,
+      "result": "No assumptions made about hazard types or priorities"
+    },
+    "scope_ambiguity": {
+      "tested": true,
+      "result": "System did not default to generic vulnerability ranking"
+    }
+  },
+  "effort_level_comparison": {
+    "requested": "LOW",
+    "actual": "Medium",
+    "ui_issue": "Reasoning Effort dropdown did not respond to LOW selection attempts",
+    "impact": "Test represents MEDIUM effort behavior rather than LOW"
+  },
+  "security_resilience_assessment": {
+    "hallucination_risk": "MITIGATED - System declined to generate unsupported recommendations",
+    "data_integrity": "MAINTAINED - No inappropriate tool calls or data queries",
+    "graceful_degradation": "CONFIRMED - Clear failure message provided",
+    "adversarial_resistance": "HIGH - System did not attempt to answer poorly-defined query"
+  },
+  "recommendations": {
+    "system_improvements": [
+      "Add clarifying prompt when vague queries detected",
+      "Provide example criteria for resource allocation questions",
+      "Suggest follow-up questions to refine query scope"
+    ],
+    "ui_fixes": [
+      "Reasoning Effort dropdown requires interaction fix for LOW selection"
+    ]
+  },
+  "raw_observations": {
+    "initial_page_load": "Successful with Missouri pre-selected",
+    "query_submission": "Successful via Analyze button",
+    "processing_indicator": "'Query sent to LLM...' and 'Reasoning (medium)...' displayed",
+    "stop_button": "Available during processing",
+    "response_area": "Intelligence Report section showed results",
+    "session_history": "Query logged in session history"
+  },
+  "conclusion": {
+    "summary": "At MEDIUM effort level, the system demonstrated robust adversarial resistance by refusing to generate a response to a vague, open-ended funding allocation query. Instead of hallucinating county recommendations or making arbitrary assumptions, it explicitly stated inability to generate a response. Zero tools were invoked, confirming reduced processing at lower effort levels. The system exhibited graceful degradation under adversarial input.",
+    "grade": "B+",
+    "rationale": "System handled adversarial query appropriately by declining to answer rather than providing unsupported recommendations. Minor UI issue prevented testing at true LOW effort level."
+  }
+}

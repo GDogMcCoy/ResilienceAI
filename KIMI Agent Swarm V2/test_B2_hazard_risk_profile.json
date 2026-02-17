@@ -1,0 +1,36 @@
+{
+  "test_id": "B2",
+  "query": "What is the FEMA hazard risk profile for New Madrid County, MO (FIPS 29143)?",
+  "status": "PARTIAL",
+  "tools_called": [
+    "get_hazard_risk_profile"
+  ],
+  "tools_expected": [
+    "get_hazard_risk_profile"
+  ],
+  "tool_match": true,
+  "response_quality": {
+    "has_specific_numbers": false,
+    "has_county_names": true,
+    "has_recommendations": false,
+    "reasoning_leaked": false,
+    "hallucinated_data": false
+  },
+  "visual_rendered": {
+    "chart_type": "none",
+    "data_table": false,
+    "metric_cards": false
+  },
+  "response_time_seconds": 13.6,
+  "answer_preview": "I am sorry, but I was unable to retrieve the FEMA hazard risk profile for New Madrid County (FIPS 29143) due to a data processing error. The information is currently unavailable.",
+  "issues": [
+    "Tool execution failed with data parsing error: 'Error tokenizing data. C error: Expected 1 fields in line 5, saw 5'",
+    "No hazard risk data returned for New Madrid County",
+    "No metric cards rendered (expected 3)",
+    "No hazard table rendered with risk ratings and scores",
+    "Expected Annual Loss data not available",
+    "Social Vulnerability data not available",
+    "Top hazard types with scores not returned"
+  ],
+  "severity": "major"
+}

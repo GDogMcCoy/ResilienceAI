@@ -1,0 +1,32 @@
+{
+  "test_id": "A4",
+  "query": "What are the worst health disparity zones in Missouri based on uninsured rates?",
+  "status": "PARTIAL",
+  "tools_called": [
+    "get_mo_health_disparities"
+  ],
+  "tools_expected": [
+    "get_mo_health_disparities"
+  ],
+  "tool_match": true,
+  "response_quality": {
+    "has_specific_numbers": true,
+    "has_county_names": true,
+    "has_recommendations": true,
+    "reasoning_leaked": true,
+    "hallucinated_data": false
+  },
+  "visual_rendered": {
+    "chart_type": "none",
+    "data_table": true,
+    "metric_cards": false
+  },
+  "response_time_seconds": 18.9,
+  "answer_preview": "Missouri's Rural Health Disparity Hotspots. Rural counties in Northern and Central Missouri face the most significant health disparities, driven by uninsured rates exceeding 30% in the most extreme cases. Top 3: Scotland County (31.1%), Knox County (25.3%), Morgan County (24.1%)",
+  "issues": [
+    "Expected horizontal bar chart of disparity index was not rendered",
+    "Only top 3 counties shown instead of expected 10 counties",
+    "Reasoning trace is visible in the UI (leaked reasoning)"
+  ],
+  "severity": "minor"
+}

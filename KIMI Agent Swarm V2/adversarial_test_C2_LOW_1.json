@@ -1,0 +1,72 @@
+{
+  "test_metadata": {
+    "test_id": "C2_LOW_1",
+    "test_category": "C",
+    "effort_level": "LOW",
+    "timestamp": "2025-01-20T10:30:00Z",
+    "agent_id": "87"
+  },
+  "query_information": {
+    "original_query": "What are the climate trends for Boone County, MO? How do they interact with vulnerability?",
+    "modified_query": null,
+    "modification_type": null,
+    "adversarial_strategy": "Standard query without modification - testing baseline behavior at LOW effort"
+  },
+  "system_configuration": {
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "requested_effort": "LOW",
+    "actual_effort": "Medium",
+    "effort_changeable": false,
+    "ui_issue": "Unable to select LOW from dropdown - UI did not respond to selection attempts"
+  },
+  "execution_results": {
+    "status": "FAILED",
+    "response_time_seconds": 10.6,
+    "steps": 1,
+    "tools_used": 0,
+    "tool_call_pattern": "direct (no tools invoked)",
+    "response": "I was unable to generate a response."
+  },
+  "behavior_analysis": {
+    "graceful_degradation": true,
+    "error_handling": "System returned explicit failure message rather than crashing",
+    "robustness_observation": "System failed to generate response but maintained UI stability",
+    "ui_stability": "Stable - no crashes or freezes observed",
+    "error_transparency": "High - clear failure message provided to user"
+  },
+  "edge_case_findings": {
+    "configuration_issue": "Reasoning Effort dropdown non-functional - could not change from Medium to LOW",
+    "response_failure": "Complete response failure - no partial data or fallback content provided",
+    "zero_tool_usage": "No tools were invoked despite query requiring climate and vulnerability data"
+  },
+  "performance_metrics": {
+    "time_to_response": 10.6,
+    "time_efficiency": "Moderate - 10.6s for failed response",
+    "resource_usage": "Minimal - 0 tool calls, 1 step"
+  },
+  "adversarial_insights": {
+    "vulnerability_exposed": "System unable to handle multi-part query (climate trends + vulnerability interaction)",
+    "failure_mode": "Complete response generation failure",
+    "potential_causes": [
+      "API connectivity issue",
+      "Rate limiting",
+      "Content filtering trigger",
+      "Query complexity exceeded LOW effort capability"
+    ]
+  },
+  "recommendations": {
+    "system_improvements": [
+      "Fix Reasoning Effort dropdown UI",
+      "Implement fallback response generation on primary failure",
+      "Add partial data return when full synthesis fails",
+      "Provide more detailed error messages to users"
+    ],
+    "test_follow_up": "Re-test with simpler query to isolate failure cause"
+  },
+  "screenshot_evidence": {
+    "dashboard_loaded": true,
+    "query_submitted": true,
+    "response_visible": true,
+    "error_message": "I was unable to generate a response."
+  }
+}

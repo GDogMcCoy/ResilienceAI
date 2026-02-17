@@ -1,0 +1,40 @@
+{
+  "test_id": "A7_W2_1",
+  "timestamp": "2025-01-18T20:31:00Z",
+  "query": "Analyze risk contagion for St. Louis County, MO (FIPS 29189)",
+  "expected_tool": "analyze_risk_contagion",
+  "llm_config": {
+    "model": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort": "Medium"
+  },
+  "test_result": {
+    "tools_called": [],
+    "response_quality": {
+      "addressed_county": false,
+      "data_accuracy": null,
+      "contagion_analysis": false
+    },
+    "visual_rendered": {
+      "map_displayed": false,
+      "network_graph": false,
+      "risk_metrics": false
+    },
+    "response_time_seconds": 37.82,
+    "test_status": "FAILED"
+  },
+  "notes": [
+    "Query submitted successfully to ResilienceAI dashboard",
+    "Processing initiated - 'Query sent to LLM...' and 'Reasoning (medium)...' messages displayed",
+    "Stop button appeared during processing, indicating active query execution",
+    "Page consistently reset without displaying any response content",
+    "Multiple attempts made with varying wait times (5-20 seconds)",
+    "Searches for 'St. Louis', '29189', and 'contagion' response content returned no results",
+    "Expected tool 'analyze_risk_contagion' was not visibly invoked",
+    "Issue appears to be systematic - queries start processing but fail to complete/return results"
+  ],
+  "error_details": {
+    "error_type": "Query Timeout/Failure",
+    "description": "Query processing initiated but did not complete successfully. Page reset without displaying response.",
+    "severity": "High"
+  }
+}

@@ -142,11 +142,10 @@ def render_tool_visuals(steps):
             elif name == "get_infrastructure_density":
                 if isinstance(data, dict) and "error" not in data:
                     st.markdown(f"**Infrastructure Density** — {data.get('county_name', data.get('fips', ''))}")
-                    c1, c2, c3, c4 = st.columns(4)
-                    c1.metric("Hospitals/10k", f"{data.get('density_hospitals_per10k', 0):.2f}")
-                    c2.metric("EMS/10k", f"{data.get('density_ems_stations_per10k', 0):.2f}")
-                    c3.metric("Fire/10k", f"{data.get('density_fire_stations_per10k', 0):.2f}")
-                    c4.metric("Nursing/10k", f"{data.get('density_nursing_homes_per10k', 0):.2f}")
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("Hospitals/10k", f"{data.get('hospitals_per_10k', data.get('density_hospitals_per10k', 0)):.2f}")
+                    c2.metric("EMS/10k", f"{data.get('ems_per_10k', data.get('density_ems_stations_per10k', 0)):.2f}")
+                    c3.metric("Fire/10k", f"{data.get('fire_per_10k', data.get('density_fire_stations_per10k', 0)):.2f}")
 
             # ── Risk contagion: 3 metrics ──────────────────────────────
             elif name == "analyze_risk_contagion":
@@ -468,7 +467,7 @@ if should_run:
     if st.session_state.agentic_orchestrator:
         orch = st.session_state.agentic_orchestrator
         # Apply effort settings
-        effort_cfg = {"Low": (1, 512), "Medium": (2, 1024), "High": (3, 1024)}
+        effort_cfg = {"Low": (2, 512), "Medium": (4, 1024), "High": (6, 2048)}
         orch.max_tool_rounds, orch._max_tokens = effort_cfg.get(effort, (2, 1024))
 
         with st.status(f"Reasoning ({effort.lower()})...", expanded=True) as status:

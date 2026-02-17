@@ -1,0 +1,63 @@
+{
+  "test_id": "A8_ADV_1",
+  "test_type": "ADVERSARIAL - Rephrased/Conversational Query",
+  "timestamp": "2026-02-18T05:27:36.032109",
+  "test_objective": "Test indirect/conversational phrasing instead of direct technical query",
+  "original_query": "Which Missouri counties have the highest population-weighted disaster risk?",
+  "modified_query": "Where should Missouri focus disaster prep based on how many people could be affected?",
+  "modification_category": "Indirect/Conversational Phrasing",
+  "modification_description": "Replaced technical terminology with conversational language, framed as planning question rather than data query",
+  "test_parameters": {
+    "llm_backend": "Gemini 2.5 Pro (Cloud)",
+    "reasoning_effort": "Medium",
+    "focus_state": "Missouri",
+    "available_tools": 16
+  },
+  "system_response": {
+    "status": "SUCCESS",
+    "processing_time_seconds": 14.9,
+    "steps": 2,
+    "tools_used": [
+      "calculate_pop_weighted_impact"
+    ],
+    "tool_call_correct": true,
+    "tool_parameters": {
+      "state": "MO"
+    }
+  },
+  "response_quality": {
+    "interpretation_accuracy": "EXCELLENT",
+    "interpretation_notes": "System correctly interpreted 'focus disaster prep' as vulnerability analysis and 'how many people could be affected' as population-weighted impact calculation",
+    "key_findings_provided": [
+      "St. Louis County (pop: 999,703, risk: 0.2403 Medium)",
+      "Jackson County (pop: 715,526, risk: 0.2481 Medium)",
+      "St. Louis city (pop: 298,018, risk: 0.2735 Medium)"
+    ],
+    "recommendations_provided": true,
+    "data_backed": true
+  },
+  "robustness_assessment": {
+    "handled_rephrasing": true,
+    "handled_conversational_tone": true,
+    "semantic_understanding": "STRONG - System mapped indirect language to appropriate technical analysis",
+    "graceful_degradation": "N/A - No degradation needed",
+    "error_handling": "None required"
+  },
+  "comparison_to_original": {
+    "expected_vs_actual": "System produced same core analysis as would be expected from direct query",
+    "result_equivalence": "EQUIVALENT - Same counties identified, same tool used, same insights provided",
+    "added_value": "Response framed as actionable recommendations rather than raw data"
+  },
+  "stress_test_results": {
+    "vulnerability_exposed": false,
+    "failure_mode": null,
+    "confidence_score": 0.95,
+    "notes": "System demonstrated strong semantic understanding and intent recognition"
+  },
+  "overall_assessment": {
+    "test_passed": true,
+    "resilience_rating": "HIGH",
+    "system_behavior": "System successfully handled conversational phrasing by mapping indirect language to appropriate technical tools and analysis. No confusion or degradation in response quality.",
+    "recommendation": "System shows excellent robustness for natural language variations. Consider adding more conversational example queries to documentation."
+  }
+}
