@@ -28,6 +28,8 @@ class AgentOrchestrator:
             "climate", "temperature", "precipitation", "drought", "flood frequency",
             "hazard risk", "nri", "acis", "severe weather", "hail", "tornado history",
             "heat wave", "wildfire risk", "climate trend", "warming", "rainfall",
+            "satellite", "ndvi", "vegetation", "land surface", "nighttime lights",
+            "burned area", "surface water", "heat vulnerability",
         ],
         "vulnerability": [
             "vulnerability", "county", "risk score", "compound risk", "infrastructure",

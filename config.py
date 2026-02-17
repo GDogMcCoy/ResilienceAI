@@ -87,7 +87,16 @@ CLIMATE_SOURCES = {
     "usgs_nwis": {"url": "https://waterservices.usgs.gov/nwis/", "cache_hours": 24},
     "swdi": {"url": "https://www.ncei.noaa.gov/access/services/search/v1/data", "cache_hours": 168},
     "drought_monitor": {"url": "https://usdmdataservices.unl.edu/api", "cache_hours": 24},
+    "gee": {"url": "https://earthengine.googleapis.com", "cache_hours": 720,
+            "datasets": ["MODIS/061/MOD11A2", "MODIS/061/MOD13Q1", "GRIDMET/DROUGHT",
+                         "NOAA/VIIRS/DNB/MONTHLY_V1/VCMCFG", "JRC/GSW1_4/GlobalSurfaceWater",
+                         "MODIS/061/MCD64A1"]},
 }
+
+# Google Earth Engine
+GEE_PROJECT_ID = os.environ.get("GEE_PROJECT_ID", "")
+GEE_CACHE_DIR = DATA_DIR / "gee_cache"
+GEE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 # Feature groups for analysis
 FEATURE_GROUPS = {

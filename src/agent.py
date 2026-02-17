@@ -1083,6 +1083,55 @@ def get_mcp_tools():
                 "required": ["fips"]
             }
         },
+        # ── Satellite / GEE tools (read from Parquet cache) ──────────
+        {
+            "name": "get_satellite_indicators",
+            "description": "Get all cached GEE satellite indicators for a county: land surface temperature, NDVI vegetation health, drought index (PDSI), nighttime lights, surface water, and burned area.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                    "year": {"type": "integer", "description": "Year of data (default: 2024)"},
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "get_heat_vulnerability",
+            "description": "Compute heat vulnerability score for a county by overlaying satellite land surface temperature with population and poverty data.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                    "year": {"type": "integer", "description": "Year (default: 2024)"},
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "get_vegetation_stress",
+            "description": "Assess vegetation stress for a county by comparing current NDVI against historical baseline. Returns anomaly and stress classification.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                    "year": {"type": "integer", "description": "Year to assess (default: 2024)"},
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "compare_satellite_indicators",
+            "description": "Compare satellite indicators (LST, NDVI, PDSI, nighttime lights) across multiple counties side-by-side.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips_list": {"type": "array", "items": {"type": "string"}, "description": "List of 5-digit FIPS codes to compare"},
+                    "year": {"type": "integer", "description": "Year (default: 2024)"},
+                },
+                "required": ["fips_list"]
+            }
+        },
     ]
 
 
@@ -2359,6 +2408,32 @@ class ResilienceAgent:
         from src.agents.climate_agent import ClimateAgent
         ca = ClimateAgent()
         return ca._project_climate_risk_enhanced(fips, scenario, horizon_years)
+
+    # ── Satellite / GEE tools (delegate to ClimateAgent) ─────────────
+
+    def get_satellite_indicators(self, fips: str, year: int = 2024):
+        """Get all cached satellite indicators for a county."""
+        from src.agents.climate_agent import ClimateAgent
+        ca = ClimateAgent()
+        return ca._get_satellite_indicators(fips, year)
+
+    def get_heat_vulnerability(self, fips: str, year: int = 2024):
+        """Compute heat vulnerability score from satellite LST."""
+        from src.agents.climate_agent import ClimateAgent
+        ca = ClimateAgent()
+        return ca._get_heat_vulnerability(fips, year)
+
+    def get_vegetation_stress(self, fips: str, year: int = 2024):
+        """Assess vegetation stress from NDVI anomaly."""
+        from src.agents.climate_agent import ClimateAgent
+        ca = ClimateAgent()
+        return ca._get_vegetation_stress(fips, year)
+
+    def compare_satellite_indicators(self, fips_list, year: int = 2024):
+        """Compare satellite indicators across counties."""
+        from src.agents.climate_agent import ClimateAgent
+        ca = ClimateAgent()
+        return ca._compare_satellite_indicators(fips_list, year)
 
     def get_system_prompt(self):
         """Get formatted system prompt with data stats."""

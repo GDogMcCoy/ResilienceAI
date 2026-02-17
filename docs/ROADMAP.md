@@ -16,9 +16,9 @@
 
 ## Phase 2: Climate Intelligence + Multi-Agent (Current)
 
-**52 MCP tools | 10 data sources | 4 specialist agents**
+**56 MCP tools | 11 data sources | 4 specialist agents**
 
-### New Data Sources
+### Data Sources
 | Source | Resolution | Coverage |
 |--------|-----------|----------|
 | RCC-ACIS | 4km grid, daily | Temperature, precipitation, degree days |
@@ -26,24 +26,29 @@
 | USGS NWIS | Gauge sites | Peak streamflows, flood frequency |
 | NOAA SWDI/SPC | Event points | Tornado, hail, wind, thunderstorm |
 | US Drought Monitor | County, weekly | D0–D4 drought classification |
+| Google Earth Engine | 30m–4km | LST, NDVI, PDSI, nighttime lights, surface water, burned area |
 
 ### Multi-Agent Orchestration
 | Agent | Tools | Domain |
 |-------|-------|--------|
-| ClimateAgent | 7 | Climate trends, hazard profiles, drought, floods, severe weather |
+| ClimateAgent | 11 | Climate trends, hazard profiles, drought, floods, severe weather, satellite indicators |
 | VulnerabilityAgent | 20 | County risk, infrastructure, demographics, spatial analysis |
 | RealtimeAgent | 11 | Weather alerts, subscriptions, emergency dispatch |
 | PlanningAgent | 14 | Intervention ROI, forecasting, briefings, agriculture |
 
-### New Capabilities
+### Capabilities
 - High-resolution climatological trend analysis (ACIS 4km PRISM grid)
 - 18-hazard risk heatmaps from FEMA National Risk Index
 - Flood frequency estimation with Weibull recurrence intervals
 - Drought timeline visualization (D0–D4 stacked area)
 - IPCC SSP scenario projections grounded in real historical baselines
 - Keyword-based query routing to specialist agents
-- Interactive Climate Intelligence dashboard (5 sub-tabs)
+- Interactive Climate Intelligence dashboard (6 sub-tabs)
 - Agent Console with tool execution and conversation history
+- Satellite-derived land surface temperature, vegetation health (NDVI), drought severity (PDSI)
+- Nighttime lights infrastructure proxy and burned area detection
+- Heat vulnerability scoring and vegetation stress analysis
+- Pre-compute + Parquet cache pipeline for offline satellite data
 
 ## Phase 3: Clinical Decision Support (Post-Hackathon)
 

@@ -34,6 +34,9 @@ fhir.resources>=7.0.0
 # Markdown tables (for pandas to_markdown)
 tabulate>=0.9.0
 
+# Google Earth Engine (satellite data)
+earthengine-api>=1.4.0
+
 # Utilities
 python-dotenv>=1.0.0
 pyyaml>=6.0.0

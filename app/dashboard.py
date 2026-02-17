@@ -363,12 +363,13 @@ with tab3:
         if selected_fips is None:
             st.info("Enter a ZIP code or select a county to view climate data.")
 
-        ci1, ci2, ci3, ci4, ci5 = st.tabs([
+        ci1, ci2, ci3, ci4, ci5, ci6 = st.tabs([
             "Temperature & Precipitation",
             "Hazard Risk Profile",
             "Drought Timeline",
             "Severe Weather",
             "Climate Projections",
+            "Satellite Intelligence",
         ])
 
         # Sub-tab 1: Climate Trends
@@ -562,6 +563,109 @@ with tab3:
                     st.info("Multi-agent orchestrator not available.")
             except Exception as e:
                 st.warning(f"Climate projections unavailable: {e}")
+
+        # ── Subtab 6: Satellite Intelligence ────────────────────────────
+        with ci6:
+            st.markdown("**Satellite-derived indicators from Google Earth Engine (cached)**")
+
+            try:
+                from src.gee_client import GEEClient, GEE_CACHE_DIR
+
+                sat_year = st.number_input("Satellite Data Year", 2020, 2025, 2024, key="sat_year")
+                state_fips = "29"  # Missouri
+
+                # Check cache status
+                cache_status = GEEClient.get_cache_status(state_fips, sat_year)
+                cached_count = sum(1 for v in cache_status.values() if v.get("cached"))
+
+                if cached_count == 0:
+                    st.warning(
+                        f"No satellite data cached for state {state_fips}, year {sat_year}. "
+                        f"Run: `python src/pipeline/gee_fetch.py --state {state_fips} --year {sat_year}`"
+                    )
+                    # Show cache status table
+                    status_rows = []
+                    for key, info in cache_status.items():
+                        status_rows.append({
+                            "Indicator": key.upper(),
+                            "Status": "Cached" if info.get("cached") else "Not cached",
+                            "Description": info.get("description", ""),
+                        })
+                    st.dataframe(pd.DataFrame(status_rows), use_container_width=True)
+                else:
+                    # Show freshness
+                    st.success(f"{cached_count}/6 indicators cached for state {state_fips}, year {sat_year}")
+
+                    cached_data = GEEClient.load_all_cached(state_fips, sat_year)
+
+                    # LST choropleth
+                    if "lst" in cached_data:
+                        lst_df = cached_data["lst"]
+                        if not lst_df.empty and "lst_fahrenheit" in lst_df.columns:
+                            fig_lst = px.bar(
+                                lst_df.sort_values("lst_fahrenheit", ascending=False).head(20),
+                                x="county_name", y="lst_fahrenheit",
+                                title=f"Land Surface Temperature — Top 20 Hottest Counties ({sat_year})",
+                                labels={"lst_fahrenheit": "LST (°F)", "county_name": "County"},
+                                color="lst_fahrenheit", color_continuous_scale="YlOrRd",
+                            )
+                            fig_lst.update_layout(**PLOTLY_LAYOUT, xaxis_tickangle=-45)
+                            st.plotly_chart(fig_lst, use_container_width=True)
+
+                    # NDVI vegetation health
+                    if "ndvi" in cached_data:
+                        ndvi_df = cached_data["ndvi"]
+                        if not ndvi_df.empty and "ndvi" in ndvi_df.columns:
+                            fig_ndvi = px.bar(
+                                ndvi_df.sort_values("ndvi").head(20),
+                                x="county_name", y="ndvi",
+                                title=f"Vegetation Health (NDVI) — 20 Most Stressed Counties ({sat_year})",
+                                labels={"ndvi": "NDVI (0-1)", "county_name": "County"},
+                                color="ndvi", color_continuous_scale="RdYlGn",
+                            )
+                            fig_ndvi.update_layout(**PLOTLY_LAYOUT, xaxis_tickangle=-45)
+                            st.plotly_chart(fig_ndvi, use_container_width=True)
+
+                    # PDSI drought
+                    if "pdsi" in cached_data:
+                        pdsi_df = cached_data["pdsi"]
+                        if not pdsi_df.empty and "pdsi" in pdsi_df.columns:
+                            fig_pdsi = px.bar(
+                                pdsi_df.sort_values("pdsi").head(20),
+                                x="county_name", y="pdsi",
+                                title=f"Palmer Drought Severity Index — 20 Driest Counties ({sat_year})",
+                                labels={"pdsi": "PDSI", "county_name": "County"},
+                                color="pdsi", color_continuous_scale="BrBG",
+                            )
+                            fig_pdsi.update_layout(**PLOTLY_LAYOUT, xaxis_tickangle=-45)
+                            st.plotly_chart(fig_pdsi, use_container_width=True)
+
+                    # Nighttime lights
+                    if "nightlights" in cached_data:
+                        nl_df = cached_data["nightlights"]
+                        if not nl_df.empty and "avg_radiance" in nl_df.columns:
+                            fig_nl = px.bar(
+                                nl_df.sort_values("avg_radiance", ascending=False).head(20),
+                                x="county_name", y="avg_radiance",
+                                title=f"Nighttime Lights (Infrastructure Proxy) — Top 20 ({sat_year})",
+                                labels={"avg_radiance": "Radiance (nW/cm²/sr)", "county_name": "County"},
+                                color="avg_radiance", color_continuous_scale="Viridis",
+                            )
+                            fig_nl.update_layout(**PLOTLY_LAYOUT, xaxis_tickangle=-45)
+                            st.plotly_chart(fig_nl, use_container_width=True)
+
+                    # Cache freshness details
+                    with st.expander("Cache Details"):
+                        for key, info in cache_status.items():
+                            if info.get("cached"):
+                                st.text(f"{key:12s}  {info['rows']:4d} rows  updated {info['last_updated']}")
+                            else:
+                                st.text(f"{key:12s}  NOT CACHED")
+
+            except ImportError:
+                st.info("GEE client not available. Ensure `src/gee_client.py` exists.")
+            except Exception as e:
+                st.warning(f"Satellite data error: {e}")
 
     elif not CLIMATE_AVAILABLE:
         st.info("Climate Intelligence module not loaded. Ensure `src/climate_client.py` is available.")

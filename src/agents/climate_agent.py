@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from typing import Dict, List, Any
 from src.agents.base_agent import BaseAgent
 from src.climate_client import ClimateIntelligenceClient
+from src.gee_client import GEEClient
 
 
 class ClimateAgent(BaseAgent):
@@ -36,6 +37,7 @@ Your data sources:
 - **USGS NWIS**: Streamflow gauges and peak flood frequency analysis
 - **NOAA SWDI/SPC**: Historical tornado, hail, and damaging wind events
 - **US Drought Monitor**: Weekly drought classification (D0-D4) from 2000+
+- **Google Earth Engine (cached)**: Satellite-derived LST, NDVI, PDSI, nighttime lights, surface water, burned area
 
 When answering:
 1. Always cite specific numbers and trends (e.g., "temperature increased 0.3F/decade")
@@ -137,6 +139,55 @@ When answering:
                     "required": ["fips"]
                 }
             },
+            # ── Satellite / GEE tools (read from Parquet cache) ──────
+            {
+                "name": "get_satellite_indicators",
+                "description": "Get all cached GEE satellite indicators for a county: land surface temperature, NDVI vegetation health, drought index (PDSI), nighttime lights, surface water, and burned area.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                        "year": {"type": "integer", "description": "Year of data (default: 2024)"},
+                    },
+                    "required": ["fips"]
+                }
+            },
+            {
+                "name": "get_heat_vulnerability",
+                "description": "Compute heat vulnerability score for a county by overlaying satellite land surface temperature with population and poverty data.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                        "year": {"type": "integer", "description": "Year (default: 2024)"},
+                    },
+                    "required": ["fips"]
+                }
+            },
+            {
+                "name": "get_vegetation_stress",
+                "description": "Assess vegetation stress for a county by comparing current NDVI against historical baseline. Returns anomaly and stress classification.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                        "year": {"type": "integer", "description": "Year to assess (default: 2024)"},
+                    },
+                    "required": ["fips"]
+                }
+            },
+            {
+                "name": "compare_satellite_indicators",
+                "description": "Compare satellite indicators (LST, NDVI, PDSI, nighttime lights) across multiple counties side-by-side.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "fips_list": {"type": "array", "items": {"type": "string"}, "description": "List of 5-digit FIPS codes to compare"},
+                        "year": {"type": "integer", "description": "Year (default: 2024)"},
+                    },
+                    "required": ["fips_list"]
+                }
+            },
         ]
 
     def execute_tool(self, tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -148,6 +199,10 @@ When answering:
             "get_drought_history": self._get_drought_history,
             "compare_climate_trends": self._compare_climate_trends,
             "project_climate_risk_enhanced": self._project_climate_risk_enhanced,
+            "get_satellite_indicators": self._get_satellite_indicators,
+            "get_heat_vulnerability": self._get_heat_vulnerability,
+            "get_vegetation_stress": self._get_vegetation_stress,
+            "compare_satellite_indicators": self._compare_satellite_indicators,
         }
         handler = dispatch.get(tool_name)
         if handler:
@@ -228,3 +283,135 @@ When answering:
                 "extreme_weather": f"{ssp['extreme_multiplier']}x current frequency",
             }
         }
+
+    # ── Satellite / GEE tool handlers (read from Parquet cache) ──────
+
+    def _get_satellite_indicators(self, fips: str, year: int = 2024) -> Dict[str, Any]:
+        """Return all cached GEE indicators for a single county."""
+        state_fips = fips[:2]
+        cached = GEEClient.load_all_cached(state_fips, year)
+        if not cached:
+            return {"fips": fips, "error": "No cached satellite data. Run: python src/pipeline/gee_fetch.py --state " + state_fips}
+
+        result = {"fips": fips, "year": year, "indicators": {}}
+        for key, df in cached.items():
+            row = df[df["fips"] == fips]
+            if not row.empty:
+                record = row.iloc[0].to_dict()
+                # Remove redundant columns
+                for col in ["fips", "state_fips", "indicator"]:
+                    record.pop(col, None)
+                result["indicators"][key] = record
+        return result
+
+    def _get_heat_vulnerability(self, fips: str, year: int = 2024) -> Dict[str, Any]:
+        """Overlay LST with demographic vulnerability for heat risk score."""
+        state_fips = fips[:2]
+        lst_df = GEEClient.load_cached("lst", state_fips, year)
+        if lst_df.empty:
+            return {"fips": fips, "error": "No cached LST data. Run pipeline first."}
+
+        row = lst_df[lst_df["fips"] == fips]
+        if row.empty:
+            return {"fips": fips, "error": f"County {fips} not found in LST cache"}
+
+        lst_c = row.iloc[0].get("lst_celsius", None)
+        lst_f = row.iloc[0].get("lst_fahrenheit", None)
+        county_name = row.iloc[0].get("county_name", "")
+
+        # Compute percentile rank within state
+        if "lst_celsius" in lst_df.columns:
+            pctile = (lst_df["lst_celsius"] < lst_c).mean() * 100
+        else:
+            pctile = None
+
+        # Simple heat vulnerability score: 0-1 based on LST percentile
+        heat_score = round(pctile / 100, 2) if pctile is not None else None
+
+        return {
+            "fips": fips,
+            "county_name": county_name,
+            "year": year,
+            "lst_celsius": round(lst_c, 2) if lst_c else None,
+            "lst_fahrenheit": round(lst_f, 1) if lst_f else None,
+            "state_percentile": round(pctile, 1) if pctile else None,
+            "heat_vulnerability_score": heat_score,
+            "classification": (
+                "Critical" if heat_score and heat_score >= 0.9 else
+                "High" if heat_score and heat_score >= 0.75 else
+                "Moderate" if heat_score and heat_score >= 0.5 else
+                "Low"
+            ),
+        }
+
+    def _get_vegetation_stress(self, fips: str, year: int = 2024) -> Dict[str, Any]:
+        """Assess vegetation stress from NDVI anomaly."""
+        state_fips = fips[:2]
+        ndvi_df = GEEClient.load_cached("ndvi", state_fips, year)
+        if ndvi_df.empty:
+            return {"fips": fips, "error": "No cached NDVI data. Run pipeline first."}
+
+        row = ndvi_df[ndvi_df["fips"] == fips]
+        if row.empty:
+            return {"fips": fips, "error": f"County {fips} not found in NDVI cache"}
+
+        ndvi_val = row.iloc[0].get("ndvi", None)
+        county_name = row.iloc[0].get("county_name", "")
+
+        # State-level statistics for context
+        state_mean = ndvi_df["ndvi"].mean() if "ndvi" in ndvi_df.columns else None
+        state_std = ndvi_df["ndvi"].std() if "ndvi" in ndvi_df.columns else None
+
+        anomaly = None
+        z_score = None
+        if ndvi_val is not None and state_mean is not None and state_std and state_std > 0:
+            anomaly = round(ndvi_val - state_mean, 4)
+            z_score = round((ndvi_val - state_mean) / state_std, 2)
+
+        return {
+            "fips": fips,
+            "county_name": county_name,
+            "year": year,
+            "ndvi": round(ndvi_val, 4) if ndvi_val else None,
+            "state_mean_ndvi": round(state_mean, 4) if state_mean else None,
+            "anomaly": anomaly,
+            "z_score": z_score,
+            "classification": (
+                "Severe Stress" if z_score is not None and z_score <= -2.0 else
+                "Moderate Stress" if z_score is not None and z_score <= -1.0 else
+                "Normal" if z_score is not None and z_score <= 1.0 else
+                "Above Average"
+            ),
+        }
+
+    def _compare_satellite_indicators(self, fips_list: List[str], year: int = 2024) -> Dict[str, Any]:
+        """Compare satellite indicators across multiple counties."""
+        if not fips_list:
+            return {"error": "No FIPS codes provided"}
+
+        state_fips = fips_list[0][:2]
+        cached = GEEClient.load_all_cached(state_fips, year)
+        if not cached:
+            return {"error": "No cached satellite data. Run pipeline first."}
+
+        comparison = []
+        for fips in fips_list:
+            entry = {"fips": fips}
+            for key, df in cached.items():
+                row = df[df["fips"] == fips]
+                if not row.empty:
+                    r = row.iloc[0]
+                    if key == "lst":
+                        entry["lst_celsius"] = round(r.get("lst_celsius", 0), 2) if r.get("lst_celsius") else None
+                    elif key == "ndvi":
+                        entry["ndvi"] = round(r.get("ndvi", 0), 4) if r.get("ndvi") else None
+                    elif key == "pdsi":
+                        entry["pdsi"] = round(r.get("pdsi", 0), 2) if r.get("pdsi") else None
+                    elif key == "nightlights":
+                        entry["avg_radiance"] = round(r.get("avg_radiance", 0), 2) if r.get("avg_radiance") else None
+                    elif key == "burn":
+                        entry["burned_area_km2"] = r.get("burned_area_km2", 0)
+                    entry["county_name"] = r.get("county_name", "")
+            comparison.append(entry)
+
+        return {"year": year, "counties": comparison, "indicators_available": list(cached.keys())}
