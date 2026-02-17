@@ -7,11 +7,15 @@ Optimized for edge deployment.
 
 import logging
 import os
+import sys
 from typing import AsyncIterator, Dict, List, Optional, Union, Any
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
-from ..llm_interface import BaseLLMProvider, LLMConfig, LLMMessage, LLMResponse
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from llm_interface import BaseLLMProvider, LLMConfig, LLMMessage, LLMResponse
 
 logger = logging.getLogger(__name__)
 

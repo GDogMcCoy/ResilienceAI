@@ -7,22 +7,27 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from src.agents.base_agent import BaseAgent
 from src.climate_client import ClimateIntelligenceClient
 from src.gee_client import GEEClient
 
 
 class ClimateAgent(BaseAgent):
-    """Climate Intelligence specialist - owns 7 climate MCP tools."""
+    """Climate Intelligence specialist - owns 14 climate and satellite MCP tools."""
 
-    @property
-    def name(self) -> str:
-        return "climate_agent"
-
-    @property
-    def description(self) -> str:
-        return "Climate trend analysis, hazard risk profiles, flood frequency, severe weather, and drought monitoring"
+    name = "climate_agent"
+    description = "Climate trend analysis, hazard risk profiles, flood frequency, severe weather, drought monitoring, and satellite indicators"
+    version = "2.0.0"
+    
+    intent_keywords = [
+        "climate", "temperature", "precipitation", "drought", "flood frequency",
+        "hazard risk", "nri", "acis", "severe weather", "hail", "tornado history",
+        "heat wave", "wildfire risk", "climate trend", "warming", "rainfall",
+        "satellite", "ndvi", "vegetation", "land surface", "nighttime lights",
+        "burned area", "surface water", "heat vulnerability", "projections",
+        "ssp scenario", "climate change", "historical weather", "storm events"
+    ]
 
     @property
     def system_prompt(self) -> str:
@@ -47,7 +52,24 @@ When answering:
 5. Connect climate data to vulnerability implications"""
 
     def __init__(self):
+        super().__init__()
         self.climate = ClimateIntelligenceClient()
+
+    def _register_tool_handlers(self) -> None:
+        """Register tool handler methods."""
+        self._tool_handlers = {
+            "get_climate_trends": self._get_climate_trends,
+            "get_hazard_risk_profile": self._get_hazard_risk_profile,
+            "get_flood_frequency": self._get_flood_frequency,
+            "get_severe_weather_history": self._get_severe_weather_history,
+            "get_drought_history": self._get_drought_history,
+            "compare_climate_trends": self._compare_climate_trends,
+            "project_climate_risk_enhanced": self._project_climate_risk_enhanced,
+            "get_satellite_indicators": self._get_satellite_indicators,
+            "get_heat_vulnerability": self._get_heat_vulnerability,
+            "get_vegetation_stress": self._get_vegetation_stress,
+            "compare_satellite_indicators": self._compare_satellite_indicators,
+        }
 
     def get_tools(self) -> List[Dict[str, Any]]:
         return [
@@ -102,7 +124,7 @@ When answering:
             },
             {
                 "name": "get_drought_history",
-                "description": "Get US Drought Monitor weekly drought classification history for a county. Returns D0-D4 percentages over time with summary statistics.",
+                "description": "Get US Drought Monitor weekly drought classification (D0-D4) history for a county. Returns D0-D4 percentages over time with summary statistics.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -191,20 +213,7 @@ When answering:
         ]
 
     def execute_tool(self, tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
-        dispatch = {
-            "get_climate_trends": self._get_climate_trends,
-            "get_hazard_risk_profile": self._get_hazard_risk_profile,
-            "get_flood_frequency": self._get_flood_frequency,
-            "get_severe_weather_history": self._get_severe_weather_history,
-            "get_drought_history": self._get_drought_history,
-            "compare_climate_trends": self._compare_climate_trends,
-            "project_climate_risk_enhanced": self._project_climate_risk_enhanced,
-            "get_satellite_indicators": self._get_satellite_indicators,
-            "get_heat_vulnerability": self._get_heat_vulnerability,
-            "get_vegetation_stress": self._get_vegetation_stress,
-            "compare_satellite_indicators": self._compare_satellite_indicators,
-        }
-        handler = dispatch.get(tool_name)
+        handler = self._tool_handlers.get(tool_name)
         if handler:
             return handler(**params)
         return {"error": f"Unknown tool: {tool_name}"}
@@ -415,3 +424,27 @@ When answering:
             comparison.append(entry)
 
         return {"year": year, "counties": comparison, "indicators_available": list(cached.keys())}
+
+    def _extract_insight(self, tool_name: str, data: Dict[str, Any]) -> Optional[str]:
+        """Extract key climate insights."""
+        if "error" in data:
+            return None
+            
+        if tool_name == "get_climate_trends":
+            trends = data.get("trends", {})
+            temp_slope = trends.get("mean_temp", {}).get("slope_per_decade")
+            if temp_slope and abs(temp_slope) > 0.2:
+                direction = "warming" if temp_slope > 0 else "cooling"
+                return f"Significant climate {direction} trend detected: {temp_slope:.2f}°F per decade"
+                
+        elif tool_name == "project_climate_risk_enhanced":
+            temp_change = data.get("projection", {}).get("temp_change_f")
+            if temp_change:
+                return f"Projected temperature increase of {temp_change}°F by {data.get('horizon_years', 30)} years"
+                
+        elif tool_name == "get_hazard_risk_profile":
+            risk_rating = data.get("risk_rating")
+            if risk_rating:
+                return f"FEMA NRI risk rating: {risk_rating}"
+                
+        return None

@@ -40,3 +40,8 @@ earthengine-api>=1.4.0
 # Utilities
 python-dotenv>=1.0.0
 pyyaml>=6.0.0
+
+# Vector space and embeddings
+sentence-transformers>=2.2.0
+faiss-cpu>=1.7.4
+umap-learn>=0.5.4

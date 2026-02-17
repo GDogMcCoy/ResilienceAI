@@ -323,14 +323,16 @@ class CountyVectorIndex:
         Returns:
             Self for method chaining
         """
-        self.vectors = vectors.astype(np.float32)
+        self.vectors = vectors.astype(np.float32).copy()
         self.county_fips = county_fips
         self.county_names = county_names
+        self._normalized_vectors = None
         
         if FAISS_AVAILABLE:
             if self.metric == "cosine":
                 # For cosine similarity, normalize vectors and use inner product
                 normalized = self._normalize_vectors(self.vectors)
+                self._normalized_vectors = normalized
                 self.index = faiss.IndexFlatIP(self.embedding_dim)
                 self.index.add(normalized)
             else:  # l2
@@ -339,7 +341,7 @@ class CountyVectorIndex:
         else:
             # Fallback: store vectors for sklearn-based search
             if self.metric == "cosine":
-                self.vectors = self._normalize_vectors(self.vectors)
+                self._normalized_vectors = self._normalize_vectors(self.vectors)
         
         self.is_built = True
         print(f"Built index with {len(vectors)} counties using {self.metric} metric")
@@ -359,7 +361,7 @@ class CountyVectorIndex:
         if not self.is_built:
             raise ValueError("Index not built. Call build_index() first.")
         
-        query_vector = query_vector.astype(np.float32).reshape(1, -1)
+        query_vector = np.asarray(query_vector, dtype=np.float32).reshape(1, -1)
         k = min(k, len(self.county_fips))
         
         if FAISS_AVAILABLE and self.index is not None:
@@ -372,7 +374,8 @@ class CountyVectorIndex:
             # Fallback using sklearn
             if self.metric == "cosine":
                 query_vector = self._normalize_vectors(query_vector)
-                similarities = cosine_similarity(query_vector, self.vectors)[0]
+                search_vectors = self._normalized_vectors if self._normalized_vectors is not None else self.vectors
+                similarities = cosine_similarity(query_vector, search_vectors)[0]
                 indices = np.argsort(similarities)[::-1][:k]
                 distances = 1 - similarities[indices]  # Convert similarity to distance
             else:
@@ -382,7 +385,14 @@ class CountyVectorIndex:
         results = []
         for rank, (idx, dist) in enumerate(zip(indices, distances), 1):
             # For cosine with FAISS IP index, distance is actually similarity
-            sim_score = 1 - dist if self.metric == "l2" else float(dist)
+            # For sklearn fallback, we computed distance = 1 - similarity
+            if self.metric == "cosine":
+                if FAISS_AVAILABLE:
+                    sim_score = float(dist)  # FAISS IP returns similarity directly
+                else:
+                    sim_score = 1 - float(dist)  # sklearn: convert distance back to similarity
+            else:
+                sim_score = 1 - float(dist)  # L2: convert distance to similarity
             results.append(VectorSearchResult(
                 county_fips=self.county_fips[idx],
                 county_name=self.county_names[idx],
@@ -471,6 +481,10 @@ class CountyVectorIndex:
         # Load FAISS index if available
         if FAISS_AVAILABLE and (path / "faiss.index").exists():
             instance.index = faiss.read_index(str(path / "faiss.index"))
+        
+        # Recompute normalized vectors for cosine metric if needed
+        if instance.metric == "cosine":
+            instance._normalized_vectors = instance._normalize_vectors(instance.vectors)
         
         instance.is_built = True
         print(f"Loaded index with {len(instance.county_fips)} counties")

@@ -7,10 +7,14 @@ Default: http://localhost:1234/v1
 
 import json
 import logging
+import sys
+import os
 from typing import AsyncIterator, Dict, List, Optional, Union, Any
-import aiohttp
 
-from ..llm_interface import BaseLLMProvider, LLMConfig, LLMMessage, LLMResponse
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from llm_interface import BaseLLMProvider, LLMConfig, LLMMessage, LLMResponse
 
 logger = logging.getLogger(__name__)
 

@@ -6,13 +6,24 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from src.agents.base_agent import BaseAgent
 from src.agent import ResilienceAgent, get_mcp_tools
 
 
 class RealtimeAgent(BaseAgent):
     """Real-time operations specialist - weather alerts, subscriptions, and monitoring."""
+
+    name = "realtime_agent"
+    description = "Real-time weather monitoring, alert management, and emergency dispatch"
+    version = "2.0.0"
+    
+    intent_keywords = [
+        "alert", "weather alert", "noaa", "subscribe", "dispatch", "real-time",
+        "monitoring", "acknowledge", "severe weather warning", "watch", "warning",
+        "live", "active alert", "notification", "current weather", "emergency",
+        " tornado warning", "flood warning", "storm warning", "active now"
+    ]
 
     OWNED_TOOLS = {
         "get_weather_alerts", "correlate_weather_with_vulnerability",
@@ -21,14 +32,6 @@ class RealtimeAgent(BaseAgent):
         "list_alert_subscriptions", "dispatch_alert",
         "get_active_alerts", "acknowledge_alert", "get_real_time_alerts",
     }
-
-    @property
-    def name(self) -> str:
-        return "realtime_agent"
-
-    @property
-    def description(self) -> str:
-        return "Real-time weather monitoring, alert management, and emergency dispatch"
 
     @property
     def system_prompt(self) -> str:
@@ -50,7 +53,12 @@ When answering:
 4. Track active alerts and subscription status"""
 
     def __init__(self):
+        super().__init__()
         self.agent = ResilienceAgent()
+
+    def _register_tool_handlers(self) -> None:
+        """Register tool handlers - tools are dispatched to ResilienceAgent."""
+        pass  # Tools are dispatched dynamically in execute_tool
 
     def get_tools(self) -> List[Dict[str, Any]]:
         return [t for t in get_mcp_tools() if t["name"] in self.OWNED_TOOLS]
@@ -62,3 +70,36 @@ When answering:
         if method:
             return method(**params)
         return {"error": f"Method '{tool_name}' not found on ResilienceAgent"}
+
+    def _extract_insight(self, tool_name: str, data: Dict[str, Any]) -> Optional[str]:
+        """Extract key real-time insights."""
+        if "error" in data:
+            return None
+            
+        if tool_name == "get_weather_alerts":
+            count = data.get("alert_count", 0)
+            if count > 0:
+                return f"{count} active weather alerts for specified area"
+                
+        elif tool_name == "get_high_impact_weather":
+            count = data.get("alert_count", 0)
+            severity = data.get("min_severity", "Severe")
+            if count > 0:
+                return f"{count} high-impact weather alerts ({severity}+) nationwide"
+                
+        elif tool_name == "correlate_weather_with_vulnerability":
+            enhanced_risk = data.get("enhanced_risk_score")
+            if enhanced_risk is not None:
+                return f"Enhanced risk score combining weather and vulnerability: {enhanced_risk:.2f}"
+                
+        elif tool_name == "get_active_alerts":
+            count = data.get("count", 0)
+            if count > 0:
+                return f"{count} unacknowledged active alerts"
+                
+        elif tool_name == "should_trigger_weather_alert":
+            should_trigger = data.get("should_trigger", False)
+            if should_trigger:
+                return "Weather conditions meet threshold for vulnerability-based alerting"
+                
+        return None
