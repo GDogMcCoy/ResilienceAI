@@ -27,6 +27,3 @@ outputs/reports/
 !.gemini/settings.json
 gha-creds-*.json
 *.skill
-
-# Research files (keep for hackathon context)
-!research/

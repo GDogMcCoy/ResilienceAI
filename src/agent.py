@@ -994,6 +994,144 @@ def get_mcp_tools():
                 }
             }
         },
+        # ── Climate Intelligence Tools (7 tools) ─────────────────────────
+        {
+            "name": "get_climate_trends",
+            "description": "Get historical temperature and precipitation trends for a county from ACIS/PRISM 4km gridded data. Returns annual records with computed linear trend slopes per decade.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                    "start_year": {"type": "integer", "description": "Start year (default: 2000)"},
+                    "end_year": {"type": "integer", "description": "End year (default: 2025)"},
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "get_hazard_risk_profile",
+            "description": "Get FEMA National Risk Index profile with 18 hazard types including Expected Annual Loss, Social Vulnerability, and Community Resilience scores.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "get_flood_frequency",
+            "description": "Get USGS streamflow data and flood recurrence interval estimates (2/5/10/25/50/100-year floods) for a county based on peak flow records.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "get_severe_weather_history",
+            "description": "Get historical severe weather events (tornadoes, hail, damaging wind) for a county from NOAA SWDI/SPC Storm Events Database.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                    "hazard_type": {"type": "string", "enum": ["all", "tornado", "hail", "wind"], "description": "Filter by event type (default: all)"},
+                    "start_year": {"type": "integer", "description": "Start year (default: 2000)"},
+                    "end_year": {"type": "integer", "description": "End year (default: 2025)"},
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "get_drought_history",
+            "description": "Get US Drought Monitor weekly drought classification (D0-D4) history for a county with summary statistics.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                    "start_date": {"type": "string", "description": "Start date YYYY-MM-DD (default: 2000-01-01)"},
+                    "end_date": {"type": "string", "description": "End date YYYY-MM-DD (default: today)"},
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "compare_climate_trends",
+            "description": "Compare climate trajectories across multiple counties with side-by-side temperature and precipitation trend analysis.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips_list": {"type": "array", "items": {"type": "string"}, "description": "List of FIPS codes to compare"},
+                    "start_year": {"type": "integer", "description": "Start year (default: 2000)"},
+                    "end_year": {"type": "integer", "description": "End year (default: 2025)"},
+                },
+                "required": ["fips_list"]
+            }
+        },
+        {
+            "name": "project_climate_risk_enhanced",
+            "description": "Project future climate risk using real historical ACIS baseline combined with IPCC SSP scenarios (SSP1-1.9, SSP2-4.5, SSP5-8.5).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                    "scenario": {"type": "string", "enum": ["ssp1_19", "ssp2_45", "ssp5_85"], "description": "IPCC SSP scenario"},
+                    "horizon_years": {"type": "integer", "description": "Years into future (default: 30)"},
+                },
+                "required": ["fips"]
+            }
+        },
+        # ── Satellite / GEE tools (read from Parquet cache) ──────────
+        {
+            "name": "get_satellite_indicators",
+            "description": "Get all cached GEE satellite indicators for a county: land surface temperature, NDVI vegetation health, drought index (PDSI), nighttime lights, surface water, and burned area.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                    "year": {"type": "integer", "description": "Year of data (default: 2024)"},
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "get_heat_vulnerability",
+            "description": "Compute heat vulnerability score for a county by overlaying satellite land surface temperature with population and poverty data.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                    "year": {"type": "integer", "description": "Year (default: 2024)"},
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "get_vegetation_stress",
+            "description": "Assess vegetation stress for a county by comparing current NDVI against historical baseline. Returns anomaly and stress classification.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                    "year": {"type": "integer", "description": "Year to assess (default: 2024)"},
+                },
+                "required": ["fips"]
+            }
+        },
+        {
+            "name": "compare_satellite_indicators",
+            "description": "Compare satellite indicators (LST, NDVI, PDSI, nighttime lights) across multiple counties side-by-side.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fips_list": {"type": "array", "items": {"type": "string"}, "description": "List of 5-digit FIPS codes to compare"},
+                    "year": {"type": "integer", "description": "Year (default: 2024)"},
+                },
+                "required": ["fips_list"]
+            }
+        },
     ]
 
 
@@ -1033,8 +1171,26 @@ class ResilienceAgent:
         result = self.df.copy()
 
         if state:
-            # Extract state from county_name (format: "County Name, State")
-            result = result[result["county_name"].str.contains(f", {state}", case=False, na=False)]
+            # Match state abbreviation or full name from "County Name, State"
+            state_upper = state.strip().upper()
+            # Map common abbreviations to full names
+            _abbrev = {
+                "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas",
+                "CA": "California", "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware",
+                "FL": "Florida", "GA": "Georgia", "HI": "Hawaii", "ID": "Idaho",
+                "IL": "Illinois", "IN": "Indiana", "IA": "Iowa", "KS": "Kansas",
+                "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland",
+                "MA": "Massachusetts", "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi",
+                "MO": "Missouri", "MT": "Montana", "NE": "Nebraska", "NV": "Nevada",
+                "NH": "New Hampshire", "NJ": "New Jersey", "NM": "New Mexico", "NY": "New York",
+                "NC": "North Carolina", "ND": "North Dakota", "OH": "Ohio", "OK": "Oklahoma",
+                "OR": "Oregon", "PA": "Pennsylvania", "RI": "Rhode Island", "SC": "South Carolina",
+                "SD": "South Dakota", "TN": "Tennessee", "TX": "Texas", "UT": "Utah",
+                "VT": "Vermont", "VA": "Virginia", "WA": "Washington", "WV": "West Virginia",
+                "WI": "Wisconsin", "WY": "Wyoming", "DC": "District of Columbia",
+            }
+            full_name = _abbrev.get(state_upper, state)
+            result = result[result["county_name"].str.endswith(f", {full_name}", na=False)]
 
         if risk_level:
             result = result[result["risk_level"] == risk_level]
@@ -2209,6 +2365,75 @@ class ResilienceAgent:
             "recommendations": recommendations,
             "priority_actions": [r for r in recommendations if r['priority'] in ['Critical', 'High']]
         }
+
+    # ── Climate Intelligence Methods (delegate to ClimateIntelligenceClient) ──
+
+    def _get_climate_client(self):
+        """Lazy-load climate client."""
+        if not hasattr(self, '_climate_client'):
+            from src.climate_client import ClimateIntelligenceClient
+            self._climate_client = ClimateIntelligenceClient()
+        return self._climate_client
+
+    def get_climate_trends(self, fips: str, start_year: int = 2000, end_year: int = 2025):
+        """Get historical temperature/precipitation trends from ACIS."""
+        return self._get_climate_client().acis.get_climate_trends(fips, start_year, end_year)
+
+    def get_hazard_risk_profile(self, fips: str):
+        """Get FEMA NRI 18-hazard risk profile."""
+        return self._get_climate_client().nri.get_hazard_risk_profile(fips)
+
+    def get_flood_frequency(self, fips: str):
+        """Get USGS peak flow and flood recurrence intervals."""
+        return self._get_climate_client().usgs.get_flood_frequency(fips)
+
+    def get_severe_weather_history(self, fips: str, hazard_type: str = "all",
+                                   start_year: int = 2000, end_year: int = 2025):
+        """Get SPC/SWDI severe weather events."""
+        return self._get_climate_client().severe.get_severe_weather_history(
+            fips, hazard_type, start_year, end_year)
+
+    def get_drought_history(self, fips: str, start_date: str = "2000-01-01",
+                            end_date: str = None):
+        """Get US Drought Monitor history."""
+        return self._get_climate_client().drought.get_drought_history(fips, start_date, end_date)
+
+    def compare_climate_trends(self, fips_list, start_year: int = 2000, end_year: int = 2025):
+        """Compare climate trajectories across counties."""
+        return self._get_climate_client().acis.compare_counties(fips_list, start_year, end_year)
+
+    def project_climate_risk_enhanced(self, fips: str, scenario: str = "ssp2_45",
+                                      horizon_years: int = 30):
+        """Project climate risk using real historical baseline + SSP scenarios."""
+        from src.agents.climate_agent import ClimateAgent
+        ca = ClimateAgent()
+        return ca._project_climate_risk_enhanced(fips, scenario, horizon_years)
+
+    # ── Satellite / GEE tools (delegate to ClimateAgent) ─────────────
+
+    def get_satellite_indicators(self, fips: str, year: int = 2024):
+        """Get all cached satellite indicators for a county."""
+        from src.agents.climate_agent import ClimateAgent
+        ca = ClimateAgent()
+        return ca._get_satellite_indicators(fips, year)
+
+    def get_heat_vulnerability(self, fips: str, year: int = 2024):
+        """Compute heat vulnerability score from satellite LST."""
+        from src.agents.climate_agent import ClimateAgent
+        ca = ClimateAgent()
+        return ca._get_heat_vulnerability(fips, year)
+
+    def get_vegetation_stress(self, fips: str, year: int = 2024):
+        """Assess vegetation stress from NDVI anomaly."""
+        from src.agents.climate_agent import ClimateAgent
+        ca = ClimateAgent()
+        return ca._get_vegetation_stress(fips, year)
+
+    def compare_satellite_indicators(self, fips_list, year: int = 2024):
+        """Compare satellite indicators across counties."""
+        from src.agents.climate_agent import ClimateAgent
+        ca = ClimateAgent()
+        return ca._compare_satellite_indicators(fips_list, year)
 
     def get_system_prompt(self):
         """Get formatted system prompt with data stats."""

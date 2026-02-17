@@ -32,7 +32,7 @@ def run_pipeline(steps=None, force_download=False):
 
     if "eda" in steps:
         print("\n>>> Step 3/5: Exploratory Data Analysis")
-        from src.eda import run_eda
+        from src.pipeline.eda import run_eda
         run_eda()
 
     if "train" in steps:

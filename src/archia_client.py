@@ -11,7 +11,7 @@ from dataclasses import dataclass
 @dataclass
 class ArchiaConfig:
     """Configuration for Archia API connection."""
-    base_url: str = "http://localhost:8080"
+    base_url: str = "https://api.archia.app/v1"
     api_key: Optional[str] = None
     timeout: int = 30
     
