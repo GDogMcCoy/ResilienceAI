@@ -1,6 +1,8 @@
 """
 ResilienceAI - True Agentic Orchestrator
-LLM-powered reasoning loop using GPT-OSS 20B via LM Studio.
+LLM-powered reasoning loop with dual-backend support:
+  - GPT-OSS 20B via LM Studio (deep analysis)
+  - Nemotron-3-Nano via Ollama (fast reasoning + tools)
 
 The LLM decides which tools to call, reads results, chains multi-step
 analysis, and synthesizes novel insights from real data.
@@ -37,6 +39,31 @@ class AgenticResponse:
     execution_time_ms: float = 0.0
     tools_used: List[str] = field(default_factory=list)
     model: str = ""
+
+
+# ── Model Presets ───────────────────────────────────────────────────
+
+MODEL_PRESETS = {
+    "gemini-pro": {
+        "label": "Gemini 2.5 Pro (Cloud)",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+        "model": "gemini-2.5-pro",
+        "description": "Google cloud — fastest + deepest reasoning (~5-15s)",
+        "api_key_env": "GEMINI_API_KEY",
+    },
+    "nemotron-3-nano": {
+        "label": "Nemotron-3-Nano (Local)",
+        "base_url": "http://localhost:11434",
+        "model": "nemotron-3-nano",
+        "description": "30B MoE, 3B active — local fast reasoning (~15-30s)",
+    },
+    "gpt-oss-20b": {
+        "label": "GPT-OSS 20B (Local)",
+        "base_url": "http://localhost:1234",
+        "model": "openai/gpt-oss-20b",
+        "description": "20B dense — local deep analysis (~40-60s)",
+    },
+}
 
 
 # ── Tool Registry ────────────────────────────────────────────────────
@@ -202,6 +229,85 @@ def get_working_tool_schemas() -> List[Dict]:
                 }
             }
         },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_flood_frequency",
+                "description": "Get USGS streamflow data and flood recurrence interval estimates for a county. Returns peak flow records and estimated 2/5/10/25/50/100-year flood levels.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                    },
+                    "required": ["fips"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_severe_weather_history",
+                "description": "Get historical severe weather events (tornadoes, hail, damaging wind) for a county from NOAA SWDI/SPC Storm Events Database.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                        "hazard_type": {"type": "string", "enum": ["all", "tornado", "hail", "wind"], "description": "Event type filter (default: all)"},
+                        "start_year": {"type": "integer", "description": "Start year (default: 2000)"},
+                        "end_year": {"type": "integer", "description": "End year (default: 2025)"},
+                    },
+                    "required": ["fips"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_drought_history",
+                "description": "Get US Drought Monitor weekly drought classification (D0-D4) history for a county. Returns D0-D4 percentages over time with summary statistics.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                        "start_date": {"type": "string", "description": "Start date YYYY-MM-DD (default: 2000-01-01)"},
+                        "end_date": {"type": "string", "description": "End date YYYY-MM-DD (default: today)"},
+                    },
+                    "required": ["fips"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "compare_climate_trends",
+                "description": "Compare climate trajectories across multiple counties. Returns side-by-side temperature/precipitation trends with trend slopes.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "fips_list": {"type": "array", "items": {"type": "string"}, "description": "List of FIPS codes to compare"},
+                        "start_year": {"type": "integer", "description": "Start year (default: 2000)"},
+                        "end_year": {"type": "integer", "description": "End year (default: 2025)"},
+                    },
+                    "required": ["fips_list"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "project_climate_risk_enhanced",
+                "description": "Project future climate risk using historical ACIS data as baseline combined with IPCC SSP scenarios. Returns projected temperature/precipitation changes and risk implications.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                        "scenario": {"type": "string", "enum": ["ssp1_19", "ssp2_45", "ssp5_85"], "description": "IPCC SSP scenario"},
+                        "horizon_years": {"type": "integer", "description": "Years into future (default: 30)"},
+                    },
+                    "required": ["fips"]
+                }
+            }
+        },
     ]
 
 
@@ -214,8 +320,28 @@ RULES:
 - Chain tools when needed (1-3 calls typical). Stop when you have enough.
 - Missouri (MO, FIPS 29xxx) is the focus state with 115 counties.
 - risk_score: higher = more vulnerable. risk_level: Low/Medium/High.
-- Answer concisely: key finding, supporting numbers, 1-2 recommendations.
+
+ANSWER FORMAT — THIS IS CRITICAL:
+- Your final answer must be a CLEAN intelligence report for a policy audience.
+- DO NOT include your internal reasoning, tool-calling logic, or thinking process.
+- DO NOT say things like "I will call tool X" or "Let me analyze" or "Based on the tool results".
+- Structure: Lead with the key finding, then supporting data with specific numbers, then 1-2 actionable recommendations.
+- Use markdown headers (##) and bullet points for readability.
+- Cite specific numbers from tool results (e.g., "risk score: 0.847", "poverty: 31.2%").
 """
+
+
+def strip_thinking_tags(text: str) -> str:
+    """Strip reasoning artifacts from LLM output."""
+    # Nemotron thinking tags
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+    # GPT-OSS control tokens like <|thinking|>, <|end|>, etc.
+    text = re.sub(r'<\|[^|]*\|>', '', text)
+    # Common reasoning preamble patterns GPT-OSS emits
+    text = re.sub(r'^(Okay,?\s*)?(Let me|I will|I need to|First,? I|I\'ll|Now I|Looking at|Based on the tool).*?\n', '', text, flags=re.MULTILINE)
+    # Strip lines that are just internal monologue (starts with "I " followed by reasoning verbs)
+    text = re.sub(r'^I (called?|used?|checked?|looked?|queried?|retrieved?|fetched?|analyzed?|ran|see|notice|observe|found) .*?\n', '', text, flags=re.MULTILINE)
+    return text.strip()
 
 
 class AgenticOrchestrator:
@@ -293,10 +419,15 @@ class AgenticOrchestrator:
         if self.climate_agent:
             executors["get_climate_trends"] = lambda **kw: self.climate_agent.execute_tool("get_climate_trends", kw)
             executors["get_hazard_risk_profile"] = lambda **kw: self.climate_agent.execute_tool("get_hazard_risk_profile", kw)
+            executors["get_flood_frequency"] = lambda **kw: self.climate_agent.execute_tool("get_flood_frequency", kw)
+            executors["get_severe_weather_history"] = lambda **kw: self.climate_agent.execute_tool("get_severe_weather_history", kw)
+            executors["get_drought_history"] = lambda **kw: self.climate_agent.execute_tool("get_drought_history", kw)
+            executors["compare_climate_trends"] = lambda **kw: self.climate_agent.execute_tool("compare_climate_trends", kw)
+            executors["project_climate_risk_enhanced"] = lambda **kw: self.climate_agent.execute_tool("project_climate_risk_enhanced", kw)
         return executors
 
     def _call_llm(self, messages: List[Dict], tools: Optional[List[Dict]] = None) -> Dict:
-        """Make a request to LM Studio's OpenAI-compatible endpoint."""
+        """Make a request to the LLM's OpenAI-compatible endpoint."""
         payload = {
             "model": self.model,
             "messages": messages,
@@ -313,8 +444,14 @@ class AgenticOrchestrator:
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
+        # Google's OpenAI-compatible endpoint already includes the path
+        if "googleapis.com" in self.base_url:
+            url = f"{self.base_url}/chat/completions"
+        else:
+            url = f"{self.base_url}/v1/chat/completions"
+
         resp = requests.post(
-            f"{self.base_url}/v1/chat/completions",
+            url,
             json=payload,
             headers=headers,
             timeout=120,
@@ -440,8 +577,7 @@ class AgenticOrchestrator:
                 ))
 
                 final_answer = content or reasoning or "I was unable to generate a response."
-                # Strip model control tokens that GPT-OSS 20B sometimes emits
-                final_answer = re.sub(r'<\|[^|]*\|>', '', final_answer).strip()
+                final_answer = strip_thinking_tags(final_answer)
 
                 # Save to conversation history
                 self.conversation_history.append(
@@ -506,13 +642,13 @@ class AgenticOrchestrator:
         # Max rounds reached - ask LLM to synthesize what it has
         messages.append({
             "role": "user",
-            "content": "Please synthesize your findings into a final answer based on the data you've gathered."
+            "content": "Synthesize your findings into a clean intelligence report. Lead with the key finding, cite specific numbers, and give 1-2 recommendations. Do NOT include your reasoning process or tool-calling logic — just the polished report."
         })
 
         try:
             final_resp = self._call_llm(messages, tools=None)  # No tools, force text response
             final_answer = final_resp["choices"][0]["message"].get("content", "Analysis complete but synthesis failed.")
-            final_answer = re.sub(r'<\|[^|]*\|>', '', final_answer).strip()
+            final_answer = strip_thinking_tags(final_answer)
             total_tokens += final_resp.get("usage", {}).get("total_tokens", 0)
         except Exception:
             final_answer = "Reached maximum analysis depth. See reasoning trace for partial results."
