@@ -1,6 +1,7 @@
 """
 ResilienceAI - Agentic Intelligence Platform
-Chat-first interface backed by 11 real-data tools, LLM reasoning, and 3,222 US counties.
+Chat-first interface backed by 16 real-data tools, dual LLM backends,
+and inline visualizations across 3,222 US counties.
 """
 
 import sys
@@ -15,6 +16,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import json
+import re
 import plotly.express as px
 import plotly.graph_objects as go
 
@@ -26,7 +28,7 @@ except ImportError:
     AGENT_AVAILABLE = False
 
 try:
-    from agentic_orchestrator import AgenticOrchestrator
+    from agentic_orchestrator import AgenticOrchestrator, MODEL_PRESETS, strip_thinking_tags
     AGENTIC_AVAILABLE = True
 except ImportError:
     AGENTIC_AVAILABLE = False
@@ -51,11 +53,12 @@ st.markdown("""
 def init_session_state():
     defaults = {
         'agent_config': {
-            'use_agentic': True,
             'lm_key': os.environ.get("LM_STUDIO_API_KEY", "sk-lm-17g8iJ72:Jkqk55kdkSVRwtUfklSj"),
+            'gemini_key': os.environ.get("GEMINI_API_KEY", "AIzaSyCEw7kaEic59l7O3mMAw0ObtxCO5sztJ7o"),
             'lm_url': 'http://localhost:1234',
             'reasoning_effort': 'Medium',
             'focus_state': 'Missouri',
+            'selected_model': 'gemini-pro',
         },
         'last_agent_response': None,
         'df': None,
@@ -89,6 +92,203 @@ if df is not None:
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# TOOL VISUALIZATION — Auto-render charts from agentic tool results
+# ═══════════════════════════════════════════════════════════════════════
+
+def render_tool_visuals(steps):
+    """Scan AgenticSteps and render inline charts for each tool result."""
+    for step in steps:
+        if not step.tool_name or not step.tool_result:
+            continue
+        data = step.tool_result
+        name = step.tool_name
+
+        try:
+            # ── County rankings: bar chart + table ─────────────────────
+            if name in ("query_counties", "get_state_rankings"):
+                records = data if isinstance(data, list) else data.get("counties", data.get("rankings", []))
+                records = [r for r in records if isinstance(r, dict) and "county_name" in r and "risk_score" in r]
+                if records:
+                    rdf = pd.DataFrame(records)
+                    fig = px.bar(
+                        rdf.sort_values("risk_score", ascending=True),
+                        x="risk_score", y="county_name", orientation="h",
+                        color="risk_score", color_continuous_scale="RdYlGn_r",
+                        title=f"County Risk Rankings ({len(rdf)})"
+                    )
+                    fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
+                                      plot_bgcolor="rgba(0,0,0,0)", height=max(250, len(rdf)*35),
+                                      yaxis_title="", xaxis_title="Risk Score")
+                    st.plotly_chart(fig, use_container_width=True)
+                    show_cols = [c for c in ["county_name", "risk_score", "risk_level", "total_population", "poverty_pct"] if c in rdf.columns]
+                    st.dataframe(rdf[show_cols], use_container_width=True, hide_index=True)
+
+            # ── County detail: metric cards ────────────────────────────
+            elif name == "get_county_detail":
+                if isinstance(data, dict) and "error" not in data:
+                    cname = data.get("county_name", "County")
+                    st.markdown(f"**{cname}**")
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("Population", f"{data.get('total_population', 'N/A'):,}" if isinstance(data.get('total_population'), (int, float)) else "N/A")
+                    c2.metric("Risk Score", f"{data.get('risk_score', 'N/A'):.3f}" if isinstance(data.get('risk_score'), (int, float)) else "N/A")
+                    c3.metric("Risk Level", data.get("risk_level", "N/A"))
+                    c4, c5, c6 = st.columns(3)
+                    c4.metric("Poverty", f"{data.get('poverty_pct', 'N/A'):.1f}%" if isinstance(data.get('poverty_pct'), (int, float)) else "N/A")
+                    c5.metric("Uninsured", f"{data.get('uninsured_pct', 'N/A'):.1f}%" if isinstance(data.get('uninsured_pct'), (int, float)) else "N/A")
+                    hosp = data.get("dist_nearest_hospitals_km")
+                    c6.metric("Hospital Dist", f"{hosp:.1f} km" if isinstance(hosp, (int, float)) else "N/A")
+
+            # ── Infrastructure density: 4 cards ────────────────────────
+            elif name == "get_infrastructure_density":
+                if isinstance(data, dict) and "error" not in data:
+                    st.markdown(f"**Infrastructure Density** — {data.get('county_name', data.get('fips', ''))}")
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric("Hospitals/10k", f"{data.get('density_hospitals_per10k', 0):.2f}")
+                    c2.metric("EMS/10k", f"{data.get('density_ems_stations_per10k', 0):.2f}")
+                    c3.metric("Fire/10k", f"{data.get('density_fire_stations_per10k', 0):.2f}")
+                    c4.metric("Nursing/10k", f"{data.get('density_nursing_homes_per10k', 0):.2f}")
+
+            # ── Risk contagion: 3 metrics ──────────────────────────────
+            elif name == "analyze_risk_contagion":
+                if isinstance(data, dict) and "error" not in data:
+                    st.markdown(f"**Risk Contagion Analysis** — {data.get('county_name', data.get('fips', ''))}")
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("Neighbors", data.get("neighbor_count", data.get("neighbors_in_radius", "N/A")))
+                    c2.metric("High-Risk Neighbors", data.get("high_risk_neighbors", "N/A"))
+                    c3.metric("Amplification", f"{data.get('amplification_factor', data.get('risk_amplification', 'N/A'))}")
+
+            # ── Health disparities: bar chart ──────────────────────────
+            elif name == "get_mo_health_disparities":
+                zones = data if isinstance(data, list) else data.get("priority_zones", data.get("disparities", []))
+                zones = [z for z in zones if isinstance(z, dict) and "county_name" in z]
+                if zones:
+                    zdf = pd.DataFrame(zones)
+                    metric_col = next((c for c in ["disparity_index", "uninsured_pct", "poverty_pct"] if c in zdf.columns), None)
+                    if metric_col:
+                        fig = px.bar(zdf.sort_values(metric_col, ascending=True),
+                                     x=metric_col, y="county_name", orientation="h",
+                                     color=metric_col, color_continuous_scale="Reds",
+                                     title="Health Disparity Index by County")
+                        fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
+                                          plot_bgcolor="rgba(0,0,0,0)", height=max(250, len(zdf)*35),
+                                          yaxis_title="", xaxis_title=metric_col.replace("_", " ").title())
+                        st.plotly_chart(fig, use_container_width=True)
+
+            # ── Intervention ROI: bar chart ────────────────────────────
+            elif name == "calculate_intervention_roi":
+                interventions = data if isinstance(data, list) else data.get("interventions", data.get("ranked_interventions", []))
+                interventions = [i for i in interventions if isinstance(i, dict)]
+                if interventions:
+                    idf = pd.DataFrame(interventions)
+                    name_col = next((c for c in ["intervention", "name", "type"] if c in idf.columns), None)
+                    val_col = next((c for c in ["cost_per_person", "roi_score", "cost_effectiveness"] if c in idf.columns), None)
+                    if name_col and val_col:
+                        fig = px.bar(idf.sort_values(val_col), x=val_col, y=name_col, orientation="h",
+                                     color=val_col, color_continuous_scale="Viridis",
+                                     title="Intervention Cost-Effectiveness")
+                        fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
+                                          plot_bgcolor="rgba(0,0,0,0)", height=max(250, len(idf)*40),
+                                          yaxis_title="", xaxis_title=val_col.replace("_", " ").title())
+                        st.plotly_chart(fig, use_container_width=True)
+
+            # ── Scenario simulation: impact metrics + affected table ───
+            elif name == "simulate_scenario":
+                if isinstance(data, dict) and "error" not in data:
+                    st.markdown(f"**Scenario: {data.get('scenario', 'Simulation')}**")
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("Population at Risk", f"{data.get('total_population_affected', data.get('population_at_risk', 0)):,}")
+                    c2.metric("Counties Affected", data.get("counties_affected", data.get("affected_county_count", "N/A")))
+                    c3.metric("Est. Damage", data.get("estimated_damage", data.get("infrastructure_damage_estimate", "N/A")))
+                    affected = data.get("affected_counties", [])
+                    if affected and isinstance(affected[0], dict):
+                        st.dataframe(pd.DataFrame(affected[:10]), use_container_width=True, hide_index=True)
+
+            # ── Pop-weighted impact: bar chart ─────────────────────────
+            elif name == "calculate_pop_weighted_impact":
+                records = data if isinstance(data, list) else data.get("rankings", data.get("counties", []))
+                records = [r for r in records if isinstance(r, dict) and "county_name" in r]
+                if records:
+                    rdf = pd.DataFrame(records)
+                    score_col = next((c for c in ["weighted_impact", "pop_weighted_risk", "impact_score"] if c in rdf.columns), "risk_score")
+                    if score_col in rdf.columns:
+                        fig = px.bar(rdf.sort_values(score_col, ascending=True),
+                                     x=score_col, y="county_name", orientation="h",
+                                     color=score_col, color_continuous_scale="RdYlGn_r",
+                                     title="Population-Weighted Risk Impact")
+                        fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
+                                          plot_bgcolor="rgba(0,0,0,0)", height=max(250, len(rdf)*35),
+                                          yaxis_title="", xaxis_title="Weighted Impact")
+                        st.plotly_chart(fig, use_container_width=True)
+
+            # ── Climate trends: summary metrics ────────────────────────
+            elif name == "get_climate_trends":
+                if isinstance(data, dict) and "error" not in data:
+                    trends = data.get("trends", {})
+                    st.markdown(f"**Climate Trends** — FIPS {data.get('fips', '')}")
+                    c1, c2, c3 = st.columns(3)
+                    temp_info = trends.get("mean_temp", {})
+                    precip_info = trends.get("precip", {})
+                    c1.metric("Avg Temp", f"{temp_info.get('mean', 'N/A')}°F" if isinstance(temp_info.get('mean'), (int, float)) else "N/A")
+                    c2.metric("Temp Trend", f"{temp_info.get('slope_per_decade', 'N/A')}°F/decade" if isinstance(temp_info.get('slope_per_decade'), (int, float)) else "N/A")
+                    c3.metric("Avg Precip", f"{precip_info.get('mean', 'N/A')} in" if isinstance(precip_info.get('mean'), (int, float)) else "N/A")
+
+            # ── Hazard risk profile: top hazards ───────────────────────
+            elif name == "get_hazard_risk_profile":
+                if isinstance(data, dict) and "error" not in data:
+                    st.markdown(f"**FEMA Hazard Risk Profile** — FIPS {data.get('fips', '')}")
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("Risk Rating", data.get("risk_rating", "N/A"))
+                    c2.metric("Expected Annual Loss", data.get("expected_annual_loss", "N/A"))
+                    c3.metric("Social Vulnerability", data.get("social_vulnerability", data.get("sovi_rating", "N/A")))
+                    hazards = data.get("hazards", data.get("top_hazards", []))
+                    if hazards and isinstance(hazards, list) and isinstance(hazards[0], dict):
+                        hdf = pd.DataFrame(hazards[:10])
+                        st.dataframe(hdf, use_container_width=True, hide_index=True)
+
+            # ── Flood frequency ────────────────────────────────────────
+            elif name == "get_flood_frequency":
+                if isinstance(data, dict) and "error" not in data:
+                    st.markdown(f"**Flood Frequency Analysis** — FIPS {data.get('fips', '')}")
+                    intervals = data.get("recurrence_intervals", data.get("flood_levels", {}))
+                    if isinstance(intervals, dict) and intervals:
+                        idf = pd.DataFrame([{"Return Period": k, "Flow (cfs)": v} for k, v in intervals.items()])
+                        st.dataframe(idf, use_container_width=True, hide_index=True)
+
+            # ── Severe weather history ─────────────────────────────────
+            elif name == "get_severe_weather_history":
+                if isinstance(data, dict) and "error" not in data:
+                    st.markdown(f"**Severe Weather History** — FIPS {data.get('fips', '')}")
+                    summary = data.get("summary", {})
+                    if summary:
+                        cols = st.columns(min(len(summary), 4))
+                        for col, (k, v) in zip(cols, list(summary.items())[:4]):
+                            col.metric(k.replace("_", " ").title(), v)
+
+            # ── Drought history ────────────────────────────────────────
+            elif name == "get_drought_history":
+                if isinstance(data, dict) and "error" not in data:
+                    st.markdown(f"**Drought History** — FIPS {data.get('fips', '')}")
+                    summary = data.get("summary", data.get("statistics", {}))
+                    if isinstance(summary, dict):
+                        cols = st.columns(min(len(summary), 4))
+                        for col, (k, v) in zip(cols, list(summary.items())[:4]):
+                            col.metric(k.replace("_", " ").title(), v)
+
+            # ── Climate projections ────────────────────────────────────
+            elif name == "project_climate_risk_enhanced":
+                if isinstance(data, dict) and "error" not in data:
+                    proj = data.get("projection", {})
+                    st.markdown(f"**Climate Projection** — {data.get('scenario', 'SSP2-4.5')} ({data.get('horizon_years', 30)}yr)")
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("Temp Change", f"+{proj.get('temp_change_f', 'N/A')}°F" if isinstance(proj.get('temp_change_f'), (int, float)) else "N/A")
+                    c2.metric("Precip Change", f"{proj.get('precip_change_pct', 'N/A')}%" if isinstance(proj.get('precip_change_pct'), (int, float)) else "N/A")
+                    c3.metric("Extreme Events", f"{proj.get('extreme_event_multiplier', 'N/A')}x")
+
+        except Exception:
+            pass  # Malformed data — skip silently
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # SIDEBAR — Controls & Context
 # ═══════════════════════════════════════════════════════════════════════
 with st.sidebar:
@@ -108,45 +308,78 @@ with st.sidebar:
 
     st.divider()
 
-    # Engine settings
-    engine_mode = st.radio(
-        "Engine",
-        ["Agentic AI", "Deterministic"],
-        index=0,
-        horizontal=True,
-    )
-    use_agentic = engine_mode == "Agentic AI"
-    st.session_state.agent_config['use_agentic'] = use_agentic
+    # ── Model Selector ─────────────────────────────────────────────
+    if AGENTIC_AVAILABLE:
+        model_options = list(MODEL_PRESETS.keys())
+        model_labels = [MODEL_PRESETS[m]["label"] for m in model_options]
+        current_model = st.session_state.agent_config.get('selected_model', 'nemotron-3-nano')
+        current_idx = model_options.index(current_model) if current_model in model_options else 0
 
-    if use_agentic:
+        selected_label = st.radio(
+            "LLM Backend",
+            model_labels,
+            index=current_idx,
+            help="Nemotron: fast exploration (~15-30s). GPT-OSS: deep analysis (~40-60s)."
+        )
+        selected_key = model_options[model_labels.index(selected_label)]
+        preset = MODEL_PRESETS[selected_key]
+
+        # Detect model switch → reinitialize orchestrator
+        if selected_key != st.session_state.agent_config.get('selected_model'):
+            st.session_state.agent_config['selected_model'] = selected_key
+            st.session_state.agentic_orchestrator = None  # force re-init
+
+        # Per-model API key selection
+        if selected_key == "gemini-pro":
+            active_api_key = st.session_state.agent_config['gemini_key']
+        else:
+            active_api_key = st.session_state.agent_config['lm_key']
+
+        # Advanced connection settings (collapsed)
+        with st.expander("Connection Settings", expanded=False):
+            lm_url = st.text_input("URL Override", value=preset["base_url"])
+            if selected_key == "gemini-pro":
+                gemini_key = st.text_input("Gemini API Key", value=st.session_state.agent_config['gemini_key'], type="password")
+                st.session_state.agent_config['gemini_key'] = gemini_key
+                active_api_key = gemini_key
+            else:
+                lm_key = st.text_input("LM Studio Key", value=st.session_state.agent_config['lm_key'], type="password")
+                st.session_state.agent_config['lm_key'] = lm_key
+                active_api_key = lm_key
+            st.session_state.agent_config['lm_url'] = lm_url
+    else:
+        # Fallback if orchestrator module unavailable
         with st.expander("LM Studio", expanded=False):
             lm_url = st.text_input("URL", value=st.session_state.agent_config['lm_url'])
             lm_key = st.text_input("Key", value=st.session_state.agent_config['lm_key'], type="password")
             st.session_state.agent_config['lm_key'] = lm_key
             st.session_state.agent_config['lm_url'] = lm_url
+        preset = {"base_url": st.session_state.agent_config['lm_url'], "model": "openai/gpt-oss-20b"}
+        selected_key = "gpt-oss-20b"
 
-        # Initialize orchestrator
-        if st.session_state.agentic_orchestrator is None and AGENTIC_AVAILABLE:
-            try:
-                st.session_state.agentic_orchestrator = AgenticOrchestrator(
-                    lm_studio_url=st.session_state.agent_config['lm_url'],
-                    api_key=st.session_state.agent_config['lm_key'],
-                )
-            except Exception:
-                pass
+    # Initialize orchestrator with selected model
+    if st.session_state.agentic_orchestrator is None and AGENTIC_AVAILABLE:
+        try:
+            st.session_state.agentic_orchestrator = AgenticOrchestrator(
+                lm_studio_url=st.session_state.agent_config.get('lm_url', preset["base_url"]),
+                api_key=active_api_key,
+                model=preset["model"],
+            )
+        except Exception:
+            pass
 
-        if st.session_state.agentic_orchestrator:
-            info = st.session_state.agentic_orchestrator.get_agent_info()
-            st.success(f"{info['model'].split('/')[-1]} | {info['tools']} tools | {info['counties_loaded']:,} counties")
-        else:
-            st.warning("LLM unavailable")
+    if st.session_state.agentic_orchestrator:
+        info = st.session_state.agentic_orchestrator.get_agent_info()
+        st.success(f"{info['model'].split('/')[-1]} | {info['tools']} tools | {info['counties_loaded']:,} counties")
+    else:
+        st.warning("LLM unavailable — check connection settings")
 
-        effort = st.select_slider(
-            "Reasoning Effort",
-            options=["Low", "Medium", "High"],
-            value=st.session_state.agent_config.get('reasoning_effort', 'Medium'),
-        )
-        st.session_state.agent_config['reasoning_effort'] = effort
+    effort = st.select_slider(
+        "Reasoning Effort",
+        options=["Low", "Medium", "High"],
+        value=st.session_state.agent_config.get('reasoning_effort', 'Medium'),
+    )
+    st.session_state.agent_config['reasoning_effort'] = effort
 
     st.divider()
 
@@ -163,7 +396,7 @@ with st.sidebar:
             c4.metric("Poverty", f"{ctx_df['poverty_pct'].mean():.1f}%")
 
     st.divider()
-    st.caption("MUIDSI Hackathon 2026 | v3.0")
+    st.caption("MUIDSI Hackathon 2026 | v3.1")
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -173,30 +406,44 @@ with st.sidebar:
 st.markdown("## ResilienceAI")
 st.caption("Ask anything about disaster vulnerability, healthcare infrastructure, climate trends, or intervention planning across 3,222 US counties.")
 
-# Preset query buttons — two rows for more options
-row1 = st.columns(4)
-presets = [
-    ("🔍 Vulnerable Counties", "What are the top 5 most vulnerable counties in Missouri and why?"),
-    ("🏥 Healthcare Deserts", "Which Missouri counties are healthcare deserts with the worst hospital and EMS density? Show me the numbers."),
-    ("🌡️ Climate Risk", "What are the climate trends and hazard risks for Boone County, MO (FIPS 29019)?"),
-    ("💰 Intervention ROI", "What is the most cost-effective intervention for Ozark County, Missouri (FIPS 29153)?"),
-]
-for col, (label, query) in zip(row1, presets):
-    with col:
-        if st.button(label, use_container_width=True):
-            st.session_state.query_input = query
+# ── Tabbed Example Prompts ─────────────────────────────────────────
+EXAMPLE_PROMPTS = {
+    "🔍 Vulnerability": [
+        ("Top 5 Vulnerable Counties", "What are the top 5 most vulnerable counties in Missouri? For each, explain what combination of poverty, isolation, and disaster history drives their risk score."),
+        ("Risk vs Population", "Which Missouri counties have the highest population-weighted risk? Compare how risk ranking changes when you weight by population vs raw risk score."),
+        ("Cross-State Comparison", "Compare the top 3 most vulnerable counties in Missouri vs Arkansas. What structural differences explain the gap?"),
+        ("Risk Contagion Clusters", "Analyze risk contagion for St. Louis County, MO (FIPS 29189). How do its high-risk neighbors amplify regional vulnerability?"),
+    ],
+    "🏥 Healthcare": [
+        ("Healthcare Deserts", "Which Missouri counties are healthcare deserts? Show infrastructure density (hospitals, EMS per 10k) and identify counties where distance to the nearest hospital exceeds 50km."),
+        ("Infrastructure vs Risk", "For the 5 highest-risk counties in Missouri, what is their emergency infrastructure density? Are the most vulnerable counties also the most underserved?"),
+        ("Health Disparities", "What are the worst health disparity zones in Missouri? Compare uninsured rates against poverty rates and identify which counties need targeted intervention."),
+        ("Rural Isolation", "Which Missouri counties combine high elderly populations (>20%) with the longest hospital distances? These are the most dangerous for emergency response."),
+    ],
+    "🌡️ Climate": [
+        ("Climate + Vulnerability", "What are the climate trends for Boone County, MO (FIPS 29019)? How do temperature trends and hazard risks interact with its existing vulnerability profile?"),
+        ("Flood + Seismic Risk", "What is the flood frequency and severe weather history for New Madrid County, MO (FIPS 29143)? How does this compound with its infrastructure gaps and seismic zone exposure?"),
+        ("Drought Impact", "Analyze drought history for Ozark County, MO (FIPS 29153). How does chronic drought combine with poverty and isolation to create compounding risk?"),
+        ("Climate Projection", "Project climate risk for Jackson County, MO (FIPS 29095) under SSP2-4.5 scenario. What does this mean for emergency planning over the next 30 years?"),
+    ],
+    "💡 Planning": [
+        ("Intervention ROI", "What is the most cost-effective intervention for Ozark County, Missouri (FIPS 29153)? Compare all options and explain which addresses the root cause of vulnerability."),
+        ("Disaster Simulation", "Simulate a 7.0 earthquake centered on New Madrid County, MO (FIPS 29143). How many people are affected, and which neighboring counties face cascading infrastructure failures?"),
+        ("Triage Priority", "If Missouri had $10M for disaster resilience, which 3 counties should receive funding first? Use risk scores, population impact, and infrastructure gaps to justify your recommendation."),
+        ("Scenario Comparison", "Compare the impact of a 500-year flood vs an EF4 tornado centered on Boone County, MO (FIPS 29019). Which scenario affects more people and infrastructure?"),
+    ],
+}
 
-row2 = st.columns(4)
-presets2 = [
-    ("🌪️ Simulate Disaster", "Simulate a Category 3 hurricane hitting New Madrid County, MO (FIPS 29143). What's the cascading impact?"),
-    ("📊 Compare Counties", "Compare disaster risk, poverty, and infrastructure between Boone County and Jackson County in Missouri."),
-    ("🗺️ Risk Contagion", "Analyze risk contagion for St. Louis County, MO (FIPS 29189) — how do its neighbors affect its vulnerability?"),
-    ("⚕️ Health Disparities", "What are the worst health disparity zones in Missouri based on uninsured rates?"),
-]
-for col, (label, query) in zip(row2, presets2):
-    with col:
-        if st.button(label, use_container_width=True):
-            st.session_state.query_input = query
+tab_names = list(EXAMPLE_PROMPTS.keys())
+tabs = st.tabs(tab_names)
+for tab, tab_name in zip(tabs, tab_names):
+    with tab:
+        prompts = EXAMPLE_PROMPTS[tab_name]
+        cols = st.columns(len(prompts))
+        for col, (label, query) in zip(cols, prompts):
+            with col:
+                if st.button(label, key=f"preset_{tab_name}_{label}", use_container_width=True):
+                    st.session_state.query_input = query
 
 # Query form (Enter key works)
 with st.form("query_form", clear_on_submit=True):
@@ -216,10 +463,9 @@ if st.session_state.query_input and not submit_q:
 should_run = submit_q and query_text
 if should_run:
     st.session_state.query_input = ""
-    use_agentic = st.session_state.agent_config.get('use_agentic', True)
     effort = st.session_state.agent_config.get('reasoning_effort', 'Medium')
 
-    if use_agentic and st.session_state.agentic_orchestrator:
+    if st.session_state.agentic_orchestrator:
         orch = st.session_state.agentic_orchestrator
         # Apply effort settings
         effort_cfg = {"Low": (1, 512), "Medium": (2, 1024), "High": (3, 1024)}
@@ -252,14 +498,8 @@ if should_run:
                 })
             except Exception as e:
                 status.update(label=f"Error: {e}", state="error")
-
-    elif st.session_state.local_agent:
-        with st.spinner("Running deterministic analysis..."):
-            try:
-                result = st.session_state.local_agent.query(query_text)
-                st.session_state.last_agent_response = result
-            except Exception as e:
-                st.error(f"Query failed: {e}")
+    else:
+        st.error("Agentic engine not available — check LLM connection in sidebar.")
 
 # ── Display Response ──────────────────────────────────────────────────
 if st.session_state.last_agent_response is not None:
@@ -275,6 +515,9 @@ if st.session_state.last_agent_response is not None:
             st.caption(f"{res.execution_time_ms/1000:.1f}s | {len(res.tools_used)} tools | {res.model.split('/')[-1]}")
 
         st.markdown(res.answer)
+
+        # ── Inline Tool Visualizations ─────────────────────────────
+        render_tool_visuals(res.steps)
 
         # Reasoning trace
         with st.expander(f"Reasoning Trace ({len(res.steps)} steps)", expanded=False):
@@ -441,4 +684,4 @@ if df is not None:
 
 # -- Footer -------------------------------------------------------------
 st.divider()
-st.caption("ResilienceAI v3.0 | MUIDSI Hackathon 2026 | GPT-OSS 20B Agentic Framework | 11 MCP Tools")
+st.caption("ResilienceAI v3.2 | MUIDSI Hackathon 2026 | Gemini + Local LLM Backends | 16 MCP Tools")
