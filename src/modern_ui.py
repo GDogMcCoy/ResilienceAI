@@ -269,7 +269,7 @@ def render_risk_badge(level: str):
 
 
 # Animation components
-LOADING_ANIMATION = """
+LOADING_ANIMATION = r"""
 <div style="display: flex; justify-content: center; align-items: center; height: 200px;">
     <div style="
         width: 50px;

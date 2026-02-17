@@ -1,0 +1,18 @@
+#!/bin/bash
+# Git wrapper for ResilienceAI - forces use of claw-autonomous branch
+# Place this in your PATH or use it directly
+
+REPO_ROOT="/root/.openclaw/workspace/ResilienceAI"
+BRANCH="claw-autonomous"
+
+# Change to repo root
+cd "$REPO_ROOT" || exit 1
+
+# Ensure we're on the right branch
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+if [ "$current_branch" != "$BRANCH" ]; then
+    git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH"
+fi
+
+# Execute git command
+git "$@"
