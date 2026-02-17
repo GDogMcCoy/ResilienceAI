@@ -409,7 +409,7 @@ class AgenticOrchestrator:
         executors = {
             "query_counties": lambda **kw: self.agent.query_counties(**kw),
             "get_county_detail": lambda **kw: self.agent.get_county_detail(**kw),
-            "get_state_rankings": lambda **kw: self.agent.get_state_rankings(**kw),
+            "get_state_rankings": lambda **kw: self.agent.query_counties(state=kw.get("state"), max_results=10),
             "analyze_risk_contagion": lambda **kw: self.agent.analyze_risk_contagion(**kw),
             "calculate_pop_weighted_impact": lambda **kw: self.agent.calculate_pop_weighted_impact(**kw),
             "get_infrastructure_density": lambda **kw: self.agent.get_infrastructure_density(**kw),
