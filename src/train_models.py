@@ -26,10 +26,10 @@ from config import PROCESSED_DIR, MODELS_DIR, FIGURES_DIR, RANDOM_STATE, TEST_SI
 
 # ── Feature Selection ─────────────────────────────────────────────────
 FEATURE_COLUMNS = [
-    # Demographics
+    # Demographics (raw vulnerability indicators)
     "total_population", "median_income",
     "elderly_pct", "poverty_pct", "disability_pct", "uninsured_pct",
-    # Infrastructure distances
+    # Infrastructure distances (raw isolation indicators)
     "dist_nearest_hospitals_km", "dist_nearest_fire_stations_km",
     "dist_nearest_ems_stations_km", "dist_nearest_nursing_homes_km",
     # Infrastructure counts
@@ -38,12 +38,13 @@ FEATURE_COLUMNS = [
     # Infrastructure density
     "density_hospitals_per10k", "density_fire_stations_per10k",
     "density_ems_stations_per10k", "density_nursing_homes_per10k",
-    # Disaster history
+    # Disaster history (raw exposure indicators)
     "disaster_count", "disaster_count_recent",
     "disaster_flood", "disaster_severe_storms",
     "disaster_hurricane", "disaster_fire", "disaster_tornado",
-    # Composites
-    "vulnerability_index", "isolation_index",
+    # NOTE: vulnerability_index and isolation_index deliberately EXCLUDED
+    # because they are components of the target variable (risk_score).
+    # The model learns from raw features only, avoiding circular reasoning.
 ]
 
 TARGET_COL = "risk_level"

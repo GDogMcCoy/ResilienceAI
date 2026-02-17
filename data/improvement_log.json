@@ -62,6 +62,24 @@
       "gaps": [],
       "tools_used": [],
       "suggestions": []
+    },
+    {
+      "timestamp": "2026-02-16T21:59:23.839567",
+      "query": "Show me agricultural vulnerability for the Midwest",
+      "response_summary": "Top highest-risk counties nationwide.",
+      "confidence": 1.0,
+      "gaps": [],
+      "tools_used": [],
+      "suggestions": []
+    },
+    {
+      "timestamp": "2026-02-17T12:02:10.794658",
+      "query": "What is the most vulnerable county in Missouri and why?",
+      "response_summary": "Top highest-risk counties in MO.",
+      "confidence": 1.0,
+      "gaps": [],
+      "tools_used": [],
+      "suggestions": []
     }
   ],
   "proposed_features": [],

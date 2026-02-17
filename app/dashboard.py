@@ -1,6 +1,6 @@
 """
-ResilienceAI - Strategic Intelligence Dashboard
-Comprehensive agentic platform for national disaster vulnerability and climate resilience.
+ResilienceAI - Agentic Intelligence Platform
+Chat-first interface backed by 11 real-data tools, LLM reasoning, and 3,222 US counties.
 """
 
 import sys
@@ -15,81 +15,58 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import json
-import requests
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime
-import streamlit_antd_components as sac
 
 # Try to import internal modules
 try:
-    from agent import ResilienceAgent, get_mcp_tools
+    from agent import ResilienceAgent, get_mcp_tools, _filter_by_state
     AGENT_AVAILABLE = True
 except ImportError:
     AGENT_AVAILABLE = False
 
 try:
-    from agents.orchestrator import AgentOrchestrator
-    ORCHESTRATOR_AVAILABLE = True
+    from agentic_orchestrator import AgenticOrchestrator
+    AGENTIC_AVAILABLE = True
 except ImportError:
-    ORCHESTRATOR_AVAILABLE = False
-
-try:
-    from climate_client import ClimateIntelligenceClient
-    CLIMATE_AVAILABLE = True
-except ImportError:
-    CLIMATE_AVAILABLE = False
-
-try:
-    from modern_ui import (
-        apply_modern_theme, render_modern_header, render_metric_card,
-        render_status_indicator, COLORS, render_risk_badge
-    )
-    MODERN_UI_AVAILABLE = True
-except ImportError:
-    MODERN_UI_AVAILABLE = False
-
-try:
-    from geo_visualizations import render_3d_landscape_tab
-    GEO_VIZ_AVAILABLE = True
-except ImportError:
-    GEO_VIZ_AVAILABLE = False
+    AGENTIC_AVAILABLE = False
 
 # -- Page Configuration -------------------------------------------------
 st.set_page_config(
-    page_title="ResilienceAI | Strategic Intelligence",
+    page_title="ResilienceAI",
     page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Apply Modern Theme
-if MODERN_UI_AVAILABLE:
-    apply_modern_theme()
+# -- Minimal Dark Theme -------------------------------------------------
+st.markdown("""
+<style>
+    .stApp { background-color: #0e1117; }
+    div[data-testid="stExpander"] { border: 1px solid #2d3748; border-radius: 8px; }
+</style>
+""", unsafe_allow_html=True)
 
 # -- Initialize Session State -------------------------------------------
 def init_session_state():
-    if 'agent_config' not in st.session_state:
-        st.session_state.agent_config = {
-            'archia_url': 'https://registry.archia.app/v1',
-            'api_key': os.environ.get('ARCHIA_TOKEN', ''),
-            'agent_name': 'ResilienceAI',
-            'use_local_agent': True
-        }
-    if 'last_agent_response' not in st.session_state:
-        st.session_state.last_agent_response = None
-    if 'df' not in st.session_state:
-        st.session_state.df = None
-    if 'local_agent' not in st.session_state:
-        st.session_state.local_agent = None
-    if 'orchestrator' not in st.session_state:
-        st.session_state.orchestrator = None
-    if 'climate_client' not in st.session_state:
-        st.session_state.climate_client = None
-    if 'query_input' not in st.session_state:
-        st.session_state.query_input = ""
-    if 'agent_history' not in st.session_state:
-        st.session_state.agent_history = []
+    defaults = {
+        'agent_config': {
+            'use_agentic': True,
+            'lm_key': os.environ.get("LM_STUDIO_API_KEY", "sk-lm-17g8iJ72:Jkqk55kdkSVRwtUfklSj"),
+            'lm_url': 'http://localhost:1234',
+            'reasoning_effort': 'Medium',
+            'focus_state': 'Missouri',
+        },
+        'last_agent_response': None,
+        'df': None,
+        'local_agent': None,
+        'query_input': "",
+        'agentic_orchestrator': None,
+        'chat_history': [],
+    }
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
 
 init_session_state()
 
@@ -97,284 +74,371 @@ init_session_state()
 @st.cache_data
 def load_data():
     try:
-        processed_dir = Path(__file__).parent.parent / "data" / "processed"
-        features_path = processed_dir / "county_features.csv"
+        features_path = Path(__file__).parent.parent / "data" / "processed" / "county_features.csv"
         if features_path.exists():
             return pd.read_csv(features_path, dtype={"fips": str})
     except Exception as e:
         st.error(f"Data Load Error: {e}")
     return None
 
-@st.cache_data
-def load_zip_to_fips():
-    """Load ZIP-to-county FIPS mapping."""
-    cache_path = Path(__file__).parent.parent / "data" / "cache" / "zip_county_crosswalk.csv"
-    if cache_path.exists():
-        return pd.read_csv(cache_path, dtype=str)
-    return None
-
-def zip_to_fips(zip_code: str, crosswalk=None) -> dict:
-    if crosswalk is None: crosswalk = load_zip_to_fips()
-    if crosswalk is None: return {"error": "ZIP crosswalk not available"}
-    match = crosswalk[crosswalk["zip"] == str(zip_code).zfill(5)]
-    if match.empty: return {"error": f"No county found for ZIP {zip_code}"}
-    row = match.iloc[0]
-    return {"fips": row["fips"], "county_name": row["county_name"], "zip": row["zip"]}
-
-def county_picker(df, key_prefix, label="Find County"):
-    search_mode = st.radio(label, ["By Name", "By ZIP Code"], horizontal=True, key=f"{key_prefix}_mode")
-    if search_mode == "By ZIP Code":
-        zip_input = st.text_input("ZIP Code", max_chars=5, key=f"{key_prefix}_zip", placeholder="e.g. 65201")
-        if zip_input and len(zip_input) == 5:
-            result = zip_to_fips(zip_input)
-            if "error" not in result:
-                st.caption(f"Mapped to **{result['county_name']}** (FIPS: {result['fips']})")
-                return result["fips"]
-            else:
-                st.warning(result["error"])
-        return None
-    else:
-        if df is None: return None
-        mo_counties = df[df["county_name"].str.endswith(", Missouri")][["county_name", "fips"]].sort_values("county_name")
-        if mo_counties.empty: mo_counties = df[["county_name", "fips"]].sort_values("county_name")
-        options = dict(zip(mo_counties["county_name"], mo_counties["fips"]))
-        default_idx = list(options.keys()).index("Boone, Missouri") if "Boone, Missouri" in options else 0
-        selected = st.selectbox("County", list(options.keys()), index=default_idx, key=f"{key_prefix}_name")
-        return options[selected]
-
 df = load_data()
 if df is not None:
     st.session_state.df = df
     if AGENT_AVAILABLE and st.session_state.local_agent is None:
         st.session_state.local_agent = ResilienceAgent()
-    if ORCHESTRATOR_AVAILABLE and st.session_state.orchestrator is None:
-        st.session_state.orchestrator = AgentOrchestrator()
-    if CLIMATE_AVAILABLE and st.session_state.climate_client is None:
-        st.session_state.climate_client = ClimateIntelligenceClient()
 
-# -- Sidebar ------------------------------------------------------------
+
+# ═══════════════════════════════════════════════════════════════════════
+# SIDEBAR — Controls & Context
+# ═══════════════════════════════════════════════════════════════════════
 with st.sidebar:
     st.markdown("### 🛡️ ResilienceAI")
-    st.caption("Strategic Intelligence for Disaster Resilience")
     st.divider()
-    
-    if st.session_state.df is not None:
-        st.success(f"📡 System Ready: {len(st.session_state.df):,} zones indexed")
-    else:
-        st.error("🚨 System Offline")
-    
+
+    # State focus picker
+    if df is not None:
+        state_list = sorted(df['county_name'].str.extract(r', (.+)$')[0].dropna().unique())
+        focus_state = st.selectbox(
+            "Focus State",
+            ["All States"] + list(state_list),
+            index=list(["All States"] + list(state_list)).index("Missouri"),
+            help="Filters data panels below. Agentic queries can ask about any state."
+        )
+        st.session_state.agent_config['focus_state'] = focus_state
+
     st.divider()
-    st.markdown("### 🤖 Intelligence Config")
-    st.session_state.agent_config['use_local_agent'] = not st.toggle("Archia Cloud Mode", value=False)
-    
-    if not st.session_state.agent_config['use_local_agent']:
-        st.session_state.agent_config['api_key'] = st.text_input("Archia Token", value=st.session_state.agent_config.get('api_key', ''), type="password")
-        st.session_state.agent_config['agent_name'] = st.text_input("Agent Name", value=st.session_state.agent_config.get('agent_name', 'ResilienceAI'))
-    else:
-        st.info("Local Edge Node (Deterministic Intent Routing)")
-    
-    st.divider()
-    st.caption("MUIDSI Hackathon 2026 Submission")
 
-# -- Header -------------------------------------------------------------
-render_modern_header("RESILIENCE AI", "Predictive Vulnerability Intelligence & Climate Analytics")
+    # Engine settings
+    engine_mode = st.radio(
+        "Engine",
+        ["Agentic AI", "Deterministic"],
+        index=0,
+        horizontal=True,
+    )
+    use_agentic = engine_mode == "Agentic AI"
+    st.session_state.agent_config['use_agentic'] = use_agentic
 
-# -- Tabs ---------------------------------------------------------------
-tabs = st.tabs([
-    "🧠 Strategic Intelligence",
-    "📍 Missouri Command",
-    "🌍 Resilience Map",
-    "🌪️ Scenario Simulator",
-    "📈 Predictive Insights",
-    "🌾 Agricultural Risk",
-    "🚨 Emergency Ops",
-    "📋 Strategic Roadmap",
-    "📡 Live Feed"
-])
+    if use_agentic:
+        with st.expander("LM Studio", expanded=False):
+            lm_url = st.text_input("URL", value=st.session_state.agent_config['lm_url'])
+            lm_key = st.text_input("Key", value=st.session_state.agent_config['lm_key'], type="password")
+            st.session_state.agent_config['lm_key'] = lm_key
+            st.session_state.agent_config['lm_url'] = lm_url
 
-tab_intel, tab_mo, tab_map, tab_sim, tab_pred, tab_ag, tab_ops, tab_road, tab_live = tabs
-
-# -- Tab 1: Strategic Intelligence --------------------------------------
-with tab_intel:
-    st.subheader("🧠 Agentic Workflow Engine")
-    st.markdown("Query the multi-domain resilience database using natural language.")
-    
-    col_pre1, col_pre2, col_pre3, col_pre4 = st.columns(4)
-    with col_pre1:
-        if st.button("🌾 Ag Risk Assessment", use_container_width=True): st.session_state.query_input = "Show me agricultural vulnerability for the Midwest"
-    with col_pre2:
-        if st.button("🏥 Redundancy Audit", use_container_width=True): st.session_state.query_input = "Which counties have zero hospital redundancy nationwide?"
-    with col_pre3:
-        if st.button("📈 Trend Analysis", use_container_width=True): st.session_state.query_input = "Where are disasters accelerating most significantly?"
-    with col_pre4:
-        if st.button("📋 ROI Comparison", use_container_width=True): st.session_state.query_input = "What is the best resilience investment for St. Louis, MO?"
-
-    query_text = st.text_input("Strategic Request", value=st.session_state.get('query_input', ""), placeholder="e.g., Identify counties where increasing flood risk intersects with high poverty.")
-    
-    col_q1, col_q2 = st.columns([1, 4])
-    with col_q1: submit_q = st.button("🚀 Execute", type="primary", use_container_width=True)
-    
-    if (submit_q or (st.session_state.query_input and st.session_state.query_input != "")) and query_text:
-        st.session_state.query_input = ""
-        with st.spinner("Orchestrating agent workflow..."):
+        # Initialize orchestrator
+        if st.session_state.agentic_orchestrator is None and AGENTIC_AVAILABLE:
             try:
-                from archia_client import ArchiaClient, ArchiaConfig
-                cfg = ArchiaConfig(base_url=st.session_state.agent_config['archia_url'], api_key=st.session_state.agent_config['api_key'])
-                client = ArchiaClient(config=cfg)
-                agent_name = st.session_state.agent_config.get('agent_name', 'ResilienceAI')
-                response = client.query(query_text, agent_name=agent_name)
+                st.session_state.agentic_orchestrator = AgenticOrchestrator(
+                    lm_studio_url=st.session_state.agent_config['lm_url'],
+                    api_key=st.session_state.agent_config['lm_key'],
+                )
+            except Exception:
+                pass
+
+        if st.session_state.agentic_orchestrator:
+            info = st.session_state.agentic_orchestrator.get_agent_info()
+            st.success(f"{info['model'].split('/')[-1]} | {info['tools']} tools | {info['counties_loaded']:,} counties")
+        else:
+            st.warning("LLM unavailable")
+
+        effort = st.select_slider(
+            "Reasoning Effort",
+            options=["Low", "Medium", "High"],
+            value=st.session_state.agent_config.get('reasoning_effort', 'Medium'),
+        )
+        st.session_state.agent_config['reasoning_effort'] = effort
+
+    st.divider()
+
+    # Quick context stats for focused state
+    if df is not None:
+        fs = st.session_state.agent_config.get('focus_state', 'All States')
+        ctx_df = df if fs == "All States" else df[df["county_name"].str.endswith(f", {fs}")]
+        if not ctx_df.empty:
+            c1, c2 = st.columns(2)
+            c1.metric("Counties", f"{len(ctx_df):,}")
+            c2.metric("High Risk", f"{len(ctx_df[ctx_df['risk_level'] == 'High'])}")
+            c3, c4 = st.columns(2)
+            c3.metric("Avg Risk", f"{ctx_df['risk_score'].mean():.3f}")
+            c4.metric("Poverty", f"{ctx_df['poverty_pct'].mean():.1f}%")
+
+    st.divider()
+    st.caption("MUIDSI Hackathon 2026 | v3.0")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# MAIN — Agentic Intelligence Interface
+# ═══════════════════════════════════════════════════════════════════════
+
+st.markdown("## ResilienceAI")
+st.caption("Ask anything about disaster vulnerability, healthcare infrastructure, climate trends, or intervention planning across 3,222 US counties.")
+
+# Preset query buttons — two rows for more options
+row1 = st.columns(4)
+presets = [
+    ("🔍 Vulnerable Counties", "What are the top 5 most vulnerable counties in Missouri and why?"),
+    ("🏥 Healthcare Deserts", "Which Missouri counties are healthcare deserts with the worst hospital and EMS density? Show me the numbers."),
+    ("🌡️ Climate Risk", "What are the climate trends and hazard risks for Boone County, MO (FIPS 29019)?"),
+    ("💰 Intervention ROI", "What is the most cost-effective intervention for Ozark County, Missouri (FIPS 29153)?"),
+]
+for col, (label, query) in zip(row1, presets):
+    with col:
+        if st.button(label, use_container_width=True):
+            st.session_state.query_input = query
+
+row2 = st.columns(4)
+presets2 = [
+    ("🌪️ Simulate Disaster", "Simulate a Category 3 hurricane hitting New Madrid County, MO (FIPS 29143). What's the cascading impact?"),
+    ("📊 Compare Counties", "Compare disaster risk, poverty, and infrastructure between Boone County and Jackson County in Missouri."),
+    ("🗺️ Risk Contagion", "Analyze risk contagion for St. Louis County, MO (FIPS 29189) — how do its neighbors affect its vulnerability?"),
+    ("⚕️ Health Disparities", "What are the worst health disparity zones in Missouri based on uninsured rates?"),
+]
+for col, (label, query) in zip(row2, presets2):
+    with col:
+        if st.button(label, use_container_width=True):
+            st.session_state.query_input = query
+
+# Query form (Enter key works)
+with st.form("query_form", clear_on_submit=True):
+    query_text = st.text_input(
+        "Ask ResilienceAI",
+        value=st.session_state.get('query_input', ""),
+        placeholder="e.g., Which counties have accelerating disaster frequency and no hospital within 50km?"
+    )
+    submit_q = st.form_submit_button("Analyze", type="primary", use_container_width=True)
+
+# Handle preset button clicks (outside form)
+if st.session_state.query_input and not submit_q:
+    query_text = st.session_state.query_input
+    submit_q = True
+
+# ── Execute Query ─────────────────────────────────────────────────────
+should_run = submit_q and query_text
+if should_run:
+    st.session_state.query_input = ""
+    use_agentic = st.session_state.agent_config.get('use_agentic', True)
+    effort = st.session_state.agent_config.get('reasoning_effort', 'Medium')
+
+    if use_agentic and st.session_state.agentic_orchestrator:
+        orch = st.session_state.agentic_orchestrator
+        # Apply effort settings
+        effort_cfg = {"Low": (1, 512), "Medium": (2, 1024), "High": (3, 1024)}
+        orch.max_tool_rounds, orch._max_tokens = effort_cfg.get(effort, (2, 1024))
+
+        with st.status(f"Reasoning ({effort.lower()})...", expanded=True) as status:
+            st.write("Query sent to LLM...")
+            try:
+                response = orch.query(query_text, effort=effort)
+
+                for step in response.steps:
+                    if step.tool_name:
+                        st.write(f"**Step {step.step_num}**: `{step.tool_name}({json.dumps(step.tool_args)})`")
+                    if step.reasoning and step.reasoning != "Final synthesis":
+                        st.write(f"*{step.reasoning[:200]}*")
+
+                tools_str = ", ".join(response.tools_used) if response.tools_used else "direct"
+                status.update(
+                    label=f"Done — {len(response.steps)} steps, {len(response.tools_used)} tools ({tools_str}) in {response.execution_time_ms/1000:.1f}s",
+                    state="complete"
+                )
+
                 st.session_state.last_agent_response = response
-            except Exception as e: st.error(f"Intelligence Error: {e}")
+                st.session_state.chat_history.append({
+                    "query": query_text,
+                    "answer": response.answer,
+                    "tools": response.tools_used,
+                    "time_ms": response.execution_time_ms,
+                    "steps": len(response.steps),
+                })
+            except Exception as e:
+                status.update(label=f"Error: {e}", state="error")
 
-    if 'last_agent_response' in st.session_state and st.session_state.last_agent_response:
-        res = st.session_state.last_agent_response
-        st.divider()
-        with st.container():
-            col_res_header, col_mode = st.columns([4, 1])
-            with col_res_header: st.markdown("### 📤 Intelligence Response")
-            with col_mode: st.markdown(f'<span class="status-badge status-online">{res.get("mode", "Edge")}</span>', unsafe_allow_html=True)
-            if 'thought' in res:
-                with st.expander("👁️ Reasoning & Strategy", expanded=True): st.markdown(f"*{res['thought']}*")
-            if 'plan' in res:
-                st.markdown("**📝 Strategic Execution Plan:**")
-                for step in res['plan']: st.markdown(f"> {step}")
-            if 'answer' in res: st.info(res['answer'])
-            if 'data' in res and res['data']:
-                with st.expander("📊 Extracted Data", expanded=True):
-                    data_df = pd.DataFrame(res['data'])
-                    st.dataframe(data_df, use_container_width=True)
+    elif st.session_state.local_agent:
+        with st.spinner("Running deterministic analysis..."):
+            try:
+                result = st.session_state.local_agent.query(query_text)
+                st.session_state.last_agent_response = result
+            except Exception as e:
+                st.error(f"Query failed: {e}")
 
-# -- Tab 2: Missouri Command Center -------------------------------------
-with tab_mo:
-    if df is not None:
-        mo_df = df[df["county_name"].str.endswith(", Missouri")].copy()
-        if not mo_df.empty:
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("MO Risk Index", f"{mo_df['risk_score'].mean():.3f}")
-            c2.metric("High-Risk Zones", len(mo_df[mo_df['risk_level'] == 'High']))
-            c3.metric("Avg Uninsured %", f"{mo_df['uninsured_pct'].mean():.1f}%")
-            c4.metric("Avg Poverty %", f"{mo_df['poverty_pct'].mean():.1f}%")
-            st.divider()
-            col_m1, col_m2 = st.columns([3, 2])
-            with col_m1:
-                fig = px.scatter(mo_df, x="vulnerability_index", y="isolation_index", size="total_population", color="risk_score", hover_name="county_name", color_continuous_scale="RdYlGn_r")
-                fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-                st.plotly_chart(fig, use_container_width=True)
-            with col_m2:
-                st.dataframe(mo_df.nlargest(10, "risk_score")[["county_name", "risk_score", "risk_level"]], use_container_width=True)
+# ── Display Response ──────────────────────────────────────────────────
+if st.session_state.last_agent_response is not None:
+    res = st.session_state.last_agent_response
+    st.divider()
 
-# -- Tab 3: Resilience Map ----------------------------------------------
-with tab_map:
-    st.subheader("🗺️ National Geospatial Vulnerability")
-    if df is not None and GEO_VIZ_AVAILABLE: render_3d_landscape_tab(df)
-    else: st.info("Geospatial engine standby.")
+    if hasattr(res, 'answer'):
+        # Agentic response
+        col_h, col_stats = st.columns([3, 1])
+        with col_h:
+            st.markdown("### Intelligence Report")
+        with col_stats:
+            st.caption(f"{res.execution_time_ms/1000:.1f}s | {len(res.tools_used)} tools | {res.model.split('/')[-1]}")
 
-# -- Tab 4: Scenario Simulator ------------------------------------------
-with tab_sim:
-    st.subheader("🌪️ Disaster Impact Simulation")
-    if df is not None:
-        col_s1, col_s2 = st.columns([1, 2])
-        with col_s1:
-            from scenario_simulator import SCENARIO_PRESETS
-            scen_options = {v['label']: k for k, v in SCENARIO_PRESETS.items()}
-            sel_label = st.selectbox("Scenario Type", list(scen_options.keys()))
-            epic_fips = county_picker(df, "sim", "Epicenter")
-            run_sim = st.button("🚀 Run Impact Analysis")
-        with col_s2:
-            if run_sim and epic_fips:
-                from scenario_simulator import ScenarioSimulator
-                sim = ScenarioSimulator(df)
-                result = sim.simulate(scen_options[sel_label], epicenter_fips=epic_fips)
-                if 'summary' in result:
-                    s = result['summary']
-                    st.markdown(f"### Impact: {s['scenario']}")
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric("Pop. at Risk", f"{s['total_population_at_risk']:,}")
-                    c2.metric("Zones Affected", str(s['counties_affected']))
-                    c3.metric("Risk Escalation", f"+{s['risk_increase_pct']:.1f}%")
-                    st.table(pd.DataFrame(result['top_affected_counties'])[['county_name', 'risk_score_after', 'infrastructure_damage_pct']].head(10))
+        st.markdown(res.answer)
 
-# -- Tab 5: Predictive Insights -----------------------------------------
-with tab_pred:
-    st.subheader("📈 Future Risk Trajectories")
-    if df is not None:
-        col_p1, col_p2 = st.columns([1, 2])
-        with col_p1:
-            p_fips = county_picker(df, "pred", "Target")
-            scen_p = st.selectbox("Emissions Pathway", ["Sustainable (SSP1)", "Middle (SSP2)", "High (SSP5)"])
-            run_p = st.button("📈 Predict 10yr Risk")
-        with col_p2:
-            if run_p and p_fips:
-                with st.spinner("Prophet inference running..."):
-                    s_key = "ssp2_45" if "SSP2" in scen_p else "ssp1_19" if "SSP1" in scen_p else "ssp5_85"
-                    res = st.session_state.local_agent.analyze_risk_trajectory(p_fips, climate_scenario=s_key)
-                    if 'climate_projection' in res:
-                        cp = res['climate_projection']
-                        st.metric("Projected 2035 Risk", f"{cp['final_risk_score']:.3f}", delta=f"+{cp['risk_increase_pct']:.1f}%")
-                        st.markdown("#### Strategic Actions")
-                        for r in res['recommendations']: st.write(f"- {r['action']} ({r['priority']})")
+        # Reasoning trace
+        with st.expander(f"Reasoning Trace ({len(res.steps)} steps)", expanded=False):
+            for step in res.steps:
+                st.markdown(f"**Step {step.step_num}**")
+                if step.reasoning:
+                    st.markdown(f"> *{step.reasoning[:300]}*")
+                if step.tool_name:
+                    st.code(f"{step.tool_name}({json.dumps(step.tool_args, indent=2)})", language="json")
+                    if step.tool_result:
+                        result_str = json.dumps(step.tool_result, default=str, indent=2)
+                        if len(result_str) > 1500:
+                            result_str = result_str[:1500] + "\n... (truncated)"
+                        st.code(result_str, language="json")
+                st.divider()
 
-# -- Tab 6: Agricultural Risk -------------------------------------------
-with tab_ag:
-    st.subheader("🌾 National Food Security")
-    if df is not None:
-        col_ag1, col_ag2 = st.columns([1, 2])
-        with col_ag1:
-            st_pick = st.selectbox("Focus State", ["MO", "IA", "IL", "KS", "NE"])
-            if st.button("Analyze State Ag-Resilience"):
-                st.session_state.last_ag = st.session_state.local_agent.get_state_crop_summary(st_pick)
-        with col_ag2:
-            if 'last_ag' in st.session_state:
-                ag = st.session_state.last_ag
-                for c, m in ag['crops'].items(): st.metric(c, f"{m['average_yield_bu_per_acre']} BU/AC")
+    elif isinstance(res, dict):
+        if 'answer' in res:
+            st.info(res['answer'])
+        if 'data' in res and res['data']:
+            try:
+                st.dataframe(pd.DataFrame(res['data']), use_container_width=True)
+            except Exception:
+                st.json(res['data'])
 
-# -- Tab 7: Emergency Ops -----------------------------------------------
-with tab_ops:
-    st.subheader("🚨 Emergency Command Center")
-    c_ops1, c_ops2 = st.columns([1, 2])
-    with c_ops1:
-        st.markdown("### 🔔 Active Subscriptions")
-        subs = st.session_state.local_agent.list_alert_subscriptions()
-        if subs['count'] > 0:
-            for s in subs['subscriptions']: st.success(f"Monitoring: {s['county_name']}")
-        else: st.caption("No active alerts.")
-    with c_ops2:
-        st.markdown("### 📺 Intelligence Feed")
-        alerts = st.session_state.local_agent.get_active_alerts()
-        if alerts['count'] > 0:
-            for a in alerts['alerts']: st.warning(f"{a['severity'].upper()}: {a['message']}")
-        else: st.info("No active emergency events.")
+# ── Chat History ──────────────────────────────────────────────────────
+if st.session_state.chat_history:
+    with st.expander(f"Session History ({len(st.session_state.chat_history)} queries)", expanded=False):
+        for i, h in enumerate(reversed(st.session_state.chat_history)):
+            idx = len(st.session_state.chat_history) - i
+            st.markdown(f"**Q{idx}**: {h['query']}")
+            st.caption(f"{h.get('steps', '?')} steps | Tools: {', '.join(h.get('tools', []))} | {h.get('time_ms', 0)/1000:.1f}s")
 
-# -- Tab 8: Strategic Roadmap -------------------------------------------
-with tab_road:
-    st.subheader("📋 Policy & Optimization Roadmap")
-    col_r1, col_r2 = st.columns(2)
-    with col_r1:
-        st.markdown("#### 🏥 Healthcare Expansion Targets")
-        if df is not None:
-            crit = df[(df['total_population'] > 100000) & (df['zero_redundancy_flag'] == 1)]
-            st.dataframe(crit[['county_name', 'total_population', 'risk_score']], use_container_width=True)
-    with col_r2:
-        st.markdown("#### ⚡ Infrastructure Hardening Priority")
-        if df is not None:
-            accel = df[(df['disaster_acceleration'] > 2.0) & (df['risk_level'] == 'High')]
-            st.dataframe(accel[['county_name', 'disaster_acceleration', 'risk_score']], use_container_width=True)
 
-# -- Tab 9: Live Feed ---------------------------------------------------
-with tab_live:
-    col_l1, col_l2 = st.columns([2, 1])
-    with col_l1:
-        try:
-            from realtime_pipeline import render_realtime_feed
-            render_realtime_feed()
-        except: st.info("NOAA/USGS stream initializing...")
-    with col_l2:
-        st.subheader("📊 Activity Log")
-        try:
-            from dashboard_monitor import render_activity_dashboard
-            render_activity_dashboard()
-        except: st.caption("Activity recording standby.")
+# ═══════════════════════════════════════════════════════════════════════
+# DATA EXPLORER — Collapsible panels below the main interface
+# ═══════════════════════════════════════════════════════════════════════
+
+if df is not None:
+    st.divider()
+    st.markdown("### Data Explorer")
+    st.caption("Reference panels — the agentic engine queries this same data via tools.")
+
+    # Get filtered data based on sidebar state picker
+    fs = st.session_state.agent_config.get('focus_state', 'All States')
+    focus_df = df if fs == "All States" else df[df["county_name"].str.endswith(f", {fs}")]
+    state_label = fs if fs != "All States" else "National"
+
+    # ── Panel 1: Vulnerability Map ─────────────────────────────────────
+    with st.expander(f"🗺️ Vulnerability Map — {state_label} ({len(focus_df):,} counties)", expanded=False):
+        color_by = st.selectbox("Color by", ["risk_score", "vulnerability_index", "poverty_pct", "uninsured_pct"], key="map_color")
+
+        fig = px.scatter_geo(
+            focus_df,
+            lat="latitude", lon="longitude",
+            color=color_by,
+            size="total_population",
+            hover_name="county_name",
+            hover_data={"risk_score": ":.3f", "risk_level": True, "total_population": ":,"},
+            color_continuous_scale="RdYlGn_r",
+            size_max=15,
+        )
+        fig.update_geos(
+            scope="usa",
+            showland=True, landcolor="#1a202c",
+            showlakes=True, lakecolor="#2d3748",
+            bgcolor="rgba(0,0,0,0)",
+        )
+        fig.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="rgba(0,0,0,0)",
+            height=500,
+            margin=dict(l=0, r=0, t=10, b=0),
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.dataframe(
+            focus_df.nlargest(15, "risk_score")[["county_name", "risk_score", "risk_level", "total_population", "vulnerability_index"]],
+            use_container_width=True, hide_index=True
+        )
+
+    # ── Panel 2: Healthcare Infrastructure ─────────────────────────────
+    with st.expander(f"🏥 Healthcare Infrastructure — {state_label}", expanded=False):
+        c1, c2, c3, c4 = st.columns(4)
+        zero_red = focus_df[focus_df['zero_redundancy_flag'] == 1] if 'zero_redundancy_flag' in focus_df.columns else pd.DataFrame()
+        c1.metric("Zero-Redundancy", f"{len(zero_red):,}")
+        c2.metric("Avg Hospital Dist", f"{focus_df['dist_nearest_hospitals_km'].mean():.1f} km")
+        c3.metric("Avg EMS Dist", f"{focus_df['dist_nearest_ems_stations_km'].mean():.1f} km")
+        c4.metric(">50km to Hospital", f"{len(focus_df[focus_df['dist_nearest_hospitals_km'] > 50]):,}")
+
+        # Density metrics
+        density_cols = {
+            'density_hospitals_per10k': 'Hospitals/10k',
+            'density_ems_stations_per10k': 'EMS/10k',
+            'density_fire_stations_per10k': 'Fire/10k',
+            'density_nursing_homes_per10k': 'Nursing/10k',
+        }
+        avail = {k: v for k, v in density_cols.items() if k in focus_df.columns}
+        if avail:
+            dcols = st.columns(len(avail))
+            for col, (dcol, label) in zip(dcols, avail.items()):
+                col.metric(label, f"{focus_df[dcol].mean():.2f}")
+
+        col_chart, col_table = st.columns([3, 2])
+        with col_chart:
+            fig = px.scatter(
+                focus_df.nlargest(150, 'dist_nearest_hospitals_km'),
+                x="dist_nearest_hospitals_km", y="dist_nearest_ems_stations_km",
+                size="total_population", color="risk_level",
+                hover_name="county_name",
+                color_discrete_map={"High": "#e74c3c", "Medium": "#f39c12", "Low": "#2ecc71"},
+                title="Infrastructure Deserts"
+            )
+            fig.update_layout(
+                template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                xaxis_title="Hospital Distance (km)", yaxis_title="EMS Distance (km)",
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        with col_table:
+            worst = focus_df.nlargest(10, 'dist_nearest_hospitals_km')[
+                ['county_name', 'dist_nearest_hospitals_km', 'count_hospitals_50km', 'risk_level']
+            ].copy()
+            worst.columns = ['County', 'Hospital km', 'Hosp. in 50km', 'Risk']
+            st.dataframe(worst, use_container_width=True, hide_index=True)
+
+    # ── Panel 3: State Risk Profile ────────────────────────────────────
+    with st.expander(f"📊 Risk Profile — {state_label}", expanded=False):
+        col_chart2, col_table2 = st.columns([3, 2])
+        with col_chart2:
+            fig = px.scatter(
+                focus_df, x="vulnerability_index", y="isolation_index",
+                size="total_population", color="risk_score",
+                hover_name="county_name",
+                color_continuous_scale="RdYlGn_r",
+                title="Vulnerability vs Isolation"
+            )
+            fig.update_layout(
+                template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        with col_table2:
+            top = focus_df.nlargest(10, "risk_score")[
+                ["county_name", "risk_score", "total_population", "poverty_pct", "uninsured_pct"]
+            ].copy()
+            top.columns = ["County", "Risk", "Population", "Poverty %", "Uninsured %"]
+            st.dataframe(top, use_container_width=True, hide_index=True)
+
+        # Disparity bar chart
+        if len(focus_df) > 5:
+            fig2 = px.bar(
+                focus_df.nlargest(15, "uninsured_pct"),
+                x="county_name", y="uninsured_pct",
+                color="risk_level",
+                color_discrete_map={"High": "#e74c3c", "Medium": "#f39c12", "Low": "#2ecc71"},
+                title=f"Highest Uninsured Rates — {state_label}"
+            )
+            fig2.update_layout(
+                template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                xaxis_tickangle=-45
+            )
+            st.plotly_chart(fig2, use_container_width=True)
 
 # -- Footer -------------------------------------------------------------
 st.divider()
-st.caption("ResilienceAI Strategic Command | v3.0 Production Edition | Powered by Archia Cloud")
+st.caption("ResilienceAI v3.0 | MUIDSI Hackathon 2026 | GPT-OSS 20B Agentic Framework | 11 MCP Tools")
