@@ -26,6 +26,61 @@ import json
 import re
 import plotly.express as px
 import plotly.graph_objects as go
+import requests as _requests
+
+# ── Constants ─────────────────────────────────────────────────────────
+EXCLUDED_STATE_FIPS = {"02", "15"}  # Alaska/Hawaii skew continental views
+
+STATE_CENTERS = {
+    "01": {"lat": 32.8, "lon": -86.8},  "04": {"lat": 34.3, "lon": -111.7},
+    "05": {"lat": 34.8, "lon": -92.4},  "06": {"lat": 37.2, "lon": -119.5},
+    "08": {"lat": 39.0, "lon": -105.5}, "09": {"lat": 41.6, "lon": -72.7},
+    "10": {"lat": 39.0, "lon": -75.5},  "11": {"lat": 38.9, "lon": -77.0},
+    "12": {"lat": 28.6, "lon": -82.4},  "13": {"lat": 32.7, "lon": -83.4},
+    "16": {"lat": 44.4, "lon": -114.6}, "17": {"lat": 40.0, "lon": -89.2},
+    "18": {"lat": 39.9, "lon": -86.3},  "19": {"lat": 42.0, "lon": -93.5},
+    "20": {"lat": 38.5, "lon": -98.3},  "21": {"lat": 37.8, "lon": -85.3},
+    "22": {"lat": 31.0, "lon": -92.0},  "23": {"lat": 45.4, "lon": -69.2},
+    "24": {"lat": 39.0, "lon": -76.7},  "25": {"lat": 42.2, "lon": -71.8},
+    "26": {"lat": 44.3, "lon": -84.6},  "27": {"lat": 46.3, "lon": -94.3},
+    "28": {"lat": 32.7, "lon": -89.7},  "29": {"lat": 38.4, "lon": -92.5},
+    "30": {"lat": 47.1, "lon": -109.6}, "31": {"lat": 41.5, "lon": -99.8},
+    "32": {"lat": 39.4, "lon": -116.6}, "33": {"lat": 43.7, "lon": -71.6},
+    "34": {"lat": 40.1, "lon": -74.7},  "35": {"lat": 34.4, "lon": -106.1},
+    "36": {"lat": 42.9, "lon": -75.5},  "37": {"lat": 35.6, "lon": -79.8},
+    "38": {"lat": 47.4, "lon": -100.5}, "39": {"lat": 40.4, "lon": -82.8},
+    "40": {"lat": 35.6, "lon": -97.5},  "41": {"lat": 44.0, "lon": -120.5},
+    "42": {"lat": 41.0, "lon": -77.6},  "44": {"lat": 41.7, "lon": -71.5},
+    "45": {"lat": 33.9, "lon": -80.9},  "46": {"lat": 44.4, "lon": -100.2},
+    "47": {"lat": 35.9, "lon": -86.4},  "48": {"lat": 31.5, "lon": -99.3},
+    "49": {"lat": 39.3, "lon": -111.7}, "50": {"lat": 44.1, "lon": -72.6},
+    "51": {"lat": 37.5, "lon": -79.0},  "53": {"lat": 47.4, "lon": -120.5},
+    "54": {"lat": 38.6, "lon": -80.6},  "55": {"lat": 44.6, "lon": -89.7},
+    "56": {"lat": 43.0, "lon": -107.6},
+}
+
+# Map tool names to their primary color metric for choropleth
+TOOL_COLOR_MAP = {
+    "query_counties": "risk_score",
+    "get_state_rankings": "risk_score",
+    "get_mo_health_disparities": "poverty_pct",
+    "get_hazard_risk_profile": "risk_score",
+    "get_climate_trends": "risk_score",
+    "calculate_pop_weighted_impact": "risk_score",
+    "get_county_detail": "risk_score",
+    "get_infrastructure_density": "risk_score",
+    "analyze_risk_contagion": "risk_score",
+    "simulate_scenario": "risk_score",
+}
+
+# ── GeoJSON Cache ─────────────────────────────────────────────────────
+@st.cache_data(show_spinner="Loading county boundaries...")
+def load_counties_geojson():
+    """Load US county boundaries GeoJSON (cached per session, ~17MB one-time download)."""
+    url = "https://raw.githubusercontent.com/plotly/datasets/master/geojson-counties-fips.json"
+    resp = _requests.get(url, timeout=30)
+    resp.raise_for_status()
+    return resp.json()
 
 # Try to import internal modules
 try:
@@ -100,96 +155,265 @@ if df is not None:
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# HELPERS — Continental filter + 3-D dot-matrix builder
+# ═══════════════════════════════════════════════════════════════════════
+
+def _filter_continental(frame: pd.DataFrame) -> pd.DataFrame:
+    """Drop Alaska / Hawaii rows so maps stay on the continental US."""
+    if "fips" in frame.columns:
+        return frame[~frame["fips"].str[:2].isin(EXCLUDED_STATE_FIPS)].copy()
+    return frame
+
+
+def render_3d_dot_matrix(
+    county_df: pd.DataFrame,
+    highlighted_fips: set,
+    color_col: str = "risk_score",
+    title: str = "County Risk Landscape",
+):
+    """
+    3-D interactive dot matrix — draggable, rotatable, scroll-zoomable.
+    X = longitude, Y = latitude, Z = metric value.
+    Dot size = population. Color = heatmap on metric.
+    """
+    plot_df = _filter_continental(county_df).dropna(subset=["latitude", "longitude"]).copy()
+    if color_col not in plot_df.columns:
+        color_col = "risk_score"
+    plot_df = plot_df.dropna(subset=[color_col])
+    if plot_df.empty:
+        return
+
+    # Population → dot size (clamped 3–22)
+    if "total_population" in plot_df.columns:
+        pop = plot_df["total_population"].fillna(1000)
+        q95 = pop.quantile(0.95)
+        plot_df["_sz"] = np.clip(pop / (q95 if q95 > 0 else 1) * 14, 3, 22)
+    else:
+        plot_df["_sz"] = 6
+
+    is_hl = plot_df["fips"].isin(highlighted_fips) if ("fips" in plot_df.columns and highlighted_fips) else pd.Series(False, index=plot_df.index)
+
+    fig = go.Figure()
+
+    # Background counties (lower opacity)
+    bg = plot_df[~is_hl]
+    if not bg.empty:
+        fig.add_trace(go.Scatter3d(
+            x=bg["longitude"], y=bg["latitude"], z=bg[color_col],
+            mode="markers",
+            marker=dict(
+                size=bg["_sz"], color=bg[color_col], colorscale="RdYlGn_r",
+                opacity=0.45, line=dict(width=0),
+                colorbar=dict(title=color_col.replace("_", " ").title(), thickness=12, len=0.6),
+            ),
+            text=bg.get("county_name", bg.get("fips", "")),
+            hovertemplate="<b>%{text}</b><br>" + color_col + ": %{z:.3f}<extra></extra>",
+            name="Counties",
+        ))
+
+    # Highlighted counties (full opacity, white outline)
+    hl = plot_df[is_hl]
+    if not hl.empty:
+        fig.add_trace(go.Scatter3d(
+            x=hl["longitude"], y=hl["latitude"], z=hl[color_col],
+            mode="markers+text",
+            marker=dict(
+                size=hl["_sz"] * 1.5, color=hl[color_col], colorscale="RdYlGn_r",
+                opacity=1.0, line=dict(width=2, color="white"),
+            ),
+            text=hl["county_name"].str.split(",").str[0] if "county_name" in hl.columns else hl.get("fips", ""),
+            textposition="top center",
+            textfont=dict(size=9, color="white"),
+            hovertemplate="<b>%{text}</b><br>" + color_col + ": %{z:.3f}<extra>Analyzed</extra>",
+            name="Analyzed",
+        ))
+
+    fig.update_layout(
+        template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
+        title=dict(text=title, font=dict(size=14)),
+        height=500, margin=dict(l=0, r=0, t=35, b=0),
+        scene=dict(
+            xaxis=dict(title="Longitude", backgroundcolor="rgba(0,0,0,0)", gridcolor="#2d3748"),
+            yaxis=dict(title="Latitude", backgroundcolor="rgba(0,0,0,0)", gridcolor="#2d3748"),
+            zaxis=dict(title=color_col.replace("_", " ").title(), backgroundcolor="rgba(0,0,0,0)", gridcolor="#2d3748"),
+            bgcolor="rgba(14,17,23,1)",
+        ),
+        legend=dict(x=0.01, y=0.99, bgcolor="rgba(0,0,0,0.5)"),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# CHOROPLETH MAP — County-level heatmap rendered once per intelligence report
+# ═══════════════════════════════════════════════════════════════════════
+
+def _extract_fips_from_result(data):
+    """Extract all FIPS codes from a tool result dict or list."""
+    fips_set = set()
+    if isinstance(data, dict):
+        fip = data.get("fips")
+        if fip:
+            fips_set.add(str(fip).zfill(5))
+        for key in ("counties", "rankings", "priority_zones", "disparities",
+                     "affected_counties", "neighbors"):
+            items = data.get(key, [])
+            if isinstance(items, list):
+                for item in items:
+                    if isinstance(item, dict) and "fips" in item:
+                        fips_set.add(str(item["fips"]).zfill(5))
+    elif isinstance(data, list):
+        for item in data:
+            if isinstance(item, dict) and "fips" in item:
+                fips_set.add(str(item["fips"]).zfill(5))
+    return fips_set
+
+
+def render_choropleth_report_map(highlighted_fips, color_col="risk_score", title="County Risk Map", scope_df=None):
+    """
+    Render ONE choropleth map at the end of an intelligence report.
+
+    - Background: ALL counties in relevant state(s) colored by color_col
+    - Highlight: Analyzed counties outlined in cyan
+    - Overlay: Red X markers for infrastructure gaps (>30km to hospital)
+    - Auto-zoom: fitbounds to state extent
+
+    Parameters
+    ----------
+    highlighted_fips : set  – FIPS codes that get a cyan border highlight
+    color_col : str         – column to color the heatmap
+    title : str             – chart title
+    scope_df : DataFrame    – optional pre-filtered county DataFrame
+                              (skip session-state lookup & state scoping)
+    """
+    if scope_df is not None:
+        # Caller provided the data directly (e.g. Data Explorer Panel 1)
+        scope_df = _filter_continental(scope_df.copy())
+        if scope_df.empty:
+            return
+    else:
+        # Agentic report path: pull full dataset and scope by states in highlighted_fips
+        full_df = st.session_state.get("df")
+        if full_df is None or not highlighted_fips:
+            return
+        state_fips_set = {f[:2] for f in highlighted_fips if len(f) >= 5}
+        state_fips_set -= EXCLUDED_STATE_FIPS
+        if not state_fips_set:
+            return
+        scope_df = full_df[full_df["fips"].str[:2].isin(state_fips_set)].copy()
+        if scope_df.empty:
+            return
+
+    try:
+        geojson = load_counties_geojson()
+    except Exception:
+        return  # Silently fail if GeoJSON unavailable
+
+    if color_col not in scope_df.columns:
+        color_col = "risk_score"
+
+    # ── Background choropleth: all counties in scope colored by metric ──
+    hover_data = {"risk_score": ":.3f", "total_population": ":,", "fips": False}
+    if color_col != "risk_score":
+        hover_data[color_col] = ":.3f"
+    fig = px.choropleth(
+        scope_df,
+        geojson=geojson, locations="fips",
+        color=color_col, color_continuous_scale="RdYlGn_r",
+        hover_name="county_name",
+        hover_data=hover_data,
+        title=title,
+    )
+
+    # ── Highlight layer: bright cyan border on analyzed counties ─────────
+    highlight_df = scope_df[scope_df["fips"].isin(highlighted_fips)]
+    if not highlight_df.empty:
+        fig.add_trace(go.Choropleth(
+            geojson=geojson,
+            locations=highlight_df["fips"].tolist(),
+            z=[1] * len(highlight_df),
+            colorscale=[[0, "rgba(0,0,0,0)"], [1, "rgba(0,0,0,0)"]],
+            marker_line_color="#00ffff", marker_line_width=3,
+            showscale=False, hoverinfo="skip",
+        ))
+
+    # ── Infrastructure gap overlay: red X for >30km to hospital ─────────
+    if "dist_nearest_hospitals_km" in scope_df.columns:
+        infra_gaps = scope_df[
+            (scope_df["dist_nearest_hospitals_km"] > 30) &
+            scope_df["latitude"].notna() & scope_df["longitude"].notna()
+        ]
+        if len(infra_gaps) > 0:
+            fig.add_trace(go.Scattergeo(
+                lat=infra_gaps["latitude"], lon=infra_gaps["longitude"],
+                marker=dict(size=8, symbol="x", color="red", opacity=0.9),
+                text=infra_gaps.apply(
+                    lambda r: f"{r['county_name']}<br>Hospital: {r['dist_nearest_hospitals_km']:.0f}km", axis=1),
+                hovertemplate="%{text}<extra>Infrastructure Gap</extra>",
+                name=f"Infra Gaps ({len(infra_gaps)})",
+            ))
+
+    # ── Layout: auto-zoom to data extent ────────────────────────────────
+    fig.update_geos(
+        scope="usa", fitbounds="locations", visible=True,
+        showland=True, landcolor="#1a202c",
+        showlakes=True, lakecolor="#2d3748", bgcolor="rgba(0,0,0,0)",
+        showsubunits=True, subunitcolor="#2d3748",
+    )
+    fig.update_layout(
+        template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
+        height=450, margin=dict(l=0, r=0, t=40, b=0),
+        legend=dict(x=0.01, y=0.01, bgcolor="rgba(0,0,0,0.5)"),
+        coloraxis_colorbar=dict(title=color_col.replace("_", " ").title(), thickness=15),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # TOOL VISUALIZATION — Auto-render charts from agentic tool results
 # ═══════════════════════════════════════════════════════════════════════
 
 def render_tool_visuals(steps):
     """
-    Scan AgenticSteps and render inline charts for each tool result.
-    
-    OPTIMIZED: Reduces visual clutter by:
-    - Limiting tables to top 5 records with key columns only
-    - Using collapsible expanders for detailed data
-    - Deduplicating repeated tool results
-    - Using metric cards for single values
-    - Tracking seen counties/hazards to avoid duplicates
+    Scan AgenticSteps and render inline charts for each tool result,
+    then render a single choropleth + 3-D dot-matrix map at the end
+    covering ALL counties encountered across every tool step.
     """
     # Track seen items to avoid duplicates across multiple tool calls
     seen_counties = set()  # county_name + tool_type fingerprint
     seen_hazards = set()
-    
-    # Essential columns for ranking tables (subset of all available columns)
+
+    # ── Accumulate data for the end-of-report map ──────────────────
+    all_highlighted_fips: set = set()
+    best_color_col = "risk_score"  # updated as we see tools
+
     ESSENTIAL_COLS = ["county_name", "risk_score", "risk_level", "total_population", "poverty_pct"]
-    
+
     for step in steps:
         if not step.tool_name or not step.tool_result:
             continue
         data = step.tool_result
         name = step.tool_name
-        
+
+        # --- Collect FIPS from every tool step for the end map ---
+        all_highlighted_fips |= _extract_fips_from_result(data)
+
+        # --- Auto-detect best color column from TOOL_COLOR_MAP ---
+        if name in TOOL_COLOR_MAP:
+            best_color_col = TOOL_COLOR_MAP[name]
+
         try:
-            # ── County rankings: bar chart + compact table ─────────────
+            # ── County rankings: metric cards + table (map moved to end) ──
             if name in ("query_counties", "get_state_rankings"):
                 records = data if isinstance(data, list) else data.get("counties", data.get("rankings", []))
                 records = [r for r in records if isinstance(r, dict) and "county_name" in r and "risk_score" in r]
-                
-                # Deduplicate: skip if we've seen this county set before
+
                 record_fingerprint = tuple(sorted([r.get("county_name") for r in records[:3]]))
                 if record_fingerprint in seen_counties:
                     continue
                 seen_counties.add(record_fingerprint)
-                
+
                 if records:
                     rdf = pd.DataFrame(records)
-
-                    # ── Geographic risk map (inline) ──────────────────────
-                    if "latitude" in rdf.columns and "longitude" in rdf.columns:
-                        map_df = rdf.dropna(subset=["latitude", "longitude"]).copy()
-                        if len(map_df) > 0:
-                            # Determine hover columns available
-                            hover_cols = {c: True for c in ["risk_level", "poverty_pct", "elderly_pct", "uninsured_pct"]
-                                          if c in map_df.columns}
-                            if "total_population" in map_df.columns:
-                                hover_cols["total_population"] = ":,"
-                            if "risk_score" in map_df.columns:
-                                hover_cols["risk_score"] = ":.3f"
-                            map_fig = px.scatter_geo(
-                                map_df, lat="latitude", lon="longitude",
-                                color="risk_score", size="total_population" if "total_population" in map_df.columns else None,
-                                hover_name="county_name",
-                                hover_data=hover_cols,
-                                color_continuous_scale="RdYlGn_r",
-                                size_max=20,
-                                title="Vulnerability Risk Map"
-                            )
-                            map_fig.update_geos(scope="usa", showland=True, landcolor="#1a202c",
-                                                showlakes=True, lakecolor="#2d3748", bgcolor="rgba(0,0,0,0)")
-                            map_fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
-                                                  height=350, margin=dict(l=0, r=0, t=30, b=0))
-                            st.plotly_chart(map_fig, use_container_width=True)
-
-                    # ── Bar chart: top risk counties ──────────────────────
-                    top_n = 5
-                    rdf_top = rdf.sort_values("risk_score", ascending=False).head(top_n).sort_values("risk_score", ascending=True)
-                    remaining = len(rdf) - top_n
-
-                    fig = px.bar(
-                        rdf_top,
-                        x="risk_score", y="county_name", orientation="h",
-                        color="risk_score", color_continuous_scale="RdYlGn_r",
-                        title=f"Top {min(top_n, len(rdf))} Highest Risk Counties"
-                    )
-                    fig.update_layout(
-                        template="plotly_dark",
-                        paper_bgcolor="rgba(0,0,0,0)",
-                        plot_bgcolor="rgba(0,0,0,0)",
-                        height=200,
-                        margin=dict(l=10, r=10, t=30, b=10),
-                        yaxis_title="",
-                        xaxis_title="Risk Score",
-                        coloraxis_showscale=False
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
 
                     # Compact metrics row for top county
                     top_county = rdf.loc[rdf['risk_score'].idxmax()]
@@ -199,9 +423,9 @@ def render_tool_visuals(steps):
                     m3.metric("Population", f"{top_county.get('total_population', 0):,}" if isinstance(top_county.get('total_population'), (int, float)) else "N/A")
                     m4.metric("Poverty", f"{top_county.get('poverty_pct', 0):.1f}%" if isinstance(top_county.get('poverty_pct'), (int, float)) else "N/A")
 
-                    # Collapsible full table with key columns only
+                    # Collapsible full table
                     if len(rdf) > 0:
-                        with st.expander(f"📋 View All {len(rdf)} Counties" + (f" — showing key metrics only" if remaining > 0 else ""), expanded=False):
+                        with st.expander(f"View All {len(rdf)} Counties", expanded=False):
                             show_cols = [c for c in ESSENTIAL_COLS if c in rdf.columns]
                             st.dataframe(rdf[show_cols].sort_values("risk_score", ascending=False),
                                         use_container_width=True, hide_index=True)
@@ -566,6 +790,24 @@ def render_tool_visuals(steps):
         except Exception:
             pass  # Malformed data — skip silently
 
+    # ═══════════════════════════════════════════════════════════════
+    # END-OF-REPORT MAP — single choropleth covering all tool steps
+    # ═══════════════════════════════════════════════════════════════
+    valid_fips = {f for f in all_highlighted_fips if len(f) == 5 and f.isdigit()}
+    if valid_fips:
+        tool_names = [s.tool_name for s in steps if s.tool_name]
+        if any(t in tool_names for t in ("get_mo_health_disparities",)):
+            map_title = "Health Disparity Analysis — County Heatmap"
+        elif any(t in tool_names for t in ("get_hazard_risk_profile",)):
+            map_title = "Natural Hazard Risk — County Heatmap"
+        elif any(t in tool_names for t in ("simulate_scenario",)):
+            map_title = "Scenario Impact — County Heatmap"
+        else:
+            map_title = "Vulnerability Assessment — County Heatmap"
+
+        st.divider()
+        render_choropleth_report_map(valid_fips, color_col=best_color_col, title=map_title)
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # SIDEBAR — Controls & Context
@@ -851,9 +1093,10 @@ if df is not None:
     st.markdown("### Data Explorer")
     st.caption("Reference panels — the agentic engine queries this same data via tools.")
 
-    # Get filtered data based on sidebar state picker
+    # Get filtered data based on sidebar state picker (always exclude AK/HI)
     fs = st.session_state.agent_config.get('focus_state', 'All States')
     focus_df = df if fs == "All States" else df[df["county_name"].str.endswith(f", {fs}")]
+    focus_df = _filter_continental(focus_df)
     state_label = fs if fs != "All States" else "National"
 
     # ── Panel 1: Multi-Layer Vulnerability Map ──────────────────────────
@@ -861,51 +1104,26 @@ if df is not None:
         color_by = st.selectbox("Color by", ["risk_score", "vulnerability_index", "poverty_pct", "uninsured_pct", "elderly_pct", "disability_pct"], key="map_color")
         show_infra = st.checkbox("Overlay infrastructure gaps", value=True, key="map_infra")
 
-        # Choropleth base layer using county FIPS
-        map_fig = go.Figure()
+        map_tab_choro, map_tab_3d = st.tabs(["Choropleth", "3-D Landscape"])
 
-        # Scatter layer for all counties (color by selected metric)
-        map_fig.add_trace(go.Scattergeo(
-            lat=focus_df["latitude"], lon=focus_df["longitude"],
-            marker=dict(
-                size=np.clip(focus_df["total_population"] / 5000, 4, 25),
-                color=focus_df[color_by],
-                colorscale="RdYlGn_r",
-                colorbar=dict(title=color_by.replace("_", " ").title(), thickness=15),
-                opacity=0.8,
-                line=dict(width=0.5, color="white"),
-            ),
-            text=focus_df["county_name"],
-            hovertemplate="<b>%{text}</b><br>" +
-                          f"{color_by}: " + "%{marker.color:.3f}<br>" +
-                          "Pop: %{customdata[0]:,}<extra></extra>",
-            customdata=focus_df[["total_population"]].values,
-            name="Counties",
-        ))
+        with map_tab_choro:
+            # Choropleth with filled county polygons
+            infra_fips = set()
+            if show_infra and "dist_nearest_hospitals_km" in focus_df.columns:
+                infra_fips = set(focus_df[focus_df["dist_nearest_hospitals_km"] > 30]["fips"])
+            render_choropleth_report_map(
+                highlighted_fips=infra_fips,
+                color_col=color_by,
+                title=f"{color_by.replace('_', ' ').title()} — {state_label}",
+                scope_df=focus_df,
+            )
 
-        # Infrastructure gap overlay — highlight counties >30km from hospital
-        if show_infra and "dist_nearest_hospitals_km" in focus_df.columns:
-            infra_gaps = focus_df[focus_df["dist_nearest_hospitals_km"] > 30]
-            if len(infra_gaps) > 0:
-                map_fig.add_trace(go.Scattergeo(
-                    lat=infra_gaps["latitude"], lon=infra_gaps["longitude"],
-                    marker=dict(size=10, symbol="x", color="red", opacity=0.9),
-                    text=infra_gaps.apply(lambda r: f"{r['county_name']}<br>Hospital: {r['dist_nearest_hospitals_km']:.0f}km", axis=1),
-                    hovertemplate="%{text}<extra>Infrastructure Gap</extra>",
-                    name=f"Infrastructure Gaps ({len(infra_gaps)})",
-                ))
-
-        map_fig.update_geos(
-            scope="usa", showland=True, landcolor="#1a202c",
-            showlakes=True, lakecolor="#2d3748", bgcolor="rgba(0,0,0,0)",
-            showsubunits=True, subunitcolor="#2d3748",
-        )
-        map_fig.update_layout(
-            template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
-            height=550, margin=dict(l=0, r=0, t=10, b=0),
-            legend=dict(x=0.01, y=0.01, bgcolor="rgba(0,0,0,0.5)"),
-        )
-        st.plotly_chart(map_fig, use_container_width=True)
+        with map_tab_3d:
+            render_3d_dot_matrix(
+                focus_df, set(),
+                color_col=color_by,
+                title=f"3-D {color_by.replace('_', ' ').title()} — {state_label}",
+            )
 
         st.dataframe(
             focus_df.nlargest(15, "risk_score")[["county_name", "risk_score", "risk_level", "total_population", "vulnerability_index"]],
