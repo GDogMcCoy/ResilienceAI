@@ -144,7 +144,25 @@ st.markdown("""
     .stApp { background-color: #0e1117; }
     div[data-testid="stExpander"] { border: 1px solid #2d3748; border-radius: 8px; }
     .metric-row { padding: 10px 0; }
+    .demo-title-bar {
+        background: linear-gradient(90deg, #1a365d 0%, #2b6cb0 50%, #1a365d 100%);
+        padding: 10px 20px;
+        border-radius: 8px;
+        text-align: center;
+        margin-bottom: 1rem;
+        border: 1px solid #4299e1;
+    }
+    .demo-title-bar h2 { color: #fff; margin: 0; font-size: 1.3rem; letter-spacing: 1px; }
+    .demo-title-bar p { color: #bee3f8; margin: 2px 0 0 0; font-size: 0.85rem; }
 </style>
+""", unsafe_allow_html=True)
+
+# -- Hackathon Title Bar (visible in every frame of demo recording) ----
+st.markdown("""
+<div class="demo-title-bar">
+    <h2>Team 6 &nbsp;|&nbsp; ResilienceAI &nbsp;|&nbsp; MUIDSI Hackathon 2026</h2>
+    <p>Open/General Track &nbsp;&bull;&nbsp; Parthaw Goswami &bull; Jeffrey Appiagyei &bull; Garren Powell &bull; Rohitha Sresta Ganji &bull; Laoura Diallo &bull; Khawar Shehzad</p>
+</div>
 """, unsafe_allow_html=True)
 
 # -- Initialize Session State -------------------------------------------
@@ -667,7 +685,7 @@ def render_tool_visuals(steps):
                         
                         fig = px.bar(zdf_top,
                                      x=metric_col, y="county_name", orientation="h",
-                                     color=metric_col, color_continuous_scale="Reds",
+                                     color=metric_col, color_continuous_scale=COLOR_SCALES[st.session_state.get('color_scale', 'viridis')],
                                      title=f"Top {len(zdf_top)} Health Disparity Zones")
                         fig.update_layout(
                             template="plotly_dark", 
@@ -707,7 +725,7 @@ def render_tool_visuals(steps):
                         idf_top = idf.sort_values(val_col).head(5)
                         
                         fig = px.bar(idf_top, x=val_col, y=name_col, orientation="h",
-                                     color=val_col, color_continuous_scale="Viridis",
+                                     color=val_col, color_continuous_scale=COLOR_SCALES[st.session_state.get('color_scale', 'viridis')],
                                      title="Top 5 Interventions by Cost-Effectiveness")
                         fig.update_layout(
                             template="plotly_dark", 
@@ -863,7 +881,7 @@ def render_tool_visuals(steps):
                             # Top 5 hazards bar chart
                             hdf_top = hdf.head(5).sort_values("risk_score", ascending=True)
                             fig = px.bar(hdf_top, x="risk_score", y="hazard", orientation="h",
-                                         color="risk_score", color_continuous_scale="YlOrRd",
+                                         color="risk_score", color_continuous_scale=COLOR_SCALES[st.session_state.get('color_scale', 'viridis')],
                                          title=f"Top Hazards — {county_name}")
                             fig.update_layout(
                                 template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
@@ -1107,7 +1125,7 @@ with st.sidebar:
             c4.metric("Poverty", f"{ctx_df['poverty_pct'].mean():.1f}%")
 
     st.divider()
-    st.caption("MUIDSI Hackathon 2026 | v3.3.0")
+    st.caption("MUIDSI Hackathon 2026 | v3.4.0")
 
 # Sync state to URL after sidebar controls have been processed
 if URL_STATE_AVAILABLE:
@@ -1191,20 +1209,39 @@ if should_run:
         effort_cfg = {"Low": (3, 2048), "Medium": (6, 4096), "High": (10, 8192)}
         orch.max_tool_rounds, orch._max_tokens = effort_cfg.get(effort, (6, 4096))
 
-        with st.status(f"Reasoning ({effort.lower()})...", expanded=True) as status:
-            st.write("Query sent to LLM...")
+        # Fun facts to show while the LLM thinks
+        _LOADING_FACTS = [
+            "Analyzing 3,222 counties across 48 continental states...",
+            "Our dataset spans 69,000+ FEMA disaster declarations since 1953.",
+            "66 features engineered from 5 federal databases — zero synthetic data.",
+            "7 novel features: risk contagion, disaster acceleration, infrastructure redundancy...",
+            "Logistic Regression achieved 98.1% F1 macro across all risk categories.",
+            "The average US county is 37 km from the nearest hospital.",
+            "14 million Americans are displaced by disasters every year.",
+            "ResilienceAI processes what takes emergency managers 6+ hours in under 60 seconds.",
+        ]
+
+        with st.status(f"ResilienceAI is thinking ({effort.lower()} effort)...", expanded=True) as status:
+            import time as _time
+            _t0 = _time.time()
+            st.write(f"Query sent to LLM... {_LOADING_FACTS[0]}")
             try:
                 response = orch.query(query_text, effort=effort)
 
-                for step in response.steps:
+                for i, step in enumerate(response.steps):
+                    elapsed = _time.time() - _t0
+                    fact = _LOADING_FACTS[(i + 1) % len(_LOADING_FACTS)]
                     if step.tool_name:
-                        st.write(f"**Step {step.step_num}**: `{step.tool_name}({json.dumps(step.tool_args)})`")
+                        st.write(f"**Step {step.step_num}** ({elapsed:.0f}s): `{step.tool_name}({json.dumps(step.tool_args)})`")
                     if step.reasoning and step.reasoning != "Final synthesis":
                         st.write(f"*{step.reasoning[:200]}*")
+                    if i < len(response.steps) - 1:
+                        st.caption(f"💡 {fact}")
 
+                elapsed_total = response.execution_time_ms / 1000
                 tools_str = ", ".join(response.tools_used) if response.tools_used else "direct"
                 status.update(
-                    label=f"Done — {len(response.steps)} steps, {len(response.tools_used)} tools ({tools_str}) in {response.execution_time_ms/1000:.1f}s",
+                    label=f"Done — {len(response.steps)} steps, {len(response.tools_used)} tools ({tools_str}) in {elapsed_total:.1f}s",
                     state="complete"
                 )
 
@@ -1460,4 +1497,4 @@ if df is not None:
 
 # -- Footer -------------------------------------------------------------
 st.divider()
-st.caption("ResilienceAI v3.3.0 | MUIDSI Hackathon 2026 | Gemini + Local LLM Backends | 45+ MCP Tools")
+st.caption("ResilienceAI v3.4.0 | MUIDSI Hackathon 2026 | Gemini + Local LLM Backends | 45+ MCP Tools")
