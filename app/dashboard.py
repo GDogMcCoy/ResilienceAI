@@ -1080,30 +1080,28 @@ st.caption("Ask anything about disaster vulnerability, healthcare infrastructure
 # ── Tabbed Example Prompts ─────────────────────────────────────────
 EXAMPLE_PROMPTS = {
     "🔍 Vulnerability": [
-        ("Top 5 Vulnerable Counties", "What are the top 5 most vulnerable counties in Missouri? For each, explain what combination of poverty, isolation, and disaster history drives their risk score."),
-        ("Risk vs Population", "Which Missouri counties have the highest population-weighted risk? Compare how risk ranking changes when you weight by population vs raw risk score."),
-        ("Cross-State Comparison", "Compare the top 3 most vulnerable counties in Missouri vs Arkansas. What structural differences explain the gap?"),
-        ("Risk Contagion Clusters", "Analyze risk contagion for St. Louis County, MO (FIPS 29189). How do its high-risk neighbors amplify regional vulnerability?"),
+        ("Compound Risk Hotspots", "Find the 3 counties in Missouri where poverty, hospital distance, and disaster risk all rank in the top 10. For each, show the full county profile and analyze whether neighboring counties amplify or buffer the risk."),
+        ("MO vs AR Risk Corridor", "Identify the highest-risk counties along the Missouri-Arkansas border. Rank them by population-weighted impact and analyze risk contagion — are high-risk clusters spilling across state lines?"),
+        ("Hidden Risk Counties", "Which Missouri counties have a low raw risk score but high population-weighted impact? These are the 'hidden risk' counties where a disaster would affect the most people despite moderate vulnerability. Show infrastructure density for each."),
+        ("National Vulnerability Scan", "Find the single most vulnerable county in each of these states: Mississippi, Louisiana, West Virginia, and New Mexico. Compare their risk profiles side-by-side — what common structural factors do the worst counties share?"),
     ],
     "🏥 Healthcare": [
-        ("Healthcare Deserts", "Which Missouri counties are healthcare deserts? Show infrastructure density (hospitals, EMS per 10k) and identify counties where distance to the nearest hospital exceeds 50km."),
-        ("Infrastructure vs Risk", "For the 5 highest-risk counties in Missouri, what is their emergency infrastructure density? Are the most vulnerable counties also the most underserved?"),
-        ("Health Disparities", "What are the worst health disparity zones in Missouri? Compare uninsured rates against poverty rates and identify which counties need targeted intervention."),
-        ("Rural Isolation", "Which Missouri counties combine high elderly populations (>20%) with the longest hospital distances? These are the most dangerous for emergency response."),
+        ("Cascading Failure Zones", "In Missouri, find counties where BOTH the county AND its neighbors have zero hospital redundancy. Analyze risk contagion for the worst one — if its single hospital fails, how many people across how many counties lose access?"),
+        ("Climate-Exposed Deserts", "Which Missouri healthcare deserts also face accelerating climate risk? Cross-reference infrastructure density with climate trends and FEMA hazard profiles to find counties where rising disaster frequency meets inadequate medical capacity."),
+        ("Interstate Gap Analysis", "Compare healthcare infrastructure density across the top 5 highest-risk counties in Missouri vs Oklahoma. Which state has more dangerous infrastructure gaps relative to its risk, and what interventions would close the gap most cost-effectively?"),
+        ("Triage: Aging + Isolation", "Find Missouri counties where >18% of the population is elderly, hospital distance exceeds 30km, and EMS density is below the state average. Rank by population-weighted risk and calculate the ROI of adding a rural EMS station to each."),
     ],
     "🌡️ Climate": [
-        ("Climate Trends", "Get climate trends for Boone County, MO (FIPS 29019). Show temperature and precipitation patterns from ACIS data."),
-        ("Hazard Risk Profile", "Get the FEMA National Risk Index hazard profile for New Madrid County, MO (FIPS 29143). Show all natural hazards and expected annual losses."),
-        ("Drought History", "Get drought history for Ozark County, MO (FIPS 29153) from the US Drought Monitor. Show frequency and severity trends."),
-        ("Flood Frequency", "Get USGS flood frequency analysis for Jackson County, MO (FIPS 29095). Show recurrence intervals and gauge data."),
-        ("Severe Weather", "Get severe weather history for St. Louis County, MO (FIPS 29189) from NOAA Storm Events. Show tornado and storm patterns."),
-        ("Climate Projection", "Project future climate risk for Greene County, MO (FIPS 29077) under SSP2-4.5 scenario through 2050."),
+        ("Warming vs Flooding", "Compare climate trends for the 3 highest-risk Missouri counties. Which faces faster warming and which faces more flood risk? Pull FEMA hazard profiles and USGS flood data to build a complete climate threat picture for each."),
+        ("Drought-to-Disaster Pipeline", "Get drought history and severe weather patterns for southeast Missouri's highest-risk county. Is there a correlation between drought years and subsequent severe weather? Project the climate risk forward under SSP2-4.5."),
+        ("Multi-State Climate Comparison", "Compare climate trajectories between the most vulnerable county in Missouri and the most vulnerable in Texas. Which is on a worse climate path? Use historical trends and future projections to quantify the divergence."),
+        ("New Madrid Seismic + Climate", "Build a comprehensive hazard profile for New Madrid County, MO — combine the FEMA NRI profile, flood frequency analysis, severe weather history, and climate projections. What is the compound annual risk from all sources?"),
     ],
     "💡 Planning": [
-        ("Intervention ROI", "What is the most cost-effective intervention for Ozark County, Missouri (FIPS 29153)? Compare all options and explain which addresses the root cause of vulnerability."),
-        ("Disaster Simulation", "Simulate a 7.0 earthquake centered on New Madrid County, MO (FIPS 29143). How many people are affected, and which neighboring counties face cascading infrastructure failures?"),
-        ("Triage Priority", "If Missouri had $10M for disaster resilience, which 3 counties should receive funding first? Use risk scores, population impact, and infrastructure gaps to justify your recommendation."),
-        ("Scenario Comparison", "Compare the impact of a 500-year flood vs an EF4 tornado centered on Boone County, MO (FIPS 29019). Which scenario affects more people and infrastructure?"),
+        ("$10M Budget Allocation", "Missouri has $10M for disaster resilience. Identify the top 5 counties by population-weighted risk, calculate intervention ROI for each, and recommend a specific dollar allocation per county. Justify why your plan maximizes lives protected per dollar."),
+        ("Earthquake Cascade", "Simulate a 7.5 earthquake on the New Madrid fault. Then analyze risk contagion and infrastructure density for the 3 most affected counties. Which communities are completely cut off from emergency services, and what pre-positioned resources would prevent the most casualties?"),
+        ("Climate Adaptation Triage", "Project climate risk for Missouri's 3 most vulnerable counties under SSP5-8.5 (worst case). For each, calculate intervention ROI and recommend whether to invest in infrastructure hardening, population relocation support, or emergency capacity. Defend your choices with data."),
+        ("Cross-State Disaster Plan", "A Category 4 hurricane tracks inland hitting both Arkansas and Missouri. Simulate the scenario, identify the 5 most affected counties across both states, analyze their infrastructure gaps, and design a mutual-aid response plan with cost estimates."),
     ],
 }
 
@@ -1123,12 +1121,13 @@ for tab, tab_name in zip(tabs, tab_names):
 if st.session_state.get('query_input'):
     st.info("👆 Preset query loaded. Edit if needed, then click **Analyze**.")
 
-# Query form (Enter key works)
+# Query form
 with st.form("query_form", clear_on_submit=True):
-    query_text = st.text_input(
+    query_text = st.text_area(
         "Ask ResilienceAI",
         value=st.session_state.get('query_input', ""),
-        placeholder="e.g., Which counties have accelerating disaster frequency and no hospital within 50km?"
+        placeholder="e.g., Which counties have accelerating disaster frequency and no hospital within 50km?",
+        height=100,
     )
     submit_q = st.form_submit_button("Analyze", type="primary", use_container_width=True)
 
