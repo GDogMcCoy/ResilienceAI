@@ -1209,34 +1209,38 @@ if should_run:
         effort_cfg = {"Low": (3, 2048), "Medium": (6, 4096), "High": (10, 8192)}
         orch.max_tool_rounds, orch._max_tokens = effort_cfg.get(effort, (6, 4096))
 
-        # Fun facts to show while the LLM thinks
-        _LOADING_FACTS = [
-            "Analyzing 3,222 counties across 48 continental states...",
-            "Our dataset spans 69,000+ FEMA disaster declarations since 1953.",
-            "66 features engineered from 5 federal databases — zero synthetic data.",
-            "7 novel features: risk contagion, disaster acceleration, infrastructure redundancy...",
-            "Logistic Regression achieved 98.1% F1 macro across all risk categories.",
-            "The average US county is 37 km from the nearest hospital.",
-            "14 million Americans are displaced by disasters every year.",
-            "ResilienceAI processes what takes emergency managers 6+ hours in under 60 seconds.",
+        # Short vibes while the LLM thinks
+        _LOADING_VIBES = [
+            "Reasoning...",
+            "Cross-referencing...",
+            "Crunching counties...",
+            "Connecting dots...",
+            "Digging deeper...",
+            "Synthesizing...",
+            "Mapping vulnerabilities...",
+            "Chaining tools...",
+            "Almost there...",
+            "Building insights...",
+            "Interrogating data...",
+            "Triangulating...",
         ]
 
         with st.status(f"ResilienceAI is thinking ({effort.lower()} effort)...", expanded=True) as status:
             import time as _time
             _step_container = st.container()
-            _step_container.write(f"Query sent to LLM... _{_LOADING_FACTS[0]}_")
+            _step_container.caption(_LOADING_VIBES[0])
 
             # Live callback: streams each tool call into the status box as it happens
             _step_counter = [0]  # mutable container for closure
             def _on_step(step, n_tools, elapsed_sec):
                 _step_counter[0] += 1
                 idx = _step_counter[0]
-                fact = _LOADING_FACTS[idx % len(_LOADING_FACTS)]
+                fact = _LOADING_VIBES[idx % len(_LOADING_VIBES)]
                 if step.tool_name:
                     _step_container.write(f"**Step {step.step_num}** ({elapsed_sec:.0f}s): `{step.tool_name}({json.dumps(step.tool_args)})`")
                 if step.reasoning and step.reasoning != "Final synthesis":
                     _step_container.write(f"*{step.reasoning[:200]}*")
-                _step_container.caption(f"💡 {fact}")
+                _step_container.caption(fact)
                 status.update(label=f"ResilienceAI is thinking — {n_tools} tool(s) called ({elapsed_sec:.0f}s)...")
 
             try:
