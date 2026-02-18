@@ -279,7 +279,18 @@ class ResilienceAgent:
     # -- Climate Intelligence Tools --
     def get_climate_trends(self, fips):
         from src.climate_client import ClimateIntelligenceClient
-        return ClimateIntelligenceClient().acis.get_climate_trends(fips, 2000, 2025)
+        result = ClimateIntelligenceClient().acis.get_climate_trends(fips, 2000, 2025)
+        
+        # Enrich with county details including population for UI display
+        if self.df is not None and isinstance(result, dict) and "error" not in result:
+            match = self.df[self.df["fips"] == str(fips)]
+            if not match.empty:
+                county = match.iloc[0]
+                result["county_name"] = county.get("county_name", f"FIPS {fips}")
+                pop = county.get("total_population")
+                result["total_population"] = int(pop) if pd.notna(pop) else None
+        
+        return result
 
     def get_hazard_risk_profile(self, fips):
         from src.climate_client import ClimateIntelligenceClient

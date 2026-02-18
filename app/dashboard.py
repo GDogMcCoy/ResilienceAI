@@ -384,13 +384,32 @@ def render_tool_visuals(steps):
                     seen_counties.add(f"climate_{fips}")
                     
                     trends = data.get("trends", {})
-                    st.markdown(f"**🌡️ Climate Trends** — FIPS {fips}")
-                    c1, c2, c3 = st.columns(3)
-                    temp_info = trends.get("mean_temp", {})
-                    precip_info = trends.get("precip", {})
-                    c1.metric("Avg Temp", f"{temp_info.get('mean', 'N/A')}°F" if isinstance(temp_info.get('mean'), (int, float)) else "N/A")
-                    c2.metric("Temp Trend", f"{temp_info.get('slope_per_decade', 'N/A')}°F/decade" if isinstance(temp_info.get('slope_per_decade'), (int, float)) else "N/A")
-                    c3.metric("Avg Precip", f"{precip_info.get('mean', 'N/A')}\"" if isinstance(precip_info.get('mean'), (int, float)) else "N/A")
+                    
+                    # Handle both structures: trends as dict (correct) or trends as list (legacy/transformed)
+                    if isinstance(trends, dict):
+                        # Correct structure from climate_client.py: trends is a dict with mean_temp, precip keys
+                        temp_info = trends.get("mean_temp", {})
+                        precip_info = trends.get("precip", {})
+                        avg_temp = temp_info.get("mean")
+                        temp_trend = temp_info.get("slope_per_decade")
+                        avg_precip = precip_info.get("mean")
+                    elif isinstance(trends, list) and trends:
+                        # Legacy/transformed structure: trends is a list, use summary instead
+                        summary = data.get("summary", {})
+                        avg_temp = summary.get("avg_temp")
+                        temp_trend = summary.get("temp_trend")
+                        avg_precip = summary.get("avg_precip")
+                    else:
+                        avg_temp = temp_trend = avg_precip = None
+                    
+                    county_name = data.get("county_name", f"FIPS {fips}")
+                    st.markdown(f"**🌡️ Climate Trends** — {county_name}")
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric("Avg Temp", f"{avg_temp:.1f}°F" if isinstance(avg_temp, (int, float)) else "N/A")
+                    c2.metric("Temp Trend", f"{temp_trend:+.3f}°F/dec" if isinstance(temp_trend, (int, float)) else "N/A")
+                    c3.metric("Avg Precip", f"{avg_precip:.1f}\"" if isinstance(avg_precip, (int, float)) else "N/A")
+                    pop = data.get("total_population")
+                    c4.metric("Population", f"{pop:,}" if isinstance(pop, (int, float)) else "N/A")
 
             # ── Hazard risk profile: top 3 hazards only ────────────────
             elif name == "get_hazard_risk_profile":
