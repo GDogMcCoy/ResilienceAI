@@ -350,7 +350,7 @@ class FEMANRIClient(CachedAPIClient):
     """FEMA National Risk Index - pre-computed 18-hazard county risk scores.
     Downloads and caches the NRI county CSV (~50MB, one-time).
     """
-    NRI_CSV_URL = "https://hazards.fema.gov/nri/Content/StaticDocuments/data-download/NRI_Table_Counties.zip"
+    NRI_CSV_URL = "https://www.fema.gov/about/reports-and-data/openfema/nri/v120/NRI_Table_Counties.zip"
 
     HAZARD_CODES = {
         "AVLN": "Avalanche", "CFLD": "Coastal Flooding", "CWAV": "Cold Wave",

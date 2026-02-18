@@ -141,13 +141,38 @@ def render_tool_visuals(steps):
                 
                 if records:
                     rdf = pd.DataFrame(records)
-                    
-                    # Limit to top 5 for main display
+
+                    # ── Geographic risk map (inline) ──────────────────────
+                    if "latitude" in rdf.columns and "longitude" in rdf.columns:
+                        map_df = rdf.dropna(subset=["latitude", "longitude"]).copy()
+                        if len(map_df) > 0:
+                            # Determine hover columns available
+                            hover_cols = {c: True for c in ["risk_level", "poverty_pct", "elderly_pct", "uninsured_pct"]
+                                          if c in map_df.columns}
+                            if "total_population" in map_df.columns:
+                                hover_cols["total_population"] = ":,"
+                            if "risk_score" in map_df.columns:
+                                hover_cols["risk_score"] = ":.3f"
+                            map_fig = px.scatter_geo(
+                                map_df, lat="latitude", lon="longitude",
+                                color="risk_score", size="total_population" if "total_population" in map_df.columns else None,
+                                hover_name="county_name",
+                                hover_data=hover_cols,
+                                color_continuous_scale="RdYlGn_r",
+                                size_max=20,
+                                title="Vulnerability Risk Map"
+                            )
+                            map_fig.update_geos(scope="usa", showland=True, landcolor="#1a202c",
+                                                showlakes=True, lakecolor="#2d3748", bgcolor="rgba(0,0,0,0)")
+                            map_fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
+                                                  height=350, margin=dict(l=0, r=0, t=30, b=0))
+                            st.plotly_chart(map_fig, use_container_width=True)
+
+                    # ── Bar chart: top risk counties ──────────────────────
                     top_n = 5
                     rdf_top = rdf.sort_values("risk_score", ascending=False).head(top_n).sort_values("risk_score", ascending=True)
                     remaining = len(rdf) - top_n
-                    
-                    # Compact bar chart with limited height
+
                     fig = px.bar(
                         rdf_top,
                         x="risk_score", y="county_name", orientation="h",
@@ -155,17 +180,17 @@ def render_tool_visuals(steps):
                         title=f"Top {min(top_n, len(rdf))} Highest Risk Counties"
                     )
                     fig.update_layout(
-                        template="plotly_dark", 
+                        template="plotly_dark",
                         paper_bgcolor="rgba(0,0,0,0)",
-                        plot_bgcolor="rgba(0,0,0,0)", 
+                        plot_bgcolor="rgba(0,0,0,0)",
                         height=200,
                         margin=dict(l=10, r=10, t=30, b=10),
-                        yaxis_title="", 
+                        yaxis_title="",
                         xaxis_title="Risk Score",
                         coloraxis_showscale=False
                     )
                     st.plotly_chart(fig, use_container_width=True)
-                    
+
                     # Compact metrics row for top county
                     top_county = rdf.loc[rdf['risk_score'].idxmax()]
                     m1, m2, m3, m4 = st.columns(4)
@@ -173,12 +198,12 @@ def render_tool_visuals(steps):
                     m2.metric("Risk Score", f"{top_county.get('risk_score', 0):.3f}")
                     m3.metric("Population", f"{top_county.get('total_population', 0):,}" if isinstance(top_county.get('total_population'), (int, float)) else "N/A")
                     m4.metric("Poverty", f"{top_county.get('poverty_pct', 0):.1f}%" if isinstance(top_county.get('poverty_pct'), (int, float)) else "N/A")
-                    
+
                     # Collapsible full table with key columns only
                     if len(rdf) > 0:
                         with st.expander(f"📋 View All {len(rdf)} Counties" + (f" — showing key metrics only" if remaining > 0 else ""), expanded=False):
                             show_cols = [c for c in ESSENTIAL_COLS if c in rdf.columns]
-                            st.dataframe(rdf[show_cols].sort_values("risk_score", ascending=False), 
+                            st.dataframe(rdf[show_cols].sort_values("risk_score", ascending=False),
                                         use_container_width=True, hide_index=True)
 
             # ── County detail: metric cards (already optimized) ────────
@@ -418,31 +443,61 @@ def render_tool_visuals(steps):
                     pop = data.get("total_population")
                     c4.metric("Population", f"{pop:,}" if isinstance(pop, (int, float)) else "N/A")
 
-            # ── Hazard risk profile: top 3 hazards only ────────────────
+            # ── Hazard risk profile: top hazards bar chart ─────────────
             elif name == "get_hazard_risk_profile":
                 if isinstance(data, dict) and "error" not in data:
                     fips = data.get('fips', '')
                     if f"hazard_{fips}" in seen_counties:
                         continue
                     seen_counties.add(f"hazard_{fips}")
-                    
-                    st.markdown(f"**⚠️ FEMA Hazard Risk Profile** — FIPS {fips}")
+
+                    county_name = data.get("county_name", f"FIPS {fips}")
+                    st.markdown(f"**⚠️ FEMA Hazard Risk Profile** — {county_name}")
                     c1, c2, c3 = st.columns(3)
                     c1.metric("Risk Rating", data.get("risk_rating", "N/A"))
-                    c2.metric("Expected Annual Loss", data.get("expected_annual_loss", "N/A"))
-                    c3.metric("Social Vulnerability", data.get("social_vulnerability", data.get("sovi_rating", "N/A")))
-                    
-                    hazards = data.get("hazards", data.get("top_hazards", []))
-                    if hazards and isinstance(hazards, list) and isinstance(hazards[0], dict):
-                        # Show only top 3 hazards
-                        hdf = pd.DataFrame(hazards[:3])
-                        show_cols = [c for c in ["hazard", "risk_score", "frequency", "severity"] if c in hdf.columns]
-                        if show_cols:
-                            st.dataframe(hdf[show_cols], use_container_width=True, hide_index=True)
-                        if len(hazards) > 3:
-                            with st.expander(f"View All {len(hazards)} Hazards", expanded=False):
-                                hdf_all = pd.DataFrame(hazards)
-                                st.dataframe(hdf_all, use_container_width=True, hide_index=True)
+                    eal = data.get("expected_annual_loss", 0)
+                    c2.metric("Expected Annual Loss", f"${eal:,.0f}" if isinstance(eal, (int, float)) else "N/A")
+                    svi = data.get("social_vulnerability", data.get("sovi_rating", "N/A"))
+                    c3.metric("Social Vulnerability", f"{svi:.1f}" if isinstance(svi, (int, float)) else svi)
+
+                    # Handle hazard_scores dict structure from NRI
+                    hazard_scores = data.get("hazard_scores", {})
+                    if isinstance(hazard_scores, dict) and hazard_scores:
+                        # Convert to list, filter out zero/not-applicable hazards
+                        hazard_list = [
+                            {"hazard": name_h, "risk_score": v.get("risk_score", 0),
+                             "expected_annual_loss": v.get("expected_annual_loss", 0),
+                             "risk_rating": v.get("risk_rating", "")}
+                            for name_h, v in hazard_scores.items()
+                            if v.get("risk_score", 0) > 0
+                        ]
+                        if hazard_list:
+                            hdf = pd.DataFrame(hazard_list).sort_values("risk_score", ascending=False)
+                            # Top 5 hazards bar chart
+                            hdf_top = hdf.head(5).sort_values("risk_score", ascending=True)
+                            fig = px.bar(hdf_top, x="risk_score", y="hazard", orientation="h",
+                                         color="risk_score", color_continuous_scale="YlOrRd",
+                                         title=f"Top Hazards — {county_name}")
+                            fig.update_layout(
+                                template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
+                                plot_bgcolor="rgba(0,0,0,0)", height=200,
+                                margin=dict(l=10, r=10, t=30, b=10),
+                                yaxis_title="", xaxis_title="NRI Risk Score",
+                                coloraxis_showscale=False)
+                            st.plotly_chart(fig, use_container_width=True)
+
+                            if len(hdf) > 5:
+                                with st.expander(f"View All {len(hdf)} Active Hazards", expanded=False):
+                                    st.dataframe(hdf[["hazard", "risk_score", "risk_rating", "expected_annual_loss"]],
+                                                use_container_width=True, hide_index=True)
+                    else:
+                        # Legacy list format
+                        hazards = data.get("hazards", data.get("top_hazards", []))
+                        if hazards and isinstance(hazards, list) and isinstance(hazards[0], dict):
+                            hdf = pd.DataFrame(hazards[:5])
+                            show_cols = [c for c in ["hazard", "risk_score", "frequency", "severity"] if c in hdf.columns]
+                            if show_cols:
+                                st.dataframe(hdf[show_cols], use_container_width=True, hide_index=True)
 
             # ── Flood frequency: compact table ─────────────────────────
             elif name == "get_flood_frequency":
@@ -801,33 +856,56 @@ if df is not None:
     focus_df = df if fs == "All States" else df[df["county_name"].str.endswith(f", {fs}")]
     state_label = fs if fs != "All States" else "National"
 
-    # ── Panel 1: Vulnerability Map ─────────────────────────────────────
+    # ── Panel 1: Multi-Layer Vulnerability Map ──────────────────────────
     with st.expander(f"🗺️ Vulnerability Map — {state_label} ({len(focus_df):,} counties)", expanded=False):
-        color_by = st.selectbox("Color by", ["risk_score", "vulnerability_index", "poverty_pct", "uninsured_pct"], key="map_color")
+        color_by = st.selectbox("Color by", ["risk_score", "vulnerability_index", "poverty_pct", "uninsured_pct", "elderly_pct", "disability_pct"], key="map_color")
+        show_infra = st.checkbox("Overlay infrastructure gaps", value=True, key="map_infra")
 
-        fig = px.scatter_geo(
-            focus_df,
-            lat="latitude", lon="longitude",
-            color=color_by,
-            size="total_population",
-            hover_name="county_name",
-            hover_data={"risk_score": ":.3f", "risk_level": True, "total_population": ":,"},
-            color_continuous_scale="RdYlGn_r",
-            size_max=15,
+        # Choropleth base layer using county FIPS
+        map_fig = go.Figure()
+
+        # Scatter layer for all counties (color by selected metric)
+        map_fig.add_trace(go.Scattergeo(
+            lat=focus_df["latitude"], lon=focus_df["longitude"],
+            marker=dict(
+                size=np.clip(focus_df["total_population"] / 5000, 4, 25),
+                color=focus_df[color_by],
+                colorscale="RdYlGn_r",
+                colorbar=dict(title=color_by.replace("_", " ").title(), thickness=15),
+                opacity=0.8,
+                line=dict(width=0.5, color="white"),
+            ),
+            text=focus_df["county_name"],
+            hovertemplate="<b>%{text}</b><br>" +
+                          f"{color_by}: " + "%{marker.color:.3f}<br>" +
+                          "Pop: %{customdata[0]:,}<extra></extra>",
+            customdata=focus_df[["total_population"]].values,
+            name="Counties",
+        ))
+
+        # Infrastructure gap overlay — highlight counties >30km from hospital
+        if show_infra and "dist_nearest_hospitals_km" in focus_df.columns:
+            infra_gaps = focus_df[focus_df["dist_nearest_hospitals_km"] > 30]
+            if len(infra_gaps) > 0:
+                map_fig.add_trace(go.Scattergeo(
+                    lat=infra_gaps["latitude"], lon=infra_gaps["longitude"],
+                    marker=dict(size=10, symbol="x", color="red", opacity=0.9),
+                    text=infra_gaps.apply(lambda r: f"{r['county_name']}<br>Hospital: {r['dist_nearest_hospitals_km']:.0f}km", axis=1),
+                    hovertemplate="%{text}<extra>Infrastructure Gap</extra>",
+                    name=f"Infrastructure Gaps ({len(infra_gaps)})",
+                ))
+
+        map_fig.update_geos(
+            scope="usa", showland=True, landcolor="#1a202c",
+            showlakes=True, lakecolor="#2d3748", bgcolor="rgba(0,0,0,0)",
+            showsubunits=True, subunitcolor="#2d3748",
         )
-        fig.update_geos(
-            scope="usa",
-            showland=True, landcolor="#1a202c",
-            showlakes=True, lakecolor="#2d3748",
-            bgcolor="rgba(0,0,0,0)",
+        map_fig.update_layout(
+            template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
+            height=550, margin=dict(l=0, r=0, t=10, b=0),
+            legend=dict(x=0.01, y=0.01, bgcolor="rgba(0,0,0,0.5)"),
         )
-        fig.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="rgba(0,0,0,0)",
-            height=500,
-            margin=dict(l=0, r=0, t=10, b=0),
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(map_fig, use_container_width=True)
 
         st.dataframe(
             focus_df.nlargest(15, "risk_score")[["county_name", "risk_score", "risk_level", "total_population", "vulnerability_index"]],
