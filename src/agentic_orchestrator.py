@@ -188,14 +188,69 @@ def get_working_tool_schemas() -> List[Dict]:
             "type": "function",
             "function": {
                 "name": "simulate_scenario",
-                "description": "Run a what-if disaster scenario simulation. Models the geographic impact of a disaster originating at a specific county, including affected counties, population at risk, and infrastructure damage estimates. Scenarios: 'hurricane_cat3', 'earthquake_7.0', 'flood_500yr', 'tornado_ef4', 'pandemic_wave'.",
+                "description": "Run a what-if disaster scenario simulation. Models the geographic impact of a disaster originating at a specific county, including affected counties, population at risk, and infrastructure damage estimates. Use for cross-state disaster planning by choosing an epicenter near state borders.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "scenario": {"type": "string", "description": "Scenario type: hurricane_cat3, earthquake_7.0, flood_500yr, tornado_ef4, pandemic_wave"},
+                        "scenario": {"type": "string", "description": "Scenario type: hurricane_cat1, hurricane_cat3, hurricane_cat5, earthquake_m6, earthquake_m7, flood_major, wildfire_large, tornado_ef3"},
                         "epicenter_fips": {"type": "string", "description": "5-digit FIPS code for the disaster epicenter"}
                     },
                     "required": ["scenario", "epicenter_fips"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_gap_analysis",
+                "description": "Analyze infrastructure gaps for a state. Identifies counties with the worst hospital/EMS/fire station coverage, highlighting where emergency services are most lacking. Returns top gap counties ranked by severity.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "state": {"type": "string", "description": "2-letter state code (e.g. 'MO', 'AR')"}
+                    },
+                    "required": ["state"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "compare_counties",
+                "description": "Compare multiple counties side-by-side across all dimensions: demographics, risk scores, infrastructure, disaster history. Accepts county names like 'New Madrid, MO' or 'Pulaski, AR'. Useful for cross-state comparisons.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "county_names": {"type": "array", "items": {"type": "string"}, "description": "List of county names to compare (e.g. ['New Madrid, MO', 'Clay, AR'])"}
+                    },
+                    "required": ["county_names"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "find_compound_risk_counties",
+                "description": "Find counties that are simultaneously high-risk across multiple dimensions (poverty, hospital distance, disaster frequency, elderly population). Returns counties with compound risk count >= min_dimensions.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "min_dimensions": {"type": "integer", "description": "Minimum number of risk dimensions (default: 3, max: 5)"}
+                    }
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_disaster_trends",
+                "description": "Analyze disaster frequency acceleration for a state. Shows whether disasters are increasing, decreasing, or stable over time. Returns per-county acceleration rates and trend classification.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "state": {"type": "string", "description": "2-letter state code (e.g. 'MO')"}
+                    },
+                    "required": ["state"]
                 }
             }
         },
@@ -448,6 +503,10 @@ class AgenticOrchestrator:
                 "get_mo_health_disparities": lambda **kw: self.agent.get_mo_health_disparities(**kw),
                 "calculate_intervention_roi": lambda **kw: self.agent.calculate_intervention_roi(**kw),
                 "simulate_scenario": lambda **kw: self.agent.simulate_scenario(**kw),
+                "get_gap_analysis": lambda **kw: self.agent.get_gap_analysis(**kw),
+                "compare_counties": lambda **kw: self.agent.compare_counties(**kw),
+                "find_compound_risk_counties": lambda **kw: self.agent.find_compound_risk_counties(**kw),
+                "get_disaster_trends": lambda **kw: self.agent.get_disaster_trends(**kw),
             })
         # Wire climate tools if ClimateAgent is available (independent of ResilienceAgent)
         # NOTE: ClimateAgent.execute_tool(name, params) expects params as a single dict,
@@ -752,6 +811,9 @@ class AgenticOrchestrator:
 
             try:
                 llm_response = self._call_llm(messages, tools=self.tool_schemas)
+            except RuntimeError as e:
+                # Critical errors (expired key, quota) — surface immediately, don't swallow
+                raise
             except Exception as e:
                 steps.append(AgenticStep(
                     step_num=round_num + 1,

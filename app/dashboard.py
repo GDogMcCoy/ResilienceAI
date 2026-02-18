@@ -584,7 +584,8 @@ def render_tool_visuals(steps):
                         m1, m2, m3, m4 = st.columns(4)
                         cname = top_county.get('county_name', 'N/A')
                         m1.metric("Highest Risk", str(cname).split(',')[0] if cname else "N/A")
-                        m2.metric("Risk Score", f"{top_county.get('risk_score', 0):.3f}")
+                        _rs = top_county.get('risk_score')
+                        m2.metric("Risk Score", f"{_rs:.3f}" if _is_numeric(_rs) else "N/A")
                         m3.metric("Population", f"{top_county.get('total_population', 0):,}" if _is_numeric(top_county.get('total_population')) else "N/A")
                         m4.metric("Poverty", f"{top_county.get('poverty_pct', 0):.1f}%" if _is_numeric(top_county.get('poverty_pct')) else "N/A")
 
@@ -620,9 +621,12 @@ def render_tool_visuals(steps):
                     cname = data.get('county_name', data.get('fips', ''))
                     st.markdown(f"**🏥 Infrastructure Density** — {cname}")
                     c1, c2, c3 = st.columns(3)
-                    c1.metric("Hospitals/10k", f"{data.get('hospitals_per_10k', data.get('density_hospitals_per10k', 0)):.2f}")
-                    c2.metric("EMS/10k", f"{data.get('ems_per_10k', data.get('density_ems_stations_per10k', 0)):.2f}")
-                    c3.metric("Fire/10k", f"{data.get('fire_per_10k', data.get('density_fire_stations_per10k', 0)):.2f}")
+                    _h = data.get('hospitals_per_10k', data.get('density_hospitals_per10k'))
+                    _e = data.get('ems_per_10k', data.get('density_ems_stations_per10k'))
+                    _f = data.get('fire_per_10k', data.get('density_fire_stations_per10k'))
+                    c1.metric("Hospitals/10k", f"{_h:.2f}" if _is_numeric(_h) else "N/A")
+                    c2.metric("EMS/10k", f"{_e:.2f}" if _is_numeric(_e) else "N/A")
+                    c3.metric("Fire/10k", f"{_f:.2f}" if _is_numeric(_f) else "N/A")
 
             # ── Risk contagion: compact summary ────────────────────────
             elif name == "analyze_risk_contagion":
@@ -844,7 +848,7 @@ def render_tool_visuals(steps):
                     st.markdown(f"**⚠️ FEMA Hazard Risk Profile** — {county_name}")
                     c1, c2, c3 = st.columns(3)
                     c1.metric("Risk Rating", data.get("risk_rating", "N/A"))
-                    eal = data.get("expected_annual_loss", 0)
+                    eal = data.get("expected_annual_loss")
                     c2.metric("Expected Annual Loss", f"${eal:,.0f}" if _is_numeric(eal) else "N/A")
                     svi = data.get("social_vulnerability", data.get("sovi_rating", "N/A"))
                     c3.metric("Social Vulnerability", f"{svi:.1f}" if _is_numeric(svi) else svi)
@@ -950,7 +954,8 @@ def render_tool_visuals(steps):
                     c1, c2, c3 = st.columns(3)
                     c1.metric("Temp Change", f"+{proj.get('temp_change_f', 'N/A')}°F" if _is_numeric(proj.get('temp_change_f')) else "N/A")
                     c2.metric("Precip Change", f"{proj.get('precip_change_pct', 'N/A')}%" if _is_numeric(proj.get('precip_change_pct')) else "N/A")
-                    c3.metric("Extreme Events", f"{proj.get('extreme_event_multiplier', 'N/A')}x")
+                    _ext = proj.get('extreme_event_multiplier')
+                    c3.metric("Extreme Events", f"{_ext}x" if _is_numeric(_ext) else "N/A")
 
         except Exception:
             pass  # Malformed data — skip silently
@@ -1161,28 +1166,28 @@ for tab, tab_name in zip(tabs, tab_names):
                     st.session_state.query_input = query
                     st.rerun()  # Refresh to show the populated query in the text box
 
-# Show indicator if a preset was selected
-if st.session_state.get('query_input'):
-    st.info("👆 Preset query loaded. Edit if needed, then click **Analyze**.")
+# Query form — populate text area from preset if selected
+_initial_query = st.session_state.pop('query_input', "") or ""
+if _initial_query:
+    st.session_state.query_text_widget = _initial_query
+    st.info("Preset query loaded. Edit if needed, then click **Analyze**.")
 
-# Query form
-with st.form("query_form", clear_on_submit=True):
+with st.form("query_form", clear_on_submit=False):
     query_text = st.text_area(
         "Ask ResilienceAI",
-        value=st.session_state.get('query_input', ""),
         placeholder="e.g., Which counties have accelerating disaster frequency and no hospital within 50km?",
         height=100,
+        key="query_text_widget",
     )
     submit_q = st.form_submit_button("Analyze", type="primary", width="stretch")
 
-# Note: Preset buttons now only populate the text box without auto-submitting.
-# The user can review/edit the prompt before manually clicking "Analyze".
-
 # ── Execute Query ─────────────────────────────────────────────────────
-should_run = submit_q and query_text
+# Use the widget's actual value (what user typed/edited), not the preset
+submitted_query = (query_text or "").strip()
+should_run = submit_q and submitted_query
 if should_run:
-    st.session_state.query_input = ""
-    st.session_state.query_text_display = query_text
+    st.session_state.query_text_widget = ""  # Clear text area for next query
+    st.session_state.query_text_display = submitted_query
     effort = st.session_state.agent_config.get('reasoning_effort', 'Medium')
 
     if st.session_state.get('agentic_orchestrator'):
@@ -1194,7 +1199,7 @@ if should_run:
         with st.status(f"Reasoning ({effort.lower()})...", expanded=True) as status:
             st.write("Query sent to LLM...")
             try:
-                response = orch.query(query_text, effort=effort)
+                response = orch.query(submitted_query, effort=effort)
 
                 for step in (response.steps or []):
                     if step.tool_name:
@@ -1214,7 +1219,7 @@ if should_run:
                 st.session_state.last_agent_response = response
                 st.session_state._auto_focus_done = False  # allow auto-focus for new query
                 st.session_state.chat_history.append({
-                    "query": query_text,
+                    "query": submitted_query,
                     "answer": getattr(response, 'answer', ''),
                     "tools": tools_used,
                     "time_ms": response.execution_time_ms or 0,
@@ -1232,6 +1237,11 @@ if st.session_state.last_agent_response is not None:
     st.divider()
 
     if hasattr(res, 'answer'):
+        # Show the query that was analyzed
+        display_query = st.session_state.get('query_text_display', getattr(res, 'query', ''))
+        if display_query:
+            st.caption(f"**Query:** {display_query}")
+
         # Agentic response
         col_h, col_stats = st.columns([3, 1])
         with col_h:

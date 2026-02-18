@@ -208,8 +208,7 @@ class ResilienceAgent:
 
     def get_statistics(self, feature, state=None):
         if self.df is None or feature not in self.df.columns: return {}
-        subset = self.df.copy()
-        if state: subset = subset[subset["county_name"].str.contains(f", {state}", na=False)]
+        subset = self._filter_by_state(self.df, state) if state else self.df.copy()
         return subset[feature].describe().to_dict()
 
     # -- Advanced Analytics --
@@ -221,13 +220,39 @@ class ResilienceAgent:
     def get_disaster_trends(self, state=None):
         if self.df is None: return []
         res = self.df[self.df["disaster_acceleration"] > 1.5].copy()
-        if state: res = res[res["county_name"].str.contains(f", {state}", na=False)]
+        if state: res = self._filter_by_state(res, state)
         return res.sort_values("disaster_acceleration", ascending=False).head(10).to_dict(orient="records")
+
+    def _filter_by_state(self, df, state):
+        """Filter a DataFrame by state code (2-letter) or full name."""
+        if not state: return df
+        full_name = self._STATE_NAMES.get(state.upper().strip(), state)
+        return df[df["county_name"].str.endswith(f", {full_name}", na=False)]
+
+    def get_gap_analysis(self, state=None):
+        if self.df is None: return []
+        gap_cols = ["gap_hospital", "gap_ems", "gap_fire", "gap_poverty", "gap_disaster_prep"]
+        existing = [c for c in gap_cols if c in self.df.columns]
+        if not existing: return {"error": "No gap columns in dataset"}
+        subset = self._filter_by_state(self.df, state).copy()
+        subset["total_gap"] = subset[existing].sum(axis=1)
+        top = subset.nlargest(10, "total_gap")
+        results = []
+        for _, row in top.iterrows():
+            r = {"fips": row.get("fips"), "county_name": row.get("county_name"),
+                 "risk_score": round(float(row.get("risk_score", 0)), 3),
+                 "total_population": int(row.get("total_population", 0)),
+                 "top_intervention": row.get("top_intervention", ""),
+                 "top_intervention_score": round(float(row.get("top_intervention_score", 0)), 4)}
+            for c in existing:
+                r[c] = round(float(row.get(c, 0)), 4)
+            results.append(r)
+        return results
 
     def find_zero_redundancy(self, state=None):
         if self.df is None: return []
         res = self.df[self.df["zero_redundancy_flag"] == 1].copy()
-        if state: res = res[res["county_name"].str.contains(f", {state}", na=False)]
+        if state: res = self._filter_by_state(res, state)
         return res.sort_values("total_population", ascending=False).head(10).to_dict(orient="records")
 
     def analyze_risk_contagion(self, fips, radius_km=100):
@@ -245,8 +270,7 @@ class ResilienceAgent:
 
     def calculate_pop_weighted_impact(self, state=None):
         if self.df is None: return []
-        res = self.df.copy()
-        if state: res = res[res["county_name"].str.contains(f", {state}", na=False)]
+        res = self._filter_by_state(self.df, state).copy() if state else self.df.copy()
         res["pop_weighted_risk"] = res["risk_score"] * res["total_population"]
         return res.sort_values("pop_weighted_risk", ascending=False).head(10).to_dict(orient="records")
 
@@ -255,9 +279,14 @@ class ResilienceAgent:
         if match.empty: return {}
         row = match.iloc[0]
         return {
-            "hospitals_per_10k": round(float(row.get("hospitals_per_10k_50km", 0)), 2),
-            "ems_per_10k": round(float(row.get("ems_per_10k_50km", 0)), 2),
-            "fire_per_10k": round(float(row.get("fire_stations_per_10k_50km", 0)), 2)
+            "hospitals_per_10k": round(float(row.get("density_hospitals_per10k", 0)), 2),
+            "ems_per_10k": round(float(row.get("density_ems_stations_per10k", 0)), 2),
+            "fire_per_10k": round(float(row.get("density_fire_stations_per10k", 0)), 2),
+            "nursing_homes_per_10k": round(float(row.get("density_nursing_homes_per10k", 0)), 2),
+            "hospitals_within_50km": int(row.get("count_hospitals_50km", 0)),
+            "ems_within_50km": int(row.get("count_ems_stations_50km", 0)),
+            "nearest_hospital_km": round(float(row.get("dist_nearest_hospitals_km", 0)), 1),
+            "nearest_ems_km": round(float(row.get("dist_nearest_ems_stations_km", 0)), 1),
         }
 
     # -- Sector Specific Tools --
