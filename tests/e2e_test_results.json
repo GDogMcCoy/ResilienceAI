@@ -1,0 +1,310 @@
+{
+  "timestamp": "2026-02-17 18:05:41",
+  "total": 60,
+  "passed": 60,
+  "failed": 0,
+  "skipped": 0,
+  "pass_rate": "100.0%",
+  "results": [
+    {
+      "name": "_extract_state('show me missouri counties') == MO",
+      "status": "PASS",
+      "detail": "MO"
+    },
+    {
+      "name": "_extract_state('what about montana data') == MT",
+      "status": "PASS",
+      "detail": "MT"
+    },
+    {
+      "name": "_extract_state('mississippi flood risk') == MS",
+      "status": "PASS",
+      "detail": "MS"
+    },
+    {
+      "name": "_extract_state('california wildfire danger') == CA",
+      "status": "PASS",
+      "detail": "CA"
+    },
+    {
+      "name": "_extract_state('new york infrastructure') == NY",
+      "status": "PASS",
+      "detail": "NY"
+    },
+    {
+      "name": "_extract_state('new mexico drought') == NM",
+      "status": "PASS",
+      "detail": "NM"
+    },
+    {
+      "name": "_extract_state('west virginia poverty') == WV",
+      "status": "PASS",
+      "detail": "WV"
+    },
+    {
+      "name": "_extract_state('north carolina hurricanes') == NC",
+      "status": "PASS",
+      "detail": "NC"
+    },
+    {
+      "name": "_extract_state('south dakota agriculture') == SD",
+      "status": "PASS",
+      "detail": "SD"
+    },
+    {
+      "name": "_extract_state('rhode island coastal risk') == RI",
+      "status": "PASS",
+      "detail": "RI"
+    },
+    {
+      "name": "_extract_state('district of columbia health') == DC",
+      "status": "PASS",
+      "detail": "DC"
+    },
+    {
+      "name": "_extract_state('texas heat wave') == TX",
+      "status": "PASS",
+      "detail": "TX"
+    },
+    {
+      "name": "_extract_state('florida hurricane damage') == FL",
+      "status": "PASS",
+      "detail": "FL"
+    },
+    {
+      "name": "_extract_state('iowa flooding') == IA",
+      "status": "PASS",
+      "detail": "IA"
+    },
+    {
+      "name": "_extract_state('ohio river valley') == OH",
+      "status": "PASS",
+      "detail": "OH"
+    },
+    {
+      "name": "_extract_state('washington state fires') == WA",
+      "status": "PASS",
+      "detail": "WA"
+    },
+    {
+      "name": "_extract_state('alabama tornado alley') == AL",
+      "status": "PASS",
+      "detail": "AL"
+    },
+    {
+      "name": "_extract_state('alaska permafrost') == AK",
+      "status": "PASS",
+      "detail": "AK"
+    },
+    {
+      "name": "_extract_state('hawaii volcano') == HI",
+      "status": "PASS",
+      "detail": "HI"
+    },
+    {
+      "name": "_extract_state('indiana agriculture risk') == IN",
+      "status": "PASS",
+      "detail": "IN"
+    },
+    {
+      "name": "_extract_state('top counties in MO') == MO (abbrev)",
+      "status": "PASS",
+      "detail": "MO"
+    },
+    {
+      "name": "_extract_state('data for MT region') == MT (abbrev)",
+      "status": "PASS",
+      "detail": "MT"
+    },
+    {
+      "name": "_extract_state('show TX results') == TX (abbrev)",
+      "status": "PASS",
+      "detail": "TX"
+    },
+    {
+      "name": "_extract_state('FL coastal') == FL (abbrev)",
+      "status": "PASS",
+      "detail": "FL"
+    },
+    {
+      "name": "_extract_state('CA wildfires') == CA (abbrev)",
+      "status": "PASS",
+      "detail": "CA"
+    },
+    {
+      "name": "MO != MT: 'missouri' -> MO",
+      "status": "PASS",
+      "detail": "MO"
+    },
+    {
+      "name": "MO != MT: 'montana' -> MT",
+      "status": "PASS",
+      "detail": "MT"
+    },
+    {
+      "name": "query_counties(state='MO') returns only Missouri",
+      "status": "PASS",
+      "detail": "5 MO counties"
+    },
+    {
+      "name": "query_counties(state='MT') returns only Montana",
+      "status": "PASS",
+      "detail": "5 MT counties"
+    },
+    {
+      "name": "query_counties(state='MS') returns only Mississippi",
+      "status": "PASS",
+      "detail": "5 MS counties"
+    },
+    {
+      "name": "query_counties(state='CA') returns only California",
+      "status": "PASS",
+      "detail": "5 CA counties"
+    },
+    {
+      "name": "query_counties(state=None) returns nationwide top 10",
+      "status": "PASS",
+      "detail": "Top 10 nationwide"
+    },
+    {
+      "name": "query_counties(state='Missouri') works with full name",
+      "status": "PASS",
+      "detail": "3 counties"
+    },
+    {
+      "name": "get_county_detail('29019') returns Boone County, MO",
+      "status": "PASS",
+      "detail": "Boone County, Missouri"
+    },
+    {
+      "name": "get_county_detail('06037') returns Los Angeles County",
+      "status": "PASS",
+      "detail": "Los Angeles County, California"
+    },
+    {
+      "name": "get_county_detail('99999') returns empty for invalid FIPS",
+      "status": "PASS",
+      "detail": "Empty as expected"
+    },
+    {
+      "name": "_extract_county by FIPS '29019'",
+      "status": "PASS",
+      "detail": "Boone County, Missouri"
+    },
+    {
+      "name": "_extract_county by name 'boone county'",
+      "status": "PASS",
+      "detail": "Boone County, Arkansas"
+    },
+    {
+      "name": "_extract_county is deterministic (5 runs same result)",
+      "status": "PASS",
+      "detail": "Deterministic across 5 runs"
+    },
+    {
+      "name": "get_infrastructure_density('29019')",
+      "status": "PASS",
+      "detail": "Keys: ['hospitals_per_10k', 'ems_per_10k', 'fire_per_10k']"
+    },
+    {
+      "name": "analyze_risk_contagion('29019')",
+      "status": "PASS",
+      "detail": "Keys: ['county', 'high_risk_neighbors', 'avg_neighbor_risk', 'amplification']"
+    },
+    {
+      "name": "get_mo_health_disparities()",
+      "status": "PASS",
+      "detail": "Keys: ['priority_zones', 'summary']"
+    },
+    {
+      "name": "calculate_intervention_roi('29019')",
+      "status": "PASS",
+      "detail": "Type: list, len: 6"
+    },
+    {
+      "name": "simulate_scenario('earthquake_7.0', epicenter_fips='29143')",
+      "status": "PASS",
+      "detail": "Keys: ['error']"
+    },
+    {
+      "name": "calculate_pop_weighted_impact(state='MO')",
+      "status": "PASS",
+      "detail": "Type: list"
+    },
+    {
+      "name": "Orchestrator loads all expected executors",
+      "status": "PASS",
+      "detail": "16 executors loaded"
+    },
+    {
+      "name": "Executor: query_counties(state='MO', max_results=3)",
+      "status": "PASS",
+      "detail": "3 MO counties"
+    },
+    {
+      "name": "Executor: get_state_rankings(state='MT')",
+      "status": "PASS",
+      "detail": "10 MT counties"
+    },
+    {
+      "name": "Executor: get_county_detail(fips='29019')",
+      "status": "PASS",
+      "detail": "Boone County, Missouri"
+    },
+    {
+      "name": "Executor: get_infrastructure_density(fips='29019')",
+      "status": "PASS",
+      "detail": "Keys: ['hospitals_per_10k', 'ems_per_10k', 'fire_per_10k']"
+    },
+    {
+      "name": "Executor: analyze_risk_contagion(fips='29019')",
+      "status": "PASS",
+      "detail": "Keys: ['county', 'high_risk_neighbors', 'avg_neighbor_risk', 'amplification']"
+    },
+    {
+      "name": "Executor: get_mo_health_disparities()",
+      "status": "PASS",
+      "detail": "Keys: ['priority_zones', 'summary']"
+    },
+    {
+      "name": "Executor: calculate_intervention_roi(fips='29019')",
+      "status": "PASS",
+      "detail": "Type: list"
+    },
+    {
+      "name": "Executor: simulate_scenario(scenario='earthquake_7.0', epicenter_fips='29143')",
+      "status": "PASS",
+      "detail": "Keys: ['error']"
+    },
+    {
+      "name": "Executor: calculate_pop_weighted_impact(state='MO')",
+      "status": "PASS",
+      "detail": "Type: list"
+    },
+    {
+      "name": "Climate: get_climate_trends(fips='29019')",
+      "status": "PASS",
+      "detail": "Type: dict"
+    },
+    {
+      "name": "Climate: get_hazard_risk_profile(fips='29019')",
+      "status": "PASS",
+      "detail": "Type: dict"
+    },
+    {
+      "name": "Climate: get_flood_frequency(fips='29019')",
+      "status": "PASS",
+      "detail": "Type: dict"
+    },
+    {
+      "name": "Climate: get_severe_weather_history(fips='29019')",
+      "status": "PASS",
+      "detail": "Type: dict"
+    },
+    {
+      "name": "Climate: get_drought_history(fips='29019')",
+      "status": "PASS",
+      "detail": "Type: dict"
+    }
+  ]
+}

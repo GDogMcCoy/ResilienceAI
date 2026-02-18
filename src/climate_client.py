@@ -373,7 +373,10 @@ class FEMANRIClient(CachedAPIClient):
         cache_path = self.cache_dir / "nri_counties.csv"
         if cache_path.exists():
             try:
-                self._nri_df = pd.read_csv(cache_path, dtype={"STCOFIPS": str}, low_memory=False, on_bad_lines="skip")
+                df = pd.read_csv(cache_path, dtype={"STCOFIPS": str}, low_memory=False, on_bad_lines="skip")
+                if "STCOFIPS" not in df.columns:
+                    raise ValueError("Corrupt cache: missing STCOFIPS column")
+                self._nri_df = df
                 return self._nri_df
             except Exception:
                 cache_path.unlink(missing_ok=True)  # Delete corrupt cache
