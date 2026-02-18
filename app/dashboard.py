@@ -59,6 +59,25 @@ STATE_CENTERS = {
     "56": {"lat": 43.0, "lon": -107.6},
 }
 
+# Full-name → 2-digit FIPS lookup (continental states only)
+STATE_NAME_TO_FIPS = {
+    "Alabama": "01", "Arizona": "04", "Arkansas": "05", "California": "06",
+    "Colorado": "08", "Connecticut": "09", "Delaware": "10",
+    "District of Columbia": "11", "Florida": "12", "Georgia": "13",
+    "Idaho": "16", "Illinois": "17", "Indiana": "18", "Iowa": "19",
+    "Kansas": "20", "Kentucky": "21", "Louisiana": "22", "Maine": "23",
+    "Maryland": "24", "Massachusetts": "25", "Michigan": "26",
+    "Minnesota": "27", "Mississippi": "28", "Missouri": "29",
+    "Montana": "30", "Nebraska": "31", "Nevada": "32",
+    "New Hampshire": "33", "New Jersey": "34", "New Mexico": "35",
+    "New York": "36", "North Carolina": "37", "North Dakota": "38",
+    "Ohio": "39", "Oklahoma": "40", "Oregon": "41", "Pennsylvania": "42",
+    "Rhode Island": "44", "South Carolina": "45", "South Dakota": "46",
+    "Tennessee": "47", "Texas": "48", "Utah": "49", "Vermont": "50",
+    "Virginia": "51", "Washington": "53", "West Virginia": "54",
+    "Wisconsin": "55", "Wyoming": "56",
+}
+
 # Map tool names to their primary color metric for choropleth
 TOOL_COLOR_MAP = {
     "query_counties": "risk_score",
@@ -239,6 +258,104 @@ def render_3d_dot_matrix(
             bgcolor="rgba(14,17,23,1)",
         ),
         legend=dict(x=0.01, y=0.99, bgcolor="rgba(0,0,0,0.5)"),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def render_2d_state_map(
+    county_df: pd.DataFrame,
+    state_name: str = "All States",
+    color_col: str = "risk_score",
+    show_infra: bool = True,
+):
+    """
+    Flat 2-D scatter-geo map centered on a single state (or full US).
+
+    Counties are plotted as bubbles sized by population and colored by the
+    chosen metric.  Infrastructure-gap counties (>30 km to hospital) are
+    overlaid as red X markers when *show_infra* is True.
+    """
+    plot_df = _filter_continental(county_df).dropna(subset=["latitude", "longitude"]).copy()
+    if color_col not in plot_df.columns:
+        color_col = "risk_score"
+    plot_df = plot_df.dropna(subset=[color_col])
+    if plot_df.empty:
+        return
+
+    # Population → marker size (clamped 4–20)
+    if "total_population" in plot_df.columns:
+        pop = plot_df["total_population"].fillna(1000)
+        q95 = pop.quantile(0.95)
+        plot_df["_sz"] = np.clip(pop / (q95 if q95 > 0 else 1) * 14, 4, 20)
+    else:
+        plot_df["_sz"] = 7
+
+    # ── Primary scatter layer ────────────────────────────────────────
+    fig = px.scatter_geo(
+        plot_df,
+        lat="latitude", lon="longitude",
+        color=color_col, color_continuous_scale="RdYlGn_r",
+        size="_sz", size_max=20,
+        hover_name="county_name",
+        hover_data={
+            "risk_score": ":.3f",
+            "total_population": ":,",
+            color_col: ":.3f",
+            "_sz": False,
+            "latitude": False,
+            "longitude": False,
+        },
+    )
+
+    # ── Infrastructure gap overlay ───────────────────────────────────
+    if show_infra and "dist_nearest_hospitals_km" in plot_df.columns:
+        gaps = plot_df[
+            (plot_df["dist_nearest_hospitals_km"] > 30)
+            & plot_df["latitude"].notna()
+            & plot_df["longitude"].notna()
+        ]
+        if not gaps.empty:
+            fig.add_trace(go.Scattergeo(
+                lat=gaps["latitude"], lon=gaps["longitude"],
+                marker=dict(size=10, symbol="x", color="red", opacity=0.9),
+                text=gaps.apply(
+                    lambda r: f"{r['county_name']}<br>Hospital: {r['dist_nearest_hospitals_km']:.0f} km",
+                    axis=1,
+                ),
+                hovertemplate="%{text}<extra>Infra Gap</extra>",
+                name=f"Infra Gaps ({len(gaps)})",
+            ))
+
+    # ── Geo layout: center on state or national ──────────────────────
+    state_fips = STATE_NAME_TO_FIPS.get(state_name)
+    center = STATE_CENTERS.get(state_fips, {}) if state_fips else {}
+
+    geo_kw = dict(
+        scope="usa", showland=True, landcolor="#1a202c",
+        showlakes=True, lakecolor="#2d3748", bgcolor="rgba(0,0,0,0)",
+        showsubunits=True, subunitcolor="#4a5568",
+    )
+    if center:
+        geo_kw.update(
+            projection_type="albers usa",
+            center=dict(lat=center["lat"], lon=center["lon"]),
+            fitbounds="locations",
+        )
+    else:
+        geo_kw["fitbounds"] = "locations"
+
+    fig.update_geos(**geo_kw)
+    fig.update_layout(
+        template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
+        height=500, margin=dict(l=0, r=0, t=30, b=0),
+        coloraxis_colorbar=dict(
+            title=color_col.replace("_", " ").title(), thickness=15,
+        ),
+        legend=dict(x=0.01, y=0.01, bgcolor="rgba(0,0,0,0.5)"),
+        title=dict(
+            text=f"{color_col.replace('_', ' ').title()} — {state_name}",
+            font=dict(size=14),
+        ),
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -1104,10 +1221,19 @@ if df is not None:
         color_by = st.selectbox("Color by", ["risk_score", "vulnerability_index", "poverty_pct", "uninsured_pct", "elderly_pct", "disability_pct"], key="map_color")
         show_infra = st.checkbox("Overlay infrastructure gaps", value=True, key="map_infra")
 
-        map_tab_choro, map_tab_3d = st.tabs(["Choropleth", "3-D Landscape"])
+        map_tab_2d, map_tab_choro, map_tab_3d = st.tabs(
+            ["2-D State Map", "Choropleth", "3-D Landscape"]
+        )
+
+        with map_tab_2d:
+            render_2d_state_map(
+                focus_df,
+                state_name=fs,
+                color_col=color_by,
+                show_infra=show_infra,
+            )
 
         with map_tab_choro:
-            # Choropleth with filled county polygons
             infra_fips = set()
             if show_infra and "dist_nearest_hospitals_km" in focus_df.columns:
                 infra_fips = set(focus_df[focus_df["dist_nearest_hospitals_km"] > 30]["fips"])
