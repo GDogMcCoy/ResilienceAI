@@ -28,8 +28,24 @@ import plotly.express as px
 import plotly.graph_objects as go
 import requests as _requests
 
+# URL State Manager for bookmarkable views
+try:
+    from state.url_state_manager import URLStateManager
+    URL_STATE_AVAILABLE = True
+except ImportError:
+    URL_STATE_AVAILABLE = False
+
 # ── Constants ─────────────────────────────────────────────────────────
 EXCLUDED_STATE_FIPS = {"02", "15"}  # Alaska/Hawaii skew continental views
+
+# Colorblind-accessible color scales
+COLOR_SCALES = {
+    "viridis": "Viridis",      # Default - perceptually uniform, colorblind safe
+    "plasma": "Plasma",        # Alternative
+    "cividis": "Cividis",      # Optimized for colorblindness
+    "magma": "Magma",          # Dark background optimized
+    "RdYlGn_r": "RdYlGn_r",    # Legacy option
+}
 
 STATE_CENTERS = {
     "01": {"lat": 32.8, "lon": -86.8},  "04": {"lat": 34.3, "lon": -111.7},
@@ -148,10 +164,18 @@ def init_session_state():
         'query_input': "",
         'agentic_orchestrator': None,
         'chat_history': [],
+        'color_scale': 'viridis',
+        'map_color': 'risk_score',
+        'show_infra_gaps': True,
+        'query_highlighted_fips': set(),
     }
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
+
+# Sync from URL first (before init) to get any bookmarked state
+if URL_STATE_AVAILABLE:
+    URLStateManager.sync_from_url()
 
 init_session_state()
 
@@ -226,7 +250,7 @@ def render_3d_dot_matrix(
             x=bg["longitude"], y=bg["latitude"], z=bg[color_col],
             mode="markers",
             marker=dict(
-                size=bg["_sz"], color=bg[color_col], colorscale="RdYlGn_r",
+                size=bg["_sz"], color=bg[color_col], colorscale=COLOR_SCALES[st.session_state.get('color_scale', 'viridis')],
                 opacity=0.45, line=dict(width=0),
                 colorbar=dict(title=color_col.replace("_", " ").title(), thickness=12, len=0.6),
             ),
@@ -242,7 +266,7 @@ def render_3d_dot_matrix(
             x=hl["longitude"], y=hl["latitude"], z=hl[color_col],
             mode="markers+text",
             marker=dict(
-                size=hl["_sz"] * 1.5, color=hl[color_col], colorscale="RdYlGn_r",
+                size=hl["_sz"] * 1.5, color=hl[color_col], colorscale=COLOR_SCALES[st.session_state.get('color_scale', 'viridis')],
                 opacity=1.0, line=dict(width=2, color="white"),
             ),
             text=hl["county_name"].str.split(",").str[0] if "county_name" in hl.columns else hl.get("fips", ""),
@@ -302,7 +326,7 @@ def render_2d_state_map(
     fig = px.scatter_geo(
         plot_df,
         lat="latitude", lon="longitude",
-        color=color_col, color_continuous_scale="RdYlGn_r",
+        color=color_col, color_continuous_scale=COLOR_SCALES[st.session_state.get('color_scale', 'viridis')],
         size="_sz", size_max=20,
         hover_name="county_name",
         hover_data={
@@ -457,7 +481,7 @@ def render_choropleth_report_map(highlighted_fips, color_col="risk_score", title
     fig = px.choropleth(
         scope_df,
         geojson=geojson, locations="fips",
-        color=color_col, color_continuous_scale="RdYlGn_r",
+        color=color_col, color_continuous_scale=COLOR_SCALES[st.session_state.get('color_scale', 'viridis')],
         hover_name="county_name",
         hover_data=hover_data,
         title=title,
@@ -750,7 +774,7 @@ def render_tool_visuals(steps):
                         
                         fig = px.bar(rdf_top,
                                      x=score_col, y="county_name", orientation="h",
-                                     color=score_col, color_continuous_scale="RdYlGn_r",
+                                     color=score_col, color_continuous_scale=COLOR_SCALES[st.session_state.get('color_scale', 'viridis')],
                                      title=f"Top 5 Population-Weighted Risk Impact")
                         fig.update_layout(
                             template="plotly_dark", 
@@ -1059,6 +1083,17 @@ with st.sidebar:
 
     st.divider()
 
+    # Color scale selector for accessibility
+    color_scale = st.selectbox(
+        "Color Scale",
+        list(COLOR_SCALES.keys()),
+        index=0,
+        help="Viridis is recommended for accessibility (colorblind-friendly)"
+    )
+    st.session_state['color_scale'] = color_scale
+
+    st.divider()
+
     # Quick context stats for focused state
     if df is not None:
         fs = st.session_state.agent_config.get('focus_state', 'All States')
@@ -1073,6 +1108,10 @@ with st.sidebar:
 
     st.divider()
     st.caption("MUIDSI Hackathon 2026 | v3.3.0")
+
+# Sync state to URL after sidebar controls have been processed
+if URL_STATE_AVAILABLE:
+    URLStateManager.sync_to_url()
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1369,7 +1408,7 @@ if df is not None:
                 focus_df, x="vulnerability_index", y="isolation_index",
                 size="total_population", color="risk_score",
                 hover_name="county_name",
-                color_continuous_scale="RdYlGn_r",
+                color_continuous_scale=COLOR_SCALES[st.session_state.get('color_scale', 'viridis')],
                 title="Vulnerability vs Isolation"
             )
             # Overlay analyzed counties as cyan rings

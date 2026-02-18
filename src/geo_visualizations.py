@@ -17,8 +17,18 @@ class GeoVisualizer:
     Advanced geospatial visualization components
     """
     
-    def __init__(self, df: pd.DataFrame):
+    # Colorblind-accessible color scales
+    COLOR_SCALES = {
+        "viridis": "Viridis",      # Default - perceptually uniform, colorblind safe
+        "plasma": "Plasma",        # Alternative
+        "cividis": "Cividis",      # Optimized for colorblindness
+        "magma": "Magma",          # Dark background optimized
+        "RdYlGn_r": "RdYlGn_r",    # Legacy option
+    }
+
+    def __init__(self, df: pd.DataFrame, color_scale: str = "viridis"):
         self.df = df
+        self.selected_color_scale = self.COLOR_SCALES.get(color_scale, "Viridis")
         self.color_scales = {
             'risk': ['#2ecc71', '#f1c40f', '#e67e22', '#e74c3c', '#8e44ad'],
             'population': ['#3498db', '#2980b9', '#8e44ad', '#c0392b'],
@@ -28,7 +38,8 @@ class GeoVisualizer:
     def create_choropleth_map(self, value_column: str = 'risk_score',
                              geojson_url: str = None,
                              locations_column: str = 'fips',
-                             title: str = "Risk by County") -> go.Figure:
+                             title: str = "Risk by County",
+                             color_scale: str = None) -> go.Figure:
         """
         Create a choropleth map using US counties GeoJSON
         """
@@ -40,12 +51,14 @@ class GeoVisualizer:
         plot_df = self.df.copy()
         plot_df[locations_column] = plot_df[locations_column].astype(str).str.zfill(5)
         
+        # Use provided color_scale or fall back to instance default
+        plotly_colorscale = color_scale if color_scale else self.selected_color_scale
         fig = px.choropleth(
             plot_df,
             geojson=geojson_url,
             locations=locations_column,
             color=value_column,
-            color_continuous_scale=self.color_scales['risk'],
+            color_continuous_scale=plotly_colorscale,
             scope="usa",
             labels={value_column: value_column.replace('_', ' ').title()},
             title=title,
@@ -144,7 +157,7 @@ class GeoVisualizer:
         
         return fig
     
-    def create_3d_risk_landscape(self, value_column: str = 'risk_score') -> go.Figure:
+    def create_3d_risk_landscape(self, value_column: str = 'risk_score', color_scale: str = None) -> go.Figure:
         """
         Create a 3D scatter plot of risk dots on a 2D map base.
         Ensures a grounded horizontal axis and high-resolution representation.
@@ -163,7 +176,7 @@ class GeoVisualizer:
             marker=dict(
                 size=4,
                 color=plot_df[value_column],
-                colorscale='RdYlGn_r',
+                colorscale=color_scale if color_scale else self.selected_color_scale,
                 opacity=0.8,
                 showscale=True,
                 colorbar=dict(title=value_column.replace('_', ' ').title())
@@ -202,7 +215,7 @@ class GeoVisualizer:
         
         return fig
     
-    def create_state_choropleth(self, state_abbr: str, value_column: str = 'risk_score') -> go.Figure:
+    def create_state_choropleth(self, state_abbr: str, value_column: str = 'risk_score', color_scale: str = None) -> go.Figure:
         """
         Create a detailed choropleth for a single state
         """
@@ -213,12 +226,14 @@ class GeoVisualizer:
             return None
         
         # Create choropleth focused on state
+        # Use provided color_scale or fall back to instance default
+        plotly_colorscale = color_scale if color_scale else self.selected_color_scale
         fig = px.choropleth(
             state_df,
             geojson="https://raw.githubusercontent.com/plotly/datasets/master/geojson-counties-fips.json",
             locations='fips',
             color=value_column,
-            color_continuous_scale=self.color_scales['risk'],
+            color_continuous_scale=plotly_colorscale,
             scope="usa",
             title=f"{state_abbr} County {value_column.replace('_', ' ').title()}"
         )
@@ -234,7 +249,7 @@ class GeoVisualizer:
         return fig
     
     def create_heatmap(self, x_column: str = 'longitude', y_column: str = 'latitude',
-                      value_column: str = 'risk_score') -> go.Figure:
+                      value_column: str = 'risk_score', color_scale: str = None) -> go.Figure:
         """
         Create a 2D heatmap of risk
         """
@@ -249,7 +264,7 @@ class GeoVisualizer:
             z=value_column,
             nbinsx=50,
             nbinsy=50,
-            color_continuous_scale=self.color_scales['risk'],
+            color_continuous_scale=color_scale if color_scale else self.selected_color_scale,
             title=f"{value_column.replace('_', ' ').title()} Heatmap"
         )
         

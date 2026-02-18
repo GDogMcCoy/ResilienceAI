@@ -1,0 +1,199 @@
+{
+  "timestamp": "2026-02-17T20:05:15.765961",
+  "status": "PASSED",
+  "sections": {
+    "Source Data": {
+      "status": "PASS",
+      "file_path": "C:\\Users\\powel\\Desktop\\MUIDSI Hackathon\\resilienceai\\data\\processed\\county_features.csv",
+      "file_exists": true,
+      "readable": true,
+      "row_count": 3222,
+      "column_count": 66,
+      "required_columns_present": true,
+      "missing_columns": [],
+      "fips_dtype": "object",
+      "fips_is_string": true,
+      "nan_in_critical": {},
+      "sample_fips": "01001",
+      "sample_county": "Autauga County, Alabama",
+      "_df": "       fips  ... top_intervention_score\n0     01001  ...                 0.1513\n1     01003  ...                 0.2209\n2     01005  ...                 0.3067\n3     01007  ...                 0.2768\n4     01009  ...                 0.1940\n...     ...  ...                    ...\n3217  72145  ...                 0.6462\n3218  72147  ...                 0.8202\n3219  72149  ...                 0.6392\n3220  72151  ...                 0.7521\n3221  72153  ...                 0.6544\n\n[3222 rows x 66 columns]"
+    },
+    "Agent Data Loading": {
+      "status": "PASS",
+      "agent_initialized": true,
+      "df_loaded": true,
+      "df_shape": [
+        3222,
+        66
+      ],
+      "fips_dtype": "object",
+      "nan_in_critical": {}
+    },
+    "Tool Data Access": {
+      "status": "PASS",
+      "query_counties_works": true,
+      "query_counties_result_count": 5,
+      "query_counties_sorted": true,
+      "query_counties_sample_keys": [
+        "fips",
+        "county_name",
+        "total_population",
+        "median_income",
+        "poverty_count"
+      ],
+      "get_county_detail_works": true,
+      "get_county_detail_is_dict": true,
+      "get_county_detail_has_fips": true,
+      "get_county_detail_sample_keys": [
+        "fips",
+        "county_name",
+        "total_population",
+        "median_income",
+        "poverty_count"
+      ],
+      "get_climate_trends_works": true,
+      "get_climate_trends_is_dict": true,
+      "has_fips": true,
+      "has_trends": true,
+      "has_county_name": true,
+      "has_population": true,
+      "trends_has_mean_temp": true,
+      "mean_temp_has_mean": true
+    },
+    "Climate Data": {
+      "status": "PASS",
+      "acis_client_init": true,
+      "acis_cache_dir": "C:\\Users\\powel\\Desktop\\MUIDSI Hackathon\\resilienceai\\data\\cache\\acis",
+      "acis_cache_exists": true,
+      "get_climate_trends_returns_dict": true,
+      "trends_structure": {
+        "has_fips": true,
+        "has_start_year": true,
+        "has_end_year": true,
+        "has_record_count": true,
+        "has_records": true,
+        "has_trends": true
+      },
+      "trends_keys": [
+        "max_temp",
+        "min_temp",
+        "mean_temp",
+        "precip"
+      ],
+      "mean_temp_has_slope": true,
+      "mean_temp_has_mean": true,
+      "mean_temp_has_direction": true,
+      "max_temp_has_slope": true,
+      "max_temp_has_mean": true,
+      "max_temp_has_direction": true,
+      "min_temp_has_slope": true,
+      "min_temp_has_mean": true,
+      "min_temp_has_direction": true,
+      "precip_has_slope": true,
+      "precip_has_mean": true,
+      "precip_has_direction": true,
+      "climate_intel_client_init": true,
+      "has_acis": true,
+      "has_nri": true
+    },
+    "Cache System": {
+      "status": "PASS",
+      "cache_dir": "C:\\Users\\powel\\Desktop\\MUIDSI Hackathon\\resilienceai\\data\\cache",
+      "cache_dir_exists": true,
+      "cache_dir_writable": true,
+      "cache_subdirectories": [
+        "acis",
+        "drought",
+        "fema_nri",
+        "severe_weather",
+        "usgs_nwis"
+      ],
+      "nri_cache_exists": true,
+      "nri_cache_files": [
+        "nri_counties.csv",
+        "nri_counties.zip"
+      ],
+      "corrupt_cache_files": [],
+      "acis_cache_exists": true,
+      "acis_cached_requests": 20
+    },
+    "Model Artifacts": {
+      "status": "PASS",
+      "models_dir": "C:\\Users\\powel\\Desktop\\MUIDSI Hackathon\\resilienceai\\models",
+      "models_dir_exists": true,
+      "pkl_files": [
+        "best_model.pkl",
+        "feature_names.pkl",
+        "label_encoder.pkl",
+        "model_gradient_boosting.pkl",
+        "model_logistic_regression.pkl",
+        "model_neural_network.pkl",
+        "model_random_forest.pkl",
+        "scaler.pkl"
+      ],
+      "pkl_count": 8,
+      "load_results": {
+        "best_model.pkl": {
+          "loaded": true,
+          "type": "LogisticRegression",
+          "has_coef": true
+        },
+        "feature_names.pkl": {
+          "loaded": true,
+          "type": "list"
+        },
+        "label_encoder.pkl": {
+          "loaded": true,
+          "type": "LabelEncoder"
+        },
+        "model_gradient_boosting.pkl": {
+          "loaded": true,
+          "type": "GradientBoostingClassifier",
+          "has_feature_importances": true
+        },
+        "model_logistic_regression.pkl": {
+          "loaded": true,
+          "type": "LogisticRegression",
+          "has_coef": true
+        },
+        "model_neural_network.pkl": {
+          "loaded": true,
+          "type": "MLPClassifier"
+        },
+        "model_random_forest.pkl": {
+          "loaded": true,
+          "type": "RandomForestClassifier",
+          "has_feature_importances": true
+        },
+        "scaler.pkl": {
+          "loaded": true,
+          "type": "StandardScaler",
+          "feature_count": 25
+        }
+      },
+      "feature_names_exists": true,
+      "feature_names_loaded": true,
+      "feature_names_count": 25,
+      "feature_names_sample": [
+        "total_population",
+        "median_income",
+        "elderly_pct",
+        "poverty_pct",
+        "disability_pct"
+      ],
+      "data_feature_count": 60,
+      "feature_names_match": 0.4166666666666667,
+      "agent_config_exists": true,
+      "agent_config_valid": true,
+      "agent_config_keys": [
+        "name",
+        "description",
+        "system_prompt",
+        "tools",
+        "model",
+        "temperature"
+      ],
+      "tool_count": 19
+    }
+  }
+}

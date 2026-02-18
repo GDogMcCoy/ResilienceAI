@@ -309,6 +309,21 @@ def get_working_tool_schemas() -> List[Dict]:
                 }
             }
         },
+        # ── Air Quality Tools (via AirNow API) ────────────────────────────
+        {
+            "type": "function",
+            "function": {
+                "name": "get_air_quality",
+                "description": "Get current air quality index (AQI) and health recommendations for a ZIP code. Returns AQI value (0-500), category (Good/Moderate/Unhealthy/etc.), primary pollutant, and health guidance.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "zip_code": {"type": "string", "description": "5-digit US ZIP code (e.g. '20500' for Washington DC)"}
+                    },
+                    "required": ["zip_code"]
+                }
+            }
+        },
     ]
 
 
@@ -448,6 +463,7 @@ class AgenticOrchestrator:
                 "get_mo_health_disparities": lambda **kw: self.agent.get_mo_health_disparities(**kw),
                 "calculate_intervention_roi": lambda **kw: self.agent.calculate_intervention_roi(**kw),
                 "simulate_scenario": lambda **kw: self.agent.simulate_scenario(**kw),
+                "get_air_quality": lambda **kw: self.agent.get_air_quality(kw.get("zip_code")),
             })
         # Wire climate tools if ClimateAgent is available (independent of ResilienceAgent)
         # NOTE: ClimateAgent.execute_tool(name, params) expects params as a single dict,

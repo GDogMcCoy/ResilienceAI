@@ -296,6 +296,11 @@ class ResilienceAgent:
         from src.climate_client import ClimateIntelligenceClient
         return ClimateIntelligenceClient().nri.get_hazard_risk_profile(fips)
 
+    def get_air_quality(self, zip_code: str):
+        """Get current air quality index and health recommendations for a ZIP code."""
+        from src.air_quality_client import AirNowClient
+        return AirNowClient().get_current_aqi(zip_code)
+
     def project_climate_risk_enhanced(self, fips, scenario="ssp2_45"):
         from src.agents.climate_agent import ClimateAgent
         return ClimateAgent()._project_climate_risk_enhanced(fips, scenario, 30)
