@@ -177,6 +177,11 @@ if df is not None:
 # HELPERS — Continental filter + 3-D dot-matrix builder
 # ═══════════════════════════════════════════════════════════════════════
 
+def _is_numeric(val) -> bool:
+    """Check if a value is numeric (handles numpy int64/float64 + Python native)."""
+    return isinstance(val, (int, float, np.integer, np.floating))
+
+
 def _filter_continental(frame: pd.DataFrame) -> pd.DataFrame:
     """Drop Alaska / Hawaii rows so maps stay on the continental US."""
     if "fips" in frame.columns:
@@ -554,8 +559,8 @@ def render_tool_visuals(steps):
                     m1, m2, m3, m4 = st.columns(4)
                     m1.metric("Highest Risk", top_county.get('county_name', 'N/A').split(',')[0])
                     m2.metric("Risk Score", f"{top_county.get('risk_score', 0):.3f}")
-                    m3.metric("Population", f"{top_county.get('total_population', 0):,}" if isinstance(top_county.get('total_population'), (int, float)) else "N/A")
-                    m4.metric("Poverty", f"{top_county.get('poverty_pct', 0):.1f}%" if isinstance(top_county.get('poverty_pct'), (int, float)) else "N/A")
+                    m3.metric("Population", f"{top_county.get('total_population', 0):,}" if _is_numeric(top_county.get('total_population')) else "N/A")
+                    m4.metric("Poverty", f"{top_county.get('poverty_pct', 0):.1f}%" if _is_numeric(top_county.get('poverty_pct')) else "N/A")
 
                     # Collapsible full table
                     if len(rdf) > 0:
@@ -575,13 +580,13 @@ def render_tool_visuals(steps):
                     cname = data.get("county_name", "County")
                     st.markdown(f"**📍 {cname}**")
                     c1, c2, c3, c4, c5, c6 = st.columns(6)
-                    c1.metric("Population", f"{data.get('total_population', 'N/A'):,}" if isinstance(data.get('total_population'), (int, float)) else "N/A")
-                    c2.metric("Risk Score", f"{data.get('risk_score', 'N/A'):.3f}" if isinstance(data.get('risk_score'), (int, float)) else "N/A")
+                    c1.metric("Population", f"{data.get('total_population', 'N/A'):,}" if _is_numeric(data.get('total_population')) else "N/A")
+                    c2.metric("Risk Score", f"{data.get('risk_score', 'N/A'):.3f}" if _is_numeric(data.get('risk_score')) else "N/A")
                     c3.metric("Risk Level", data.get("risk_level", "N/A"))
-                    c4.metric("Poverty", f"{data.get('poverty_pct', 'N/A'):.1f}%" if isinstance(data.get('poverty_pct'), (int, float)) else "N/A")
-                    c5.metric("Uninsured", f"{data.get('uninsured_pct', 'N/A'):.1f}%" if isinstance(data.get('uninsured_pct'), (int, float)) else "N/A")
+                    c4.metric("Poverty", f"{data.get('poverty_pct', 'N/A'):.1f}%" if _is_numeric(data.get('poverty_pct')) else "N/A")
+                    c5.metric("Uninsured", f"{data.get('uninsured_pct', 'N/A'):.1f}%" if _is_numeric(data.get('uninsured_pct')) else "N/A")
                     hosp = data.get("dist_nearest_hospitals_km")
-                    c6.metric("Hospital Dist", f"{hosp:.1f} km" if isinstance(hosp, (int, float)) else "N/A")
+                    c6.metric("Hospital Dist", f"{hosp:.1f} km" if _is_numeric(hosp) else "N/A")
 
             # ── Infrastructure density: compact cards ──────────────────
             elif name == "get_infrastructure_density":
@@ -608,7 +613,7 @@ def render_tool_visuals(steps):
                     amplification = data.get("amplification_factor", data.get("risk_amplification", "N/A"))
                     c1.metric("Neighbors", neighbors)
                     c2.metric("High-Risk", high_risk)
-                    c3.metric("Amplification", f"{amplification}x" if isinstance(amplification, (int, float)) else amplification)
+                    c3.metric("Amplification", f"{amplification}x" if _is_numeric(amplification) else amplification)
                     
                     # Show neighbor list in expander if available
                     neighbor_list = data.get("neighbors", [])
@@ -711,7 +716,7 @@ def render_tool_visuals(steps):
                     pop_affected = data.get('total_population_affected', data.get('population_at_risk', 0))
                     counties_affected = data.get("counties_affected", data.get("affected_county_count", "N/A"))
                     damage = data.get("estimated_damage", data.get("infrastructure_damage_estimate", "N/A"))
-                    c1.metric("Population at Risk", f"{pop_affected:,}" if isinstance(pop_affected, (int, float)) else str(pop_affected))
+                    c1.metric("Population at Risk", f"{pop_affected:,}" if _is_numeric(pop_affected) else str(pop_affected))
                     c2.metric("Counties Affected", counties_affected)
                     c3.metric("Est. Damage", damage if isinstance(damage, str) else f"${damage:,}")
                     
@@ -795,11 +800,11 @@ def render_tool_visuals(steps):
                     county_name = data.get("county_name", f"FIPS {fips}")
                     st.markdown(f"**🌡️ Climate Trends** — {county_name}")
                     c1, c2, c3, c4 = st.columns(4)
-                    c1.metric("Avg Temp", f"{avg_temp:.1f}°F" if isinstance(avg_temp, (int, float)) else "N/A")
-                    c2.metric("Temp Trend", f"{temp_trend:+.3f}°F/dec" if isinstance(temp_trend, (int, float)) else "N/A")
-                    c3.metric("Avg Precip", f"{avg_precip:.1f}\"" if isinstance(avg_precip, (int, float)) else "N/A")
+                    c1.metric("Avg Temp", f"{avg_temp:.1f}°F" if _is_numeric(avg_temp) else "N/A")
+                    c2.metric("Temp Trend", f"{temp_trend:+.3f}°F/dec" if _is_numeric(temp_trend) else "N/A")
+                    c3.metric("Avg Precip", f"{avg_precip:.1f}\"" if _is_numeric(avg_precip) else "N/A")
                     pop = data.get("total_population")
-                    c4.metric("Population", f"{pop:,}" if isinstance(pop, (int, float)) else "N/A")
+                    c4.metric("Population", f"{pop:,}" if _is_numeric(pop) else "N/A")
 
             # ── Hazard risk profile: top hazards bar chart ─────────────
             elif name == "get_hazard_risk_profile":
@@ -814,9 +819,9 @@ def render_tool_visuals(steps):
                     c1, c2, c3 = st.columns(3)
                     c1.metric("Risk Rating", data.get("risk_rating", "N/A"))
                     eal = data.get("expected_annual_loss", 0)
-                    c2.metric("Expected Annual Loss", f"${eal:,.0f}" if isinstance(eal, (int, float)) else "N/A")
+                    c2.metric("Expected Annual Loss", f"${eal:,.0f}" if _is_numeric(eal) else "N/A")
                     svi = data.get("social_vulnerability", data.get("sovi_rating", "N/A"))
-                    c3.metric("Social Vulnerability", f"{svi:.1f}" if isinstance(svi, (int, float)) else svi)
+                    c3.metric("Social Vulnerability", f"{svi:.1f}" if _is_numeric(svi) else svi)
 
                     # Handle hazard_scores dict structure from NRI
                     hazard_scores = data.get("hazard_scores", {})
@@ -917,8 +922,8 @@ def render_tool_visuals(steps):
                     proj = data.get("projection", {})
                     st.markdown(f"**📈 Climate Projection** — {data.get('scenario', 'SSP2-4.5')} ({data.get('horizon_years', 30)}yr)")
                     c1, c2, c3 = st.columns(3)
-                    c1.metric("Temp Change", f"+{proj.get('temp_change_f', 'N/A')}°F" if isinstance(proj.get('temp_change_f'), (int, float)) else "N/A")
-                    c2.metric("Precip Change", f"{proj.get('precip_change_pct', 'N/A')}%" if isinstance(proj.get('precip_change_pct'), (int, float)) else "N/A")
+                    c1.metric("Temp Change", f"+{proj.get('temp_change_f', 'N/A')}°F" if _is_numeric(proj.get('temp_change_f')) else "N/A")
+                    c2.metric("Precip Change", f"{proj.get('precip_change_pct', 'N/A')}%" if _is_numeric(proj.get('precip_change_pct')) else "N/A")
                     c3.metric("Extreme Events", f"{proj.get('extreme_event_multiplier', 'N/A')}x")
 
         except Exception:
@@ -1067,7 +1072,7 @@ with st.sidebar:
             c4.metric("Poverty", f"{ctx_df['poverty_pct'].mean():.1f}%")
 
     st.divider()
-    st.caption("MUIDSI Hackathon 2026 | v3.2.0")
+    st.caption("MUIDSI Hackathon 2026 | v3.3.0")
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1143,9 +1148,9 @@ if should_run:
 
     if st.session_state.agentic_orchestrator:
         orch = st.session_state.agentic_orchestrator
-        # Apply effort settings
-        effort_cfg = {"Low": (2, 512), "Medium": (4, 1024), "High": (6, 2048)}
-        orch.max_tool_rounds, orch._max_tokens = effort_cfg.get(effort, (2, 1024))
+        # Apply effort settings (rounds, max_tokens)
+        effort_cfg = {"Low": (3, 2048), "Medium": (6, 4096), "High": (10, 8192)}
+        orch.max_tool_rounds, orch._max_tokens = effort_cfg.get(effort, (6, 4096))
 
         with st.status(f"Reasoning ({effort.lower()})...", expanded=True) as status:
             st.write("Query sent to LLM...")
@@ -1416,4 +1421,4 @@ if df is not None:
 
 # -- Footer -------------------------------------------------------------
 st.divider()
-st.caption("ResilienceAI v3.2.0 | MUIDSI Hackathon 2026 | Gemini + Local LLM Backends | 45+ MCP Tools")
+st.caption("ResilienceAI v3.3.0 | MUIDSI Hackathon 2026 | Gemini + Local LLM Backends | 45+ MCP Tools")

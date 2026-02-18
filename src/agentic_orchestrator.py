@@ -401,6 +401,7 @@ class AgenticOrchestrator:
 
         # Initialize the data agent
         self.agent = None
+        self.climate_agent = None  # Initialize BEFORE _init_agent to ensure attribute exists
         self._init_agent()
 
         # Tool schemas for the LLM
@@ -723,11 +724,11 @@ class AgenticOrchestrator:
 
         # Agentic loop
         for round_num in range(self.max_tool_rounds):
-            # REFLECTION STEP: Before calling LLM, force synthesis if we have tool results
-            if round_num > 0 and tools_used:
+            # REFLECTION STEP: Periodic check-in (every 3 rounds) to avoid context bloat
+            if round_num > 0 and round_num % 3 == 0 and tools_used:
                 messages.append({
                     "role": "user",
-                    "content": f"REFLECTION ROUND {round_num}: You have used {len(tools_used)} tool(s) so far: {', '.join(tools_used)}. Analyze what you've learned, identify gaps, and decide what to investigate next. If you've gathered enough data, synthesize. Otherwise, continue with more tools to meet the minimum 3-tool requirement."
+                    "content": f"You have used {len(tools_used)} tools so far: {', '.join(set(tools_used))}. If you have enough data, synthesize your final answer now. Otherwise, continue investigating."
                 })
 
             try:
@@ -853,24 +854,16 @@ class AgenticOrchestrator:
                     tool_result=result,
                 ))
 
-                # Feed result back to LLM with recursive rumination prompt
+                # Feed result back to LLM
                 result_str = json.dumps(result, default=str)
-                # Truncate to keep LLM context lean
-                if len(result_str) > 2000:
-                    result_str = result_str[:2000] + '...(truncated)'
+                if len(result_str) > 4000:
+                    result_str = result_str[:4000] + '...(truncated)'
 
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tool_id,
                     "content": result_str,
                 })
-
-                # Add recursive rumination prompt to encourage deeper analysis
-                if round_num < self.max_tool_rounds - 1 and effort != "Low":
-                    messages.append({
-                        "role": "user",
-                        "content": "What connections can you make from these results? What patterns emerge? What would you investigate next to gain deeper insights? Consider cross-referencing with other data sources."
-                    })
 
         # Max rounds reached - FORCE synthesis with cross-domain connection requirements
         messages.append({
