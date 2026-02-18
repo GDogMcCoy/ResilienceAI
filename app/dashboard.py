@@ -267,13 +267,16 @@ def render_2d_state_map(
     state_name: str = "All States",
     color_col: str = "risk_score",
     show_infra: bool = True,
+    highlighted_fips: set | None = None,
 ):
     """
     Flat 2-D scatter-geo map centered on a single state (or full US).
 
     Counties are plotted as bubbles sized by population and colored by the
     chosen metric.  Infrastructure-gap counties (>30 km to hospital) are
-    overlaid as red X markers when *show_infra* is True.
+    overlaid as red X markers when *show_infra* is True.  Optional
+    *highlighted_fips* set renders cyan diamond markers for query-analyzed
+    counties.
     """
     plot_df = _filter_continental(county_df).dropna(subset=["latitude", "longitude"]).copy()
     if color_col not in plot_df.columns:
@@ -324,6 +327,20 @@ def render_2d_state_map(
                 ),
                 hovertemplate="%{text}<extra>Infra Gap</extra>",
                 name=f"Infra Gaps ({len(gaps)})",
+            ))
+
+    # ── Query-analyzed county overlay (cyan diamonds) ────────────────
+    if highlighted_fips and "fips" in plot_df.columns:
+        hl = plot_df[plot_df["fips"].isin(highlighted_fips)]
+        if not hl.empty:
+            fig.add_trace(go.Scattergeo(
+                lat=hl["latitude"], lon=hl["longitude"],
+                marker=dict(size=12, symbol="diamond", color="cyan", opacity=0.95,
+                            line=dict(width=1, color="white")),
+                text=hl.apply(
+                    lambda r: f"{r['county_name']}<br>{color_col}: {r.get(color_col, 'N/A')}", axis=1),
+                hovertemplate="%{text}<extra>Analyzed</extra>",
+                name=f"Analyzed ({len(hl)})",
             ))
 
     # ── Geo layout: center on state or national ──────────────────────
@@ -925,6 +942,16 @@ def render_tool_visuals(steps):
         st.divider()
         render_choropleth_report_map(valid_fips, color_col=best_color_col, title=map_title)
 
+    # ── Persist query-derived state for reactive Data Explorer panels ──
+    st.session_state.query_highlighted_fips = valid_fips
+    st.session_state.query_color_col = best_color_col
+
+    # Derive state names from FIPS for sidebar auto-focus
+    fips_to_name = {v: k for k, v in STATE_NAME_TO_FIPS.items()}
+    detected_states = {fips_to_name.get(f[:2]) for f in valid_fips if len(f) >= 5}
+    detected_states.discard(None)
+    st.session_state.query_states = detected_states
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # SIDEBAR — Controls & Context
@@ -1112,6 +1139,7 @@ with st.form("query_form", clear_on_submit=True):
 should_run = submit_q and query_text
 if should_run:
     st.session_state.query_input = ""
+    st.session_state.query_text_display = query_text
     effort = st.session_state.agent_config.get('reasoning_effort', 'Medium')
 
     if st.session_state.agentic_orchestrator:
@@ -1168,6 +1196,14 @@ if st.session_state.last_agent_response is not None:
         # ── Inline Tool Visualizations ─────────────────────────────
         render_tool_visuals(res.steps)
 
+        # Auto-focus sidebar to query's state if single-state query
+        qs = st.session_state.get("query_states", set())
+        if len(qs) == 1:
+            detected = next(iter(qs))
+            if st.session_state.agent_config.get("focus_state") != detected:
+                st.session_state.agent_config["focus_state"] = detected
+                st.rerun()
+
         # Reasoning trace
         with st.expander(f"Reasoning Trace ({len(res.steps)} steps)", expanded=False):
             for step in res.steps:
@@ -1216,6 +1252,17 @@ if df is not None:
     focus_df = _filter_continental(focus_df)
     state_label = fs if fs != "All States" else "National"
 
+    # ── Query-reactive context banner ──────────────────────────────────
+    query_fips = st.session_state.get("query_highlighted_fips", set())
+    query_text = st.session_state.get("query_text_display", "")
+    if query_fips and query_text:
+        col_banner, col_reset = st.columns([5, 1])
+        col_banner.info(f"Reflecting: *{query_text}*  ({len(query_fips)} counties analyzed)")
+        if col_reset.button("Reset", key="reset_query_focus"):
+            for k in ("query_highlighted_fips", "query_color_col", "query_states", "query_text_display"):
+                st.session_state.pop(k, None)
+            st.rerun()
+
     # ── Panel 1: Multi-Layer Vulnerability Map ──────────────────────────
     with st.expander(f"🗺️ Vulnerability Map — {state_label} ({len(focus_df):,} counties)", expanded=False):
         color_by = st.selectbox("Color by", ["risk_score", "vulnerability_index", "poverty_pct", "uninsured_pct", "elderly_pct", "disability_pct"], key="map_color")
@@ -1231,14 +1278,16 @@ if df is not None:
                 state_name=fs,
                 color_col=color_by,
                 show_infra=show_infra,
+                highlighted_fips=query_fips,
             )
 
         with map_tab_choro:
             infra_fips = set()
             if show_infra and "dist_nearest_hospitals_km" in focus_df.columns:
                 infra_fips = set(focus_df[focus_df["dist_nearest_hospitals_km"] > 30]["fips"])
+            highlight_set = infra_fips | query_fips
             render_choropleth_report_map(
-                highlighted_fips=infra_fips,
+                highlighted_fips=highlight_set,
                 color_col=color_by,
                 title=f"{color_by.replace('_', ' ').title()} — {state_label}",
                 scope_df=focus_df,
@@ -1246,7 +1295,7 @@ if df is not None:
 
         with map_tab_3d:
             render_3d_dot_matrix(
-                focus_df, set(),
+                focus_df, query_fips,
                 color_col=color_by,
                 title=f"3-D {color_by.replace('_', ' ').title()} — {state_label}",
             )
@@ -1296,9 +1345,16 @@ if df is not None:
 
         with col_table:
             worst = focus_df.nlargest(10, 'dist_nearest_hospitals_km')[
-                ['county_name', 'dist_nearest_hospitals_km', 'count_hospitals_50km', 'risk_level']
+                ['county_name', 'dist_nearest_hospitals_km', 'count_hospitals_50km', 'risk_level', 'fips']
             ].copy()
-            worst.columns = ['County', 'Hospital km', 'Hosp. in 50km', 'Risk']
+            if query_fips:
+                worst["Analyzed"] = worst["fips"].isin(query_fips).map({True: "\u2713", False: ""})
+                worst = worst.sort_values("Analyzed", ascending=False, kind="stable")
+                worst = worst.drop(columns=["fips"])
+                worst.columns = ['County', 'Hospital km', 'Hosp. in 50km', 'Risk', '\u2713']
+            else:
+                worst = worst.drop(columns=["fips"])
+                worst.columns = ['County', 'Hospital km', 'Hosp. in 50km', 'Risk']
             st.dataframe(worst, use_container_width=True, hide_index=True)
 
     # ── Panel 3: State Risk Profile ────────────────────────────────────
@@ -1312,6 +1368,19 @@ if df is not None:
                 color_continuous_scale="RdYlGn_r",
                 title="Vulnerability vs Isolation"
             )
+            # Overlay analyzed counties as cyan rings
+            if query_fips and "fips" in focus_df.columns:
+                hl_df = focus_df[focus_df["fips"].isin(query_fips)]
+                if not hl_df.empty:
+                    fig.add_trace(go.Scatter(
+                        x=hl_df["vulnerability_index"], y=hl_df["isolation_index"],
+                        mode="markers",
+                        marker=dict(size=14, color="rgba(0,0,0,0)", line=dict(width=2, color="cyan")),
+                        text=hl_df["county_name"],
+                        hovertemplate="<b>%{text}</b><extra>Analyzed</extra>",
+                        name="Analyzed",
+                        showlegend=True,
+                    ))
             fig.update_layout(
                 template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             )
@@ -1319,9 +1388,16 @@ if df is not None:
 
         with col_table2:
             top = focus_df.nlargest(10, "risk_score")[
-                ["county_name", "risk_score", "total_population", "poverty_pct", "uninsured_pct"]
+                ["county_name", "risk_score", "total_population", "poverty_pct", "uninsured_pct", "fips"]
             ].copy()
-            top.columns = ["County", "Risk", "Population", "Poverty %", "Uninsured %"]
+            if query_fips:
+                top["Analyzed"] = top["fips"].isin(query_fips).map({True: "\u2713", False: ""})
+                top = top.sort_values("Analyzed", ascending=False, kind="stable")
+                top = top.drop(columns=["fips"])
+                top.columns = ["County", "Risk", "Population", "Poverty %", "Uninsured %", "\u2713"]
+            else:
+                top = top.drop(columns=["fips"])
+                top.columns = ["County", "Risk", "Population", "Poverty %", "Uninsured %"]
             st.dataframe(top, use_container_width=True, hide_index=True)
 
         # Disparity bar chart
