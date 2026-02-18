@@ -12,6 +12,13 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).parent.parent / ".env")
+except ImportError:
+    pass
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -54,8 +61,8 @@ st.markdown("""
 def init_session_state():
     defaults = {
         'agent_config': {
-            'lm_key': os.environ.get("LM_STUDIO_API_KEY", "sk-lm-17g8iJ72:Jkqk55kdkSVRwtUfklSj"),
-            'gemini_key': os.environ.get("GEMINI_API_KEY", "AIzaSyCEw7kaEic59l7O3mMAw0ObtxCO5sztJ7o"),
+            'lm_key': os.environ.get("LM_STUDIO_API_KEY", ""),
+            'gemini_key': os.environ.get("GEMINI_API_KEY", ""),
             'lm_url': 'http://localhost:1234',
             'reasoning_effort': 'Medium',
             'focus_state': 'Missouri',

@@ -8,6 +8,7 @@ The LLM decides which tools to call, reads results, chains multi-step
 analysis, and synthesizes novel insights from real data.
 """
 import json
+import os
 import re
 import time
 import requests
@@ -446,14 +447,16 @@ class AgenticOrchestrator:
                 "simulate_scenario": lambda **kw: self.agent.simulate_scenario(**kw),
             })
         # Wire climate tools if ClimateAgent is available (independent of ResilienceAgent)
+        # NOTE: ClimateAgent.execute_tool(name, params) expects params as a single dict,
+        # NOT **kwargs. Pass kw directly, not unpacked.
         if self.climate_agent:
-            executors["get_climate_trends"] = lambda **kw: self.climate_agent.execute_tool("get_climate_trends", **kw)
-            executors["get_hazard_risk_profile"] = lambda **kw: self.climate_agent.execute_tool("get_hazard_risk_profile", **kw)
-            executors["get_flood_frequency"] = lambda **kw: self.climate_agent.execute_tool("get_flood_frequency", **kw)
-            executors["get_severe_weather_history"] = lambda **kw: self.climate_agent.execute_tool("get_severe_weather_history", **kw)
-            executors["get_drought_history"] = lambda **kw: self.climate_agent.execute_tool("get_drought_history", **kw)
-            executors["compare_climate_trends"] = lambda **kw: self.climate_agent.execute_tool("compare_climate_trends", **kw)
-            executors["project_climate_risk_enhanced"] = lambda **kw: self.climate_agent.execute_tool("project_climate_risk_enhanced", **kw)
+            executors["get_climate_trends"] = lambda **kw: self.climate_agent.execute_tool("get_climate_trends", kw)
+            executors["get_hazard_risk_profile"] = lambda **kw: self.climate_agent.execute_tool("get_hazard_risk_profile", kw)
+            executors["get_flood_frequency"] = lambda **kw: self.climate_agent.execute_tool("get_flood_frequency", kw)
+            executors["get_severe_weather_history"] = lambda **kw: self.climate_agent.execute_tool("get_severe_weather_history", kw)
+            executors["get_drought_history"] = lambda **kw: self.climate_agent.execute_tool("get_drought_history", kw)
+            executors["compare_climate_trends"] = lambda **kw: self.climate_agent.execute_tool("compare_climate_trends", kw)
+            executors["project_climate_risk_enhanced"] = lambda **kw: self.climate_agent.execute_tool("project_climate_risk_enhanced", kw)
         return executors
 
     def _call_llm(self, messages: List[Dict], tools: Optional[List[Dict]] = None) -> Dict:
@@ -933,7 +936,7 @@ if __name__ == "__main__":
     import sys
 
     orchestrator = AgenticOrchestrator(
-        api_key="sk-lm-17g8iJ72:Jkqk55kdkSVRwtUfklSj",
+        api_key=os.environ.get("LM_STUDIO_API_KEY", ""),
     )
 
     info = orchestrator.get_agent_info()
