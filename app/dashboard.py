@@ -1166,11 +1166,14 @@ for tab, tab_name in zip(tabs, tab_names):
                     st.session_state.query_input = query
                     st.rerun()  # Refresh to show the populated query in the text box
 
-# Query form — populate text area from preset if selected
+# Query form — populate text area from preset or clear after submission
 _initial_query = st.session_state.pop('query_input', "") or ""
+_pending_clear = st.session_state.pop('_clear_query', False)
 if _initial_query:
     st.session_state.query_text_widget = _initial_query
     st.info("Preset query loaded. Edit if needed, then click **Analyze**.")
+elif _pending_clear:
+    st.session_state.query_text_widget = ""
 
 with st.form("query_form", clear_on_submit=False):
     query_text = st.text_area(
@@ -1186,7 +1189,7 @@ with st.form("query_form", clear_on_submit=False):
 submitted_query = (query_text or "").strip()
 should_run = submit_q and submitted_query
 if should_run:
-    st.session_state.query_text_widget = ""  # Clear text area for next query
+    st.session_state._clear_query = True  # Clear text area on NEXT rerun (can't modify widget key after render)
     st.session_state.query_text_display = submitted_query
     effort = st.session_state.agent_config.get('reasoning_effort', 'Medium')
 
