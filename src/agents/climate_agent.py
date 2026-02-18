@@ -18,7 +18,7 @@ class ClimateAgent(BaseAgent):
 
     name = "climate_agent"
     description = "Climate trend analysis, hazard risk profiles, flood frequency, severe weather, drought monitoring, and satellite indicators"
-    version = "2.0.0"
+    version = "3.2.0"
     
     intent_keywords = [
         "climate", "temperature", "precipitation", "drought", "flood frequency",

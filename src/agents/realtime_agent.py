@@ -16,7 +16,7 @@ class RealtimeAgent(BaseAgent):
 
     name = "realtime_agent"
     description = "Real-time weather monitoring, alert management, and emergency dispatch"
-    version = "2.0.0"
+    version = "3.2.0"
     
     intent_keywords = [
         "alert", "weather alert", "noaa", "subscribe", "dispatch", "real-time",

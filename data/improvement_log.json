@@ -80,6 +80,33 @@
       "gaps": [],
       "tools_used": [],
       "suggestions": []
+    },
+    {
+      "timestamp": "2026-02-17T18:09:25.765042",
+      "query": "high risk counties in MO",
+      "response_summary": "Top highest-risk counties nationwide.",
+      "confidence": 1.0,
+      "gaps": [],
+      "tools_used": [],
+      "suggestions": []
+    },
+    {
+      "timestamp": "2026-02-17T18:09:38.007004",
+      "query": "show me high risk counties in Missouri",
+      "response_summary": "Top highest-risk counties nationwide.",
+      "confidence": 1.0,
+      "gaps": [],
+      "tools_used": [],
+      "suggestions": []
+    },
+    {
+      "timestamp": "2026-02-17T18:30:12.058901",
+      "query": "high risk in Missouri",
+      "response_summary": "Top highest-risk counties nationwide.",
+      "confidence": 1.0,
+      "gaps": [],
+      "tools_used": [],
+      "suggestions": []
     }
   ],
   "proposed_features": [],

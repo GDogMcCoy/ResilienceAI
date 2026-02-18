@@ -600,7 +600,7 @@ with st.sidebar:
             c4.metric("Poverty", f"{ctx_df['poverty_pct'].mean():.1f}%")
 
     st.divider()
-    st.caption("MUIDSI Hackathon 2026 | v3.1")
+    st.caption("MUIDSI Hackathon 2026 | v3.2.0")
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -890,4 +890,4 @@ if df is not None:
 
 # -- Footer -------------------------------------------------------------
 st.divider()
-st.caption("ResilienceAI v3.2 | MUIDSI Hackathon 2026 | Gemini + Local LLM Backends | 16 MCP Tools")
+st.caption("ResilienceAI v3.2.0 | MUIDSI Hackathon 2026 | Gemini + Local LLM Backends | 45+ MCP Tools")

@@ -4,7 +4,10 @@
       "Bash(curl:*)",
       "Bash(ls -la \"C:\\\\Users\\\\powel\\\\Desktop\\\\MUIDSI Hackathon\\\\resilienceai\\\\data\"\" 2>/dev/null || echo \"Directory check \")",
       "Bash(wc:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }

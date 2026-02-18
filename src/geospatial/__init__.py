@@ -14,7 +14,7 @@ from .pipeline import (
     LandCoverClassifier
 )
 
-__version__ = "0.1.0"
+__version__ = "3.2.0"
 
 __all__ = [
     # USGS 3DEP

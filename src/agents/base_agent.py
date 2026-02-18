@@ -47,7 +47,7 @@ class BaseAgent(ABC):
     # Agent metadata
     name: str = "base_agent"
     description: str = "Base agent class"
-    version: str = "1.0.0"
+    version: str = "3.2.0"
     
     # Intent classification keywords for routing
     intent_keywords: List[str] = []

@@ -1,6 +1,7 @@
 """
 ResilienceAI Multi-Agent System
 4 specialist agents + 1 orchestrator for disaster vulnerability intelligence.
+Version: 3.2.0
 """
 from src.agents.orchestrator import AgentOrchestrator, OrchestratedResponse
 from src.agents.base_agent import BaseAgent, AgentOutput, AgentStatus, ToolResult

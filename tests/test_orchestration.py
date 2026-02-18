@@ -23,7 +23,7 @@ class MockAgent(BaseAgent):
     
     name = "mock_agent"
     description = "A mock agent for testing"
-    version = "1.0.0"
+    version = "3.2.0"
     intent_keywords = ["mock", "test", "fake"]
     
     @property

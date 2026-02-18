@@ -1,5 +1,6 @@
 """
 ResilienceAI Configuration
+Version: 3.2.0 (MUIDSI Hackathon 2026 Final)
 """
 import os
 from pathlib import Path

@@ -16,7 +16,7 @@ class PlanningAgent(BaseAgent):
 
     name = "planning_agent"
     description = "Intervention planning, cost-effectiveness analysis, forecasting, and executive briefings"
-    version = "2.0.0"
+    version = "3.2.0"
     
     intent_keywords = [
         "intervention", "roi", "briefing", "forecast", "predict", "trajectory",

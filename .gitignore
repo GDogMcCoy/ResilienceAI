@@ -37,3 +37,12 @@ gha-creds-*.json
 data/*.log
 data/*.db
 data/improvement_log.json
+
+# Test and local cache
+.pytest_cache/
+.claude/
+.claw-git
+
+# Large development archives
+strategy/Kimi_Agent_ResilienceAI_AI_Pipeline/resilience_ai_analysis.tar.gz
+strategy/Kimi_Agent_ResilienceAI_AI_Pipeline/resilience_ai_analysis/
