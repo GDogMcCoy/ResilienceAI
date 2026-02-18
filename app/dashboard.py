@@ -46,6 +46,7 @@ st.markdown("""
 <style>
     .stApp { background-color: #0e1117; }
     div[data-testid="stExpander"] { border: 1px solid #2d3748; border-radius: 8px; }
+    .metric-row { padding: 10px 0; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -96,188 +97,386 @@ if df is not None:
 # ═══════════════════════════════════════════════════════════════════════
 
 def render_tool_visuals(steps):
-    """Scan AgenticSteps and render inline charts for each tool result."""
+    """
+    Scan AgenticSteps and render inline charts for each tool result.
+    
+    OPTIMIZED: Reduces visual clutter by:
+    - Limiting tables to top 5 records with key columns only
+    - Using collapsible expanders for detailed data
+    - Deduplicating repeated tool results
+    - Using metric cards for single values
+    - Tracking seen counties/hazards to avoid duplicates
+    """
+    # Track seen items to avoid duplicates across multiple tool calls
+    seen_counties = set()  # county_name + tool_type fingerprint
+    seen_hazards = set()
+    
+    # Essential columns for ranking tables (subset of all available columns)
+    ESSENTIAL_COLS = ["county_name", "risk_score", "risk_level", "total_population", "poverty_pct"]
+    
     for step in steps:
         if not step.tool_name or not step.tool_result:
             continue
         data = step.tool_result
         name = step.tool_name
-
+        
         try:
-            # ── County rankings: bar chart + table ─────────────────────
+            # ── County rankings: bar chart + compact table ─────────────
             if name in ("query_counties", "get_state_rankings"):
                 records = data if isinstance(data, list) else data.get("counties", data.get("rankings", []))
                 records = [r for r in records if isinstance(r, dict) and "county_name" in r and "risk_score" in r]
+                
+                # Deduplicate: skip if we've seen this county set before
+                record_fingerprint = tuple(sorted([r.get("county_name") for r in records[:3]]))
+                if record_fingerprint in seen_counties:
+                    continue
+                seen_counties.add(record_fingerprint)
+                
                 if records:
                     rdf = pd.DataFrame(records)
+                    
+                    # Limit to top 5 for main display
+                    top_n = 5
+                    rdf_top = rdf.sort_values("risk_score", ascending=False).head(top_n).sort_values("risk_score", ascending=True)
+                    remaining = len(rdf) - top_n
+                    
+                    # Compact bar chart with limited height
                     fig = px.bar(
-                        rdf.sort_values("risk_score", ascending=True),
+                        rdf_top,
                         x="risk_score", y="county_name", orientation="h",
                         color="risk_score", color_continuous_scale="RdYlGn_r",
-                        title=f"County Risk Rankings ({len(rdf)})"
+                        title=f"Top {min(top_n, len(rdf))} Highest Risk Counties"
                     )
-                    fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
-                                      plot_bgcolor="rgba(0,0,0,0)", height=max(250, len(rdf)*35),
-                                      yaxis_title="", xaxis_title="Risk Score")
+                    fig.update_layout(
+                        template="plotly_dark", 
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        plot_bgcolor="rgba(0,0,0,0)", 
+                        height=200,
+                        margin=dict(l=10, r=10, t=30, b=10),
+                        yaxis_title="", 
+                        xaxis_title="Risk Score",
+                        coloraxis_showscale=False
+                    )
                     st.plotly_chart(fig, use_container_width=True)
-                    show_cols = [c for c in ["county_name", "risk_score", "risk_level", "total_population", "poverty_pct"] if c in rdf.columns]
-                    st.dataframe(rdf[show_cols], use_container_width=True, hide_index=True)
+                    
+                    # Compact metrics row for top county
+                    top_county = rdf.loc[rdf['risk_score'].idxmax()]
+                    m1, m2, m3, m4 = st.columns(4)
+                    m1.metric("Highest Risk", top_county.get('county_name', 'N/A').split(',')[0])
+                    m2.metric("Risk Score", f"{top_county.get('risk_score', 0):.3f}")
+                    m3.metric("Population", f"{top_county.get('total_population', 0):,}" if isinstance(top_county.get('total_population'), (int, float)) else "N/A")
+                    m4.metric("Poverty", f"{top_county.get('poverty_pct', 0):.1f}%" if isinstance(top_county.get('poverty_pct'), (int, float)) else "N/A")
+                    
+                    # Collapsible full table with key columns only
+                    if len(rdf) > 0:
+                        with st.expander(f"📋 View All {len(rdf)} Counties" + (f" — showing key metrics only" if remaining > 0 else ""), expanded=False):
+                            show_cols = [c for c in ESSENTIAL_COLS if c in rdf.columns]
+                            st.dataframe(rdf[show_cols].sort_values("risk_score", ascending=False), 
+                                        use_container_width=True, hide_index=True)
 
-            # ── County detail: metric cards ────────────────────────────
+            # ── County detail: metric cards (already optimized) ────────
             elif name == "get_county_detail":
                 if isinstance(data, dict) and "error" not in data:
+                    county_key = data.get("county_name", "")
+                    if county_key in seen_counties:
+                        continue
+                    seen_counties.add(county_key)
+                    
                     cname = data.get("county_name", "County")
-                    st.markdown(f"**{cname}**")
-                    c1, c2, c3 = st.columns(3)
+                    st.markdown(f"**📍 {cname}**")
+                    c1, c2, c3, c4, c5, c6 = st.columns(6)
                     c1.metric("Population", f"{data.get('total_population', 'N/A'):,}" if isinstance(data.get('total_population'), (int, float)) else "N/A")
                     c2.metric("Risk Score", f"{data.get('risk_score', 'N/A'):.3f}" if isinstance(data.get('risk_score'), (int, float)) else "N/A")
                     c3.metric("Risk Level", data.get("risk_level", "N/A"))
-                    c4, c5, c6 = st.columns(3)
                     c4.metric("Poverty", f"{data.get('poverty_pct', 'N/A'):.1f}%" if isinstance(data.get('poverty_pct'), (int, float)) else "N/A")
                     c5.metric("Uninsured", f"{data.get('uninsured_pct', 'N/A'):.1f}%" if isinstance(data.get('uninsured_pct'), (int, float)) else "N/A")
                     hosp = data.get("dist_nearest_hospitals_km")
                     c6.metric("Hospital Dist", f"{hosp:.1f} km" if isinstance(hosp, (int, float)) else "N/A")
 
-            # ── Infrastructure density: 4 cards ────────────────────────
+            # ── Infrastructure density: compact cards ──────────────────
             elif name == "get_infrastructure_density":
                 if isinstance(data, dict) and "error" not in data:
-                    st.markdown(f"**Infrastructure Density** — {data.get('county_name', data.get('fips', ''))}")
+                    cname = data.get('county_name', data.get('fips', ''))
+                    st.markdown(f"**🏥 Infrastructure Density** — {cname}")
                     c1, c2, c3 = st.columns(3)
                     c1.metric("Hospitals/10k", f"{data.get('hospitals_per_10k', data.get('density_hospitals_per10k', 0)):.2f}")
                     c2.metric("EMS/10k", f"{data.get('ems_per_10k', data.get('density_ems_stations_per10k', 0)):.2f}")
                     c3.metric("Fire/10k", f"{data.get('fire_per_10k', data.get('density_fire_stations_per10k', 0)):.2f}")
 
-            # ── Risk contagion: 3 metrics ──────────────────────────────
+            # ── Risk contagion: compact summary ────────────────────────
             elif name == "analyze_risk_contagion":
                 if isinstance(data, dict) and "error" not in data:
-                    st.markdown(f"**Risk Contagion Analysis** — {data.get('county_name', data.get('fips', ''))}")
+                    county_key = data.get('county_name', data.get('fips', ''))
+                    if f"contagion_{county_key}" in seen_counties:
+                        continue
+                    seen_counties.add(f"contagion_{county_key}")
+                    
+                    st.markdown(f"**🔗 Risk Contagion** — {county_key}")
                     c1, c2, c3 = st.columns(3)
-                    c1.metric("Neighbors", data.get("neighbor_count", data.get("neighbors_in_radius", "N/A")))
-                    c2.metric("High-Risk Neighbors", data.get("high_risk_neighbors", "N/A"))
-                    c3.metric("Amplification", f"{data.get('amplification_factor', data.get('risk_amplification', 'N/A'))}")
+                    neighbors = data.get("neighbor_count", data.get("neighbors_in_radius", "N/A"))
+                    high_risk = data.get("high_risk_neighbors", "N/A")
+                    amplification = data.get("amplification_factor", data.get("risk_amplification", "N/A"))
+                    c1.metric("Neighbors", neighbors)
+                    c2.metric("High-Risk", high_risk)
+                    c3.metric("Amplification", f"{amplification}x" if isinstance(amplification, (int, float)) else amplification)
+                    
+                    # Show neighbor list in expander if available
+                    neighbor_list = data.get("neighbors", [])
+                    if neighbor_list and isinstance(neighbor_list, list):
+                        with st.expander(f"View {len(neighbor_list)} Neighboring Counties", expanded=False):
+                            st.write(", ".join([n.get("county_name", str(n)) for n in neighbor_list[:10]]) + 
+                                     (f" ... and {len(neighbor_list) - 10} more" if len(neighbor_list) > 10 else ""))
 
-            # ── Health disparities: bar chart ──────────────────────────
+            # ── Health disparities: bar chart (top 5 only) ─────────────
             elif name == "get_mo_health_disparities":
                 zones = data if isinstance(data, list) else data.get("priority_zones", data.get("disparities", []))
                 zones = [z for z in zones if isinstance(z, dict) and "county_name" in z]
+                
+                # Deduplicate
+                zone_fingerprint = tuple(sorted([z.get("county_name") for z in zones[:3]]))
+                if zone_fingerprint in seen_counties:
+                    continue
+                seen_counties.add(zone_fingerprint)
+                
                 if zones:
                     zdf = pd.DataFrame(zones)
                     metric_col = next((c for c in ["disparity_index", "uninsured_pct", "poverty_pct"] if c in zdf.columns), None)
                     if metric_col:
-                        fig = px.bar(zdf.sort_values(metric_col, ascending=True),
+                        # Show top 5 only
+                        zdf_top = zdf.sort_values(metric_col, ascending=False).head(5).sort_values(metric_col, ascending=True)
+                        remaining = len(zdf) - 5
+                        
+                        fig = px.bar(zdf_top,
                                      x=metric_col, y="county_name", orientation="h",
                                      color=metric_col, color_continuous_scale="Reds",
-                                     title="Health Disparity Index by County")
-                        fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
-                                          plot_bgcolor="rgba(0,0,0,0)", height=max(250, len(zdf)*35),
-                                          yaxis_title="", xaxis_title=metric_col.replace("_", " ").title())
+                                     title=f"Top {len(zdf_top)} Health Disparity Zones")
+                        fig.update_layout(
+                            template="plotly_dark", 
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            plot_bgcolor="rgba(0,0,0,0)", 
+                            height=200,
+                            margin=dict(l=10, r=10, t=30, b=10),
+                            yaxis_title="", 
+                            xaxis_title=metric_col.replace("_", " ").title(),
+                            coloraxis_showscale=False
+                        )
                         st.plotly_chart(fig, use_container_width=True)
+                        
+                        if remaining > 0:
+                            with st.expander(f"View All {len(zdf)} Disparity Zones", expanded=False):
+                                show_cols = [c for c in ["county_name", metric_col, "risk_score", "poverty_pct"] if c in zdf.columns]
+                                st.dataframe(zdf[show_cols].sort_values(metric_col, ascending=False), 
+                                            use_container_width=True, hide_index=True)
 
-            # ── Intervention ROI: bar chart ────────────────────────────
+            # ── Intervention ROI: bar chart (top 5) ────────────────────
             elif name == "calculate_intervention_roi":
                 interventions = data if isinstance(data, list) else data.get("interventions", data.get("ranked_interventions", []))
                 interventions = [i for i in interventions if isinstance(i, dict)]
+                
+                # Deduplicate
+                int_fingerprint = tuple(sorted([i.get("intervention", i.get("name", str(i))) for i in interventions[:3]]))
+                if int_fingerprint in seen_hazards:
+                    continue
+                seen_hazards.add(int_fingerprint)
+                
                 if interventions:
                     idf = pd.DataFrame(interventions)
                     name_col = next((c for c in ["intervention", "name", "type"] if c in idf.columns), None)
                     val_col = next((c for c in ["cost_per_person", "roi_score", "cost_effectiveness"] if c in idf.columns), None)
                     if name_col and val_col:
-                        fig = px.bar(idf.sort_values(val_col), x=val_col, y=name_col, orientation="h",
+                        # Show top 5
+                        idf_top = idf.sort_values(val_col).head(5)
+                        
+                        fig = px.bar(idf_top, x=val_col, y=name_col, orientation="h",
                                      color=val_col, color_continuous_scale="Viridis",
-                                     title="Intervention Cost-Effectiveness")
-                        fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
-                                          plot_bgcolor="rgba(0,0,0,0)", height=max(250, len(idf)*40),
-                                          yaxis_title="", xaxis_title=val_col.replace("_", " ").title())
+                                     title="Top 5 Interventions by Cost-Effectiveness")
+                        fig.update_layout(
+                            template="plotly_dark", 
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            plot_bgcolor="rgba(0,0,0,0)", 
+                            height=200,
+                            margin=dict(l=10, r=10, t=30, b=10),
+                            yaxis_title="", 
+                            xaxis_title=val_col.replace("_", " ").title(),
+                            coloraxis_showscale=False
+                        )
                         st.plotly_chart(fig, use_container_width=True)
+                        
+                        if len(idf) > 5:
+                            with st.expander(f"View All {len(idf)} Interventions", expanded=False):
+                                show_cols = [c for c in [name_col, val_col, "roi_score", "effectiveness"] if c in idf.columns]
+                                st.dataframe(idf[show_cols].sort_values(val_col), 
+                                            use_container_width=True, hide_index=True)
 
-            # ── Scenario simulation: impact metrics + affected table ───
+            # ── Scenario simulation: compact metrics ───────────────────
             elif name == "simulate_scenario":
                 if isinstance(data, dict) and "error" not in data:
-                    st.markdown(f"**Scenario: {data.get('scenario', 'Simulation')}**")
+                    scenario_key = data.get('scenario', 'simulation')
+                    if scenario_key in seen_hazards:
+                        continue
+                    seen_hazards.add(scenario_key)
+                    
+                    st.markdown(f"**🌊 Scenario: {data.get('scenario', 'Simulation')}**")
                     c1, c2, c3 = st.columns(3)
-                    c1.metric("Population at Risk", f"{data.get('total_population_affected', data.get('population_at_risk', 0)):,}")
-                    c2.metric("Counties Affected", data.get("counties_affected", data.get("affected_county_count", "N/A")))
-                    c3.metric("Est. Damage", data.get("estimated_damage", data.get("infrastructure_damage_estimate", "N/A")))
+                    pop_affected = data.get('total_population_affected', data.get('population_at_risk', 0))
+                    counties_affected = data.get("counties_affected", data.get("affected_county_count", "N/A"))
+                    damage = data.get("estimated_damage", data.get("infrastructure_damage_estimate", "N/A"))
+                    c1.metric("Population at Risk", f"{pop_affected:,}" if isinstance(pop_affected, (int, float)) else str(pop_affected))
+                    c2.metric("Counties Affected", counties_affected)
+                    c3.metric("Est. Damage", damage if isinstance(damage, str) else f"${damage:,}")
+                    
                     affected = data.get("affected_counties", [])
                     if affected and isinstance(affected[0], dict):
-                        st.dataframe(pd.DataFrame(affected[:10]), use_container_width=True, hide_index=True)
+                        with st.expander(f"View {len(affected)} Affected Counties", expanded=False):
+                            adf = pd.DataFrame(affected)
+                            show_cols = [c for c in ["county_name", "population_affected", "damage_estimate", "risk_level"] if c in adf.columns]
+                            st.dataframe(adf[show_cols][:10], use_container_width=True, hide_index=True)
+                            if len(adf) > 10:
+                                st.caption(f"... and {len(adf) - 10} more counties")
 
-            # ── Pop-weighted impact: bar chart ─────────────────────────
+            # ── Pop-weighted impact: top 5 bar chart ───────────────────
             elif name == "calculate_pop_weighted_impact":
                 records = data if isinstance(data, list) else data.get("rankings", data.get("counties", []))
                 records = [r for r in records if isinstance(r, dict) and "county_name" in r]
+                
+                # Deduplicate
+                pw_fingerprint = tuple(sorted([r.get("county_name") for r in records[:3]]))
+                if pw_fingerprint in seen_counties:
+                    continue
+                seen_counties.add(pw_fingerprint)
+                
                 if records:
                     rdf = pd.DataFrame(records)
                     score_col = next((c for c in ["weighted_impact", "pop_weighted_risk", "impact_score"] if c in rdf.columns), "risk_score")
                     if score_col in rdf.columns:
-                        fig = px.bar(rdf.sort_values(score_col, ascending=True),
+                        # Top 5 only
+                        rdf_top = rdf.sort_values(score_col, ascending=False).head(5).sort_values(score_col, ascending=True)
+                        remaining = len(rdf) - 5
+                        
+                        fig = px.bar(rdf_top,
                                      x=score_col, y="county_name", orientation="h",
                                      color=score_col, color_continuous_scale="RdYlGn_r",
-                                     title="Population-Weighted Risk Impact")
-                        fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
-                                          plot_bgcolor="rgba(0,0,0,0)", height=max(250, len(rdf)*35),
-                                          yaxis_title="", xaxis_title="Weighted Impact")
+                                     title=f"Top 5 Population-Weighted Risk Impact")
+                        fig.update_layout(
+                            template="plotly_dark", 
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            plot_bgcolor="rgba(0,0,0,0)", 
+                            height=200,
+                            margin=dict(l=10, r=10, t=30, b=10),
+                            yaxis_title="", 
+                            xaxis_title="Weighted Impact",
+                            coloraxis_showscale=False
+                        )
                         st.plotly_chart(fig, use_container_width=True)
+                        
+                        if remaining > 0:
+                            with st.expander(f"View All {len(rdf)} Counties", expanded=False):
+                                show_cols = [c for c in ["county_name", score_col, "risk_score", "total_population"] if c in rdf.columns]
+                                st.dataframe(rdf[show_cols].sort_values(score_col, ascending=False), 
+                                            use_container_width=True, hide_index=True)
 
-            # ── Climate trends: summary metrics ────────────────────────
+            # ── Climate trends: summary metrics (compact) ───────────────
             elif name == "get_climate_trends":
                 if isinstance(data, dict) and "error" not in data:
+                    fips = data.get('fips', '')
+                    if f"climate_{fips}" in seen_counties:
+                        continue
+                    seen_counties.add(f"climate_{fips}")
+                    
                     trends = data.get("trends", {})
-                    st.markdown(f"**Climate Trends** — FIPS {data.get('fips', '')}")
+                    st.markdown(f"**🌡️ Climate Trends** — FIPS {fips}")
                     c1, c2, c3 = st.columns(3)
                     temp_info = trends.get("mean_temp", {})
                     precip_info = trends.get("precip", {})
                     c1.metric("Avg Temp", f"{temp_info.get('mean', 'N/A')}°F" if isinstance(temp_info.get('mean'), (int, float)) else "N/A")
                     c2.metric("Temp Trend", f"{temp_info.get('slope_per_decade', 'N/A')}°F/decade" if isinstance(temp_info.get('slope_per_decade'), (int, float)) else "N/A")
-                    c3.metric("Avg Precip", f"{precip_info.get('mean', 'N/A')} in" if isinstance(precip_info.get('mean'), (int, float)) else "N/A")
+                    c3.metric("Avg Precip", f"{precip_info.get('mean', 'N/A')}\"" if isinstance(precip_info.get('mean'), (int, float)) else "N/A")
 
-            # ── Hazard risk profile: top hazards ───────────────────────
+            # ── Hazard risk profile: top 3 hazards only ────────────────
             elif name == "get_hazard_risk_profile":
                 if isinstance(data, dict) and "error" not in data:
-                    st.markdown(f"**FEMA Hazard Risk Profile** — FIPS {data.get('fips', '')}")
+                    fips = data.get('fips', '')
+                    if f"hazard_{fips}" in seen_counties:
+                        continue
+                    seen_counties.add(f"hazard_{fips}")
+                    
+                    st.markdown(f"**⚠️ FEMA Hazard Risk Profile** — FIPS {fips}")
                     c1, c2, c3 = st.columns(3)
                     c1.metric("Risk Rating", data.get("risk_rating", "N/A"))
                     c2.metric("Expected Annual Loss", data.get("expected_annual_loss", "N/A"))
                     c3.metric("Social Vulnerability", data.get("social_vulnerability", data.get("sovi_rating", "N/A")))
+                    
                     hazards = data.get("hazards", data.get("top_hazards", []))
                     if hazards and isinstance(hazards, list) and isinstance(hazards[0], dict):
-                        hdf = pd.DataFrame(hazards[:10])
-                        st.dataframe(hdf, use_container_width=True, hide_index=True)
+                        # Show only top 3 hazards
+                        hdf = pd.DataFrame(hazards[:3])
+                        show_cols = [c for c in ["hazard", "risk_score", "frequency", "severity"] if c in hdf.columns]
+                        if show_cols:
+                            st.dataframe(hdf[show_cols], use_container_width=True, hide_index=True)
+                        if len(hazards) > 3:
+                            with st.expander(f"View All {len(hazards)} Hazards", expanded=False):
+                                hdf_all = pd.DataFrame(hazards)
+                                st.dataframe(hdf_all, use_container_width=True, hide_index=True)
 
-            # ── Flood frequency ────────────────────────────────────────
+            # ── Flood frequency: compact table ─────────────────────────
             elif name == "get_flood_frequency":
                 if isinstance(data, dict) and "error" not in data:
-                    st.markdown(f"**Flood Frequency Analysis** — FIPS {data.get('fips', '')}")
+                    fips = data.get('fips', '')
+                    if f"flood_{fips}" in seen_counties:
+                        continue
+                    seen_counties.add(f"flood_{fips}")
+                    
+                    st.markdown(f"**🌊 Flood Frequency Analysis** — FIPS {fips}")
                     intervals = data.get("recurrence_intervals", data.get("flood_levels", {}))
                     if isinstance(intervals, dict) and intervals:
                         idf = pd.DataFrame([{"Return Period": k, "Flow (cfs)": v} for k, v in intervals.items()])
-                        st.dataframe(idf, use_container_width=True, hide_index=True)
+                        c1, c2, c3, c4 = st.columns(4)
+                        for col, (_, row) in zip([c1, c2, c3, c4], idf.head(4).iterrows()):
+                            col.metric(row["Return Period"], f"{row['Flow (cfs)']:,}")
+                        if len(idf) > 4:
+                            with st.expander("View All Return Periods", expanded=False):
+                                st.dataframe(idf, use_container_width=True, hide_index=True)
 
-            # ── Severe weather history ─────────────────────────────────
+            # ── Severe weather history: compact metrics ────────────────
             elif name == "get_severe_weather_history":
                 if isinstance(data, dict) and "error" not in data:
-                    st.markdown(f"**Severe Weather History** — FIPS {data.get('fips', '')}")
+                    fips = data.get('fips', '')
+                    if f"weather_{fips}" in seen_counties:
+                        continue
+                    seen_counties.add(f"weather_{fips}")
+                    
+                    st.markdown(f"**⛈️ Severe Weather History** — FIPS {fips}")
                     summary = data.get("summary", {})
                     if summary:
                         cols = st.columns(min(len(summary), 4))
                         for col, (k, v) in zip(cols, list(summary.items())[:4]):
                             col.metric(k.replace("_", " ").title(), v)
 
-            # ── Drought history ────────────────────────────────────────
+            # ── Drought history: compact metrics ───────────────────────
             elif name == "get_drought_history":
                 if isinstance(data, dict) and "error" not in data:
-                    st.markdown(f"**Drought History** — FIPS {data.get('fips', '')}")
+                    fips = data.get('fips', '')
+                    if f"drought_{fips}" in seen_counties:
+                        continue
+                    seen_counties.add(f"drought_{fips}")
+                    
+                    st.markdown(f"**🏜️ Drought History** — FIPS {fips}")
                     summary = data.get("summary", data.get("statistics", {}))
                     if isinstance(summary, dict):
                         cols = st.columns(min(len(summary), 4))
                         for col, (k, v) in zip(cols, list(summary.items())[:4]):
                             col.metric(k.replace("_", " ").title(), v)
 
-            # ── Climate projections ────────────────────────────────────
+            # ── Climate projections: compact metrics ───────────────────
             elif name == "project_climate_risk_enhanced":
                 if isinstance(data, dict) and "error" not in data:
+                    proj_key = f"{data.get('fips', '')}_{data.get('scenario', '')}"
+                    if proj_key in seen_counties:
+                        continue
+                    seen_counties.add(proj_key)
+                    
                     proj = data.get("projection", {})
-                    st.markdown(f"**Climate Projection** — {data.get('scenario', 'SSP2-4.5')} ({data.get('horizon_years', 30)}yr)")
+                    st.markdown(f"**📈 Climate Projection** — {data.get('scenario', 'SSP2-4.5')} ({data.get('horizon_years', 30)}yr)")
                     c1, c2, c3 = st.columns(3)
                     c1.metric("Temp Change", f"+{proj.get('temp_change_f', 'N/A')}°F" if isinstance(proj.get('temp_change_f'), (int, float)) else "N/A")
                     c2.metric("Precip Change", f"{proj.get('precip_change_pct', 'N/A')}%" if isinstance(proj.get('precip_change_pct'), (int, float)) else "N/A")
@@ -351,7 +550,7 @@ with st.sidebar:
         # Fallback if orchestrator module unavailable
         with st.expander("LM Studio", expanded=False):
             lm_url = st.text_input("URL", value=st.session_state.agent_config['lm_url'])
-            lm_key = st.text_input("Key", value=st.session_state.agent_config['lm_key'], type="password")
+            lm_key = st.text_input("LM Studio Key", value=st.session_state.agent_config['lm_key'], type="password")
             st.session_state.agent_config['lm_key'] = lm_key
             st.session_state.agent_config['lm_url'] = lm_url
         preset = {"base_url": st.session_state.agent_config['lm_url'], "model": "openai/gpt-oss-20b"}
@@ -426,10 +625,12 @@ EXAMPLE_PROMPTS = {
         ("Rural Isolation", "Which Missouri counties combine high elderly populations (>20%) with the longest hospital distances? These are the most dangerous for emergency response."),
     ],
     "🌡️ Climate": [
-        ("Climate + Vulnerability", "What are the climate trends for Boone County, MO (FIPS 29019)? How do temperature trends and hazard risks interact with its existing vulnerability profile?"),
-        ("Flood + Seismic Risk", "What is the flood frequency and severe weather history for New Madrid County, MO (FIPS 29143)? How does this compound with its infrastructure gaps and seismic zone exposure?"),
-        ("Drought Impact", "Analyze drought history for Ozark County, MO (FIPS 29153). How does chronic drought combine with poverty and isolation to create compounding risk?"),
-        ("Climate Projection", "Project climate risk for Jackson County, MO (FIPS 29095) under SSP2-4.5 scenario. What does this mean for emergency planning over the next 30 years?"),
+        ("Climate Trends", "Get climate trends for Boone County, MO (FIPS 29019). Show temperature and precipitation patterns from ACIS data."),
+        ("Hazard Risk Profile", "Get the FEMA National Risk Index hazard profile for New Madrid County, MO (FIPS 29143). Show all natural hazards and expected annual losses."),
+        ("Drought History", "Get drought history for Ozark County, MO (FIPS 29153) from the US Drought Monitor. Show frequency and severity trends."),
+        ("Flood Frequency", "Get USGS flood frequency analysis for Jackson County, MO (FIPS 29095). Show recurrence intervals and gauge data."),
+        ("Severe Weather", "Get severe weather history for St. Louis County, MO (FIPS 29189) from NOAA Storm Events. Show tornado and storm patterns."),
+        ("Climate Projection", "Project future climate risk for Greene County, MO (FIPS 29077) under SSP2-4.5 scenario through 2050."),
     ],
     "💡 Planning": [
         ("Intervention ROI", "What is the most cost-effective intervention for Ozark County, Missouri (FIPS 29153)? Compare all options and explain which addresses the root cause of vulnerability."),

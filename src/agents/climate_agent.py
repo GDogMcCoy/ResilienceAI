@@ -22,11 +22,14 @@ class ClimateAgent(BaseAgent):
     
     intent_keywords = [
         "climate", "temperature", "precipitation", "drought", "flood frequency",
-        "hazard risk", "nri", "acis", "severe weather", "hail", "tornado history",
+        "hazard risk", "hazard profile", "fema nri", "national risk index",
+        "nri", "acis", "severe weather", "hail", "tornado history",
         "heat wave", "wildfire risk", "climate trend", "warming", "rainfall",
         "satellite", "ndvi", "vegetation", "land surface", "nighttime lights",
         "burned area", "surface water", "heat vulnerability", "projections",
-        "ssp scenario", "climate change", "historical weather", "storm events"
+        "ssp scenario", "climate change", "historical weather", "storm events",
+        "usgs flood", "flood recurrence", "streamflow", "drought monitor",
+        "earthquake risk", "seismic risk", "expected annual loss"
     ]
 
     @property
@@ -247,8 +250,13 @@ When answering:
 
         # Get historical baseline
         trends = self.climate.acis.get_climate_trends(fips, 2000, 2024)
-        if "error" in trends:
-            return {"fips": fips, "error": "Cannot project without historical baseline"}
+        if "error" in trends or not trends.get("trends"):
+            return {
+                "fips": fips, 
+                "error": f"Cannot project without historical baseline for county {fips}. ACIS data may be unavailable.",
+                "scenario": scenario,
+                "horizon_years": horizon_years,
+            }
 
         # SSP scenario multipliers (from IPCC AR6)
         scenarios = {

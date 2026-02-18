@@ -350,7 +350,7 @@ class FEMANRIClient(CachedAPIClient):
     """FEMA National Risk Index - pre-computed 18-hazard county risk scores.
     Downloads and caches the NRI county CSV (~50MB, one-time).
     """
-    NRI_CSV_URL = "https://hazards.fema.gov/nri/Content/StaticDocuments/DataDownload/NRI_Table_Counties/NRI_Table_Counties.csv"
+    NRI_CSV_URL = "https://hazards.fema.gov/nri/Content/StaticDocuments/data-download/NRI_Table_Counties.zip"
 
     HAZARD_CODES = {
         "AVLN": "Avalanche", "CFLD": "Coastal Flooding", "CWAV": "Cold Wave",
@@ -370,29 +370,54 @@ class FEMANRIClient(CachedAPIClient):
         if self._nri_df is not None:
             return self._nri_df
 
-        cache_path = self.cache_dir / "nri_counties.csv"
-        if cache_path.exists():
+        cache_csv = self.cache_dir / "nri_counties.csv"
+        cache_zip = self.cache_dir / "nri_counties.zip"
+        
+        # Try to load existing CSV cache
+        if cache_csv.exists():
             try:
-                df = pd.read_csv(cache_path, dtype={"STCOFIPS": str}, low_memory=False, on_bad_lines="skip")
+                df = pd.read_csv(cache_csv, dtype={"STCOFIPS": str}, low_memory=False, on_bad_lines="skip")
                 if "STCOFIPS" not in df.columns:
                     raise ValueError("Corrupt cache: missing STCOFIPS column")
                 self._nri_df = df
                 return self._nri_df
             except Exception:
-                cache_path.unlink(missing_ok=True)  # Delete corrupt cache
+                cache_csv.unlink(missing_ok=True)  # Delete corrupt cache
 
+        # Try to download from FEMA
         try:
             print("[NRI] Downloading FEMA National Risk Index (~50MB)...")
-            resp = requests.get(self.NRI_CSV_URL, timeout=120, stream=True)
+            resp = requests.get(self.NRI_CSV_URL, timeout=120, stream=True, allow_redirects=True)
             resp.raise_for_status()
-            with open(cache_path, "wb") as f:
+            
+            # Check if we got a zip file or HTML redirect
+            content_type = resp.headers.get('Content-Type', '')
+            if 'html' in content_type.lower():
+                raise ValueError(f"FEMA NRI URL returned HTML page, not CSV data")
+            
+            # Save as zip and extract
+            with open(cache_zip, "wb") as f:
                 for chunk in resp.iter_content(chunk_size=8192):
                     f.write(chunk)
-            self._nri_df = pd.read_csv(cache_path, dtype={"STCOFIPS": str}, low_memory=False)
+            
+            # Extract CSV from zip
+            import zipfile
+            with zipfile.ZipFile(cache_zip, 'r') as zf:
+                # Find the CSV file in the archive
+                csv_files = [f for f in zf.namelist() if f.endswith('.csv')]
+                if not csv_files:
+                    raise ValueError("No CSV file found in the downloaded ZIP archive")
+                # Extract the main CSV file
+                with zf.open(csv_files[0]) as csv_file:
+                    self._nri_df = pd.read_csv(csv_file, dtype={"STCOFIPS": str}, low_memory=False)
+            
+            # Save extracted CSV for faster future loading
+            self._nri_df.to_csv(cache_csv, index=False)
             print(f"[NRI] Downloaded {len(self._nri_df)} county records")
             return self._nri_df
         except Exception as e:
             print(f"[NRI] Download failed: {e}")
+            # Don't delete cache if download fails - we might have stale but usable data
             return pd.DataFrame()
 
     def get_hazard_risk_profile(self, fips: str) -> Dict[str, Any]:

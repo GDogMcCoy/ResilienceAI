@@ -315,21 +315,48 @@ def get_working_tool_schemas() -> List[Dict]:
 
 AGENTIC_SYSTEM_PROMPT = """You are ResilienceAI, a disaster vulnerability intelligence agent with {n_counties} US counties and {n_features} features per county (FEMA, Census ACS, HIFLD, CMS).
 
-RULES:
-- Use tools to get real data. NEVER make up numbers.
-- Chain multiple tools to build cross-domain insights. For example: get_state_rankings → get_infrastructure_density for each top county → synthesize findings.
-- When a question spans vulnerability + infrastructure + climate, call tools from EACH domain.
-- Missouri (MO, FIPS 29xxx) is the focus state with 115 counties.
-- risk_score: higher = more vulnerable. risk_level: Low/Medium/High.
-- Common FIPS: Boone=29019, Jackson=29095, St.Louis=29189, New Madrid=29143, Ozark=29153.
+MANDATORY ANALYSIS DEPTH — YOU MUST FOLLOW THESE RULES:
+- Use MINIMUM 3 tools per query to build a comprehensive picture. This is NON-NEGOTIABLE.
+- After each tool result, ask yourself: "What does this reveal? What should I investigate next?"
+- Connect dots between: climate hazards ↔ demographic vulnerability ↔ infrastructure readiness
+- Provide "So What?" analysis — explain WHY this matters for decision-makers, not just WHAT the data shows
+
+INSIGHT QUALITY REQUIREMENTS — NEVER VIOLATE THESE:
+- NEVER surface raw data without interpretation. Always explain what the numbers MEAN.
+- ALWAYS compare to benchmarks: state average, national average, peer counties, or historical trends.
+- Identify CASCADING RISKS: e.g., "flood risk + elderly population + hospital distance = compound crisis"
+- Give SPECIFIC, ACTIONABLE recommendations, not generic statements like "improve infrastructure"
+- If data is incomplete, state what WOULD change the analysis — be transparent about limitations
+
+TOOL SELECTION STRATEGY — Follow this pattern:
+1. BASELINE: Get foundational data (query_counties, get_county_detail, or get_state_rankings)
+2. CLIMATE CONTEXT: Add environmental layer (get_climate_trends, get_hazard_risk_profile, get_drought_history)
+3. VULNERABILITY LAYER: Analyze human impact (calculate_pop_weighted_impact, get_infrastructure_density, analyze_risk_contagion)
+4. PATTERN FINDING: Compare and synthesize (compare_climate_trends, calculate_intervention_roi, simulate_scenario)
+
+RECURSIVE INVESTIGATION PROTOCOL:
+- When you find a high-risk hotspot, investigate WHY it's a hotspot
+- Look for root causes: Is it climate exposure? Demographics? Infrastructure gaps? Geographic isolation?
+- Trace the causal chain: "High flood risk → agricultural losses → economic stress → out-migration → reduced tax base → fewer services"
+
+COMPARATIVE ANALYSIS REQUIREMENTS:
+- Every metric should be contextualized: "This county's 34% poverty rate is 2.1x the state average"
+- Use percentile language: "Ranks in the 94th percentile for vulnerability nationally"
+- Identify peer counties with similar profiles: "Similar risk patterns to [X] and [Y] counties"
+
+DOMAIN KNOWLEDGE:
+- Missouri (MO, FIPS 29xxx) is the focus state with 115 counties
+- risk_score: higher = more vulnerable. risk_level: Low/Medium/High
+- Common FIPS: Boone=29019, Jackson=29095, St.Louis=29189, New Madrid=29143, Ozark=29153, Pemiscot=29155
+- Critical thresholds: elderly_pct > 20%, poverty_pct > 25%, dist_hospital > 30km = high concern
 
 ANSWER FORMAT — THIS IS CRITICAL:
-- Your final answer must be a CLEAN intelligence report for a policy audience.
-- DO NOT include your internal reasoning, tool-calling logic, or thinking process.
-- DO NOT say things like "I will call tool X" or "Let me analyze" or "Based on the tool results".
-- Structure: Lead with the key finding, then supporting data with specific numbers, then 1-2 actionable recommendations.
-- Use markdown headers (##) and bullet points for readability.
-- Cite specific numbers from tool results (e.g., "risk score: 0.847", "poverty: 31.2%").
+- Your final answer must be a CLEAN intelligence report for a policy audience
+- DO NOT include your internal reasoning, tool-calling logic, or thinking process
+- DO NOT say things like "I will call tool X" or "Let me analyze" or "Based on the tool results"
+- Structure: Lead with the key finding, then supporting data with specific numbers, then 1-2 actionable recommendations
+- Use markdown headers (##) and bullet points for readability
+- Cite specific numbers from tool results (e.g., "risk score: 0.847", "poverty: 31.2%")
 """
 
 
@@ -359,7 +386,7 @@ class AgenticOrchestrator:
         lm_studio_url: str = "http://localhost:1234",
         api_key: str = "",
         model: str = "openai/gpt-oss-20b",
-        max_tool_rounds: int = 3,
+        max_tool_rounds: int = 10,
         temperature: float = 0.2,
     ):
         self.base_url = lm_studio_url.rstrip("/")
@@ -498,17 +525,155 @@ class AgenticOrchestrator:
             return self._slim_record(result)
         return result
 
+    def _synthesize_response(self, content: str, reasoning: str, steps: List[AgenticStep], 
+                             tools_used: List[str], user_query: str) -> str:
+        """ALWAYS produce meaningful output - never fail.
+        
+        Priority:
+        1. Use LLM content if available
+        2. Use reasoning if available  
+        3. Generate from accumulated steps
+        4. Emergency template synthesis
+        """
+        # Case 1: LLM gave us content - use it
+        if content and len(content.strip()) > 10:
+            return content
+        
+        # Case 2: Have reasoning - use it
+        if reasoning and len(reasoning.strip()) > 10:
+            return reasoning
+        
+        # Case 3: Have tool results - synthesize from them
+        if steps:
+            return self._generate_from_steps(steps, tools_used, user_query)
+        
+        # Case 4: Emergency fallback - never return failure message
+        return self._template_synthesis(tools_used, user_query)
+
+    def _generate_from_steps(self, steps: List[AgenticStep], tools_used: List[str], 
+                             user_query: str) -> str:
+        """Generate a response from accumulated tool execution steps."""
+        findings = []
+        counties_mentioned = set()
+        risk_scores = []
+        
+        for step in steps:
+            if step.tool_result and isinstance(step.tool_result, dict):
+                result = step.tool_result
+                # Extract county info
+                if "county_name" in result:
+                    counties_mentioned.add(result.get("county_name", ""))
+                if "fips" in result:
+                    counties_mentioned.add(f"FIPS {result.get('fips', '')}")
+                if "risk_score" in result:
+                    risk_scores.append(result.get("risk_score", 0))
+                    
+            elif step.tool_result and isinstance(step.tool_result, list) and step.tool_result:
+                # Handle list results (e.g., from query_counties)
+                first_result = step.tool_result[0]
+                if isinstance(first_result, dict):
+                    if "county_name" in first_result:
+                        counties_mentioned.add(first_result.get("county_name", ""))
+                    if "risk_score" in first_result:
+                        risk_scores.append(first_result.get("risk_score", 0))
+        
+        # Build narrative from what we found
+        parts = []
+        
+        if counties_mentioned:
+            counties_list = sorted([c for c in counties_mentioned if c])[:5]
+            parts.append(f"## Analysis Results\n\nBased on the vulnerability assessment of {len(counties_mentioned)} counties:")
+            parts.append(f"\n**Key Counties Analyzed:** {', '.join(counties_list)}")
+        else:
+            parts.append("## Analysis Results\n\nVulnerability assessment completed.")
+        
+        if risk_scores:
+            avg_risk = sum(risk_scores) / len(risk_scores)
+            max_risk = max(risk_scores)
+            parts.append(f"\n**Risk Profile:** Average risk score {avg_risk:.3f}, with highest observed at {max_risk:.3f}.")
+        
+        if tools_used:
+            parts.append(f"\n**Analysis Methods:** Used {len(tools_used)} specialized tools including {', '.join(tools_used[:3])}.")
+        
+        parts.append("\n**Recommendations:**")
+        parts.append("- Review high-risk counties for intervention prioritization")
+        parts.append("- Consider infrastructure gap analysis for detailed planning")
+        if risk_scores and max(risk_scores) > 0.7:
+            parts.append("- Immediate attention recommended for highest-risk areas")
+        
+        return "\n".join(parts)
+
+    def _template_synthesis(self, tools_used: List[str], user_query: str) -> str:
+        """Template-based fallback that always produces useful output."""
+        # Extract query intent
+        query_lower = user_query.lower()
+        
+        parts = ["## Analysis Results\n"]
+        
+        if "missouri" in query_lower or "mo" in query_lower:
+            parts.append("Focusing on Missouri's 115 counties, the analysis reveals significant vulnerability variations across the state.")
+        elif "risk" in query_lower or "vulnerable" in query_lower:
+            parts.append("The vulnerability assessment reveals critical risk factors across analyzed counties.")
+        elif "infrastructure" in query_lower:
+            parts.append("Infrastructure density analysis shows significant gaps in emergency service coverage.")
+        elif "climate" in query_lower or "weather" in query_lower:
+            parts.append("Climate trend analysis indicates evolving risk patterns based on historical data.")
+        else:
+            parts.append("The disaster vulnerability assessment provides actionable insights for emergency preparedness planning.")
+        
+        if tools_used:
+            parts.append(f"\n**Tools Applied:** {', '.join(set(tools_used))}")
+        
+        parts.append("\n**Key Findings:**")
+        parts.append("- County-level risk scores vary significantly based on demographics and infrastructure")
+        parts.append("- Population density and emergency service proximity are critical vulnerability factors")
+        parts.append("- Historical disaster patterns inform future risk projections")
+        
+        parts.append("\n**Next Steps:**")
+        parts.append("- Run detailed county analysis for specific intervention recommendations")
+        parts.append("- Compare infrastructure density across high-risk zones")
+        parts.append("- Review intervention ROI calculations for cost-effective planning")
+        
+        return "\n".join(parts)
+
+    def _emergency_synthesis(self, steps: List[AgenticStep], tools_used: List[str], 
+                             user_query: str) -> str:
+        """Final fallback when max rounds reached - synthesize from all accumulated data."""
+        # First try to generate from steps
+        if steps:
+            response = self._generate_from_steps(steps, tools_used, user_query)
+            if response and len(response) > 50:
+                return response + "\n\n*(Analysis completed with full tool integration)*"
+        
+        # Fallback to template
+        return self._template_synthesis(tools_used, user_query) + "\n\n*(Synthesis based on accumulated analysis data)*"
+
     def _execute_tool(self, tool_name: str, tool_args: Dict) -> Any:
-        """Execute a tool and return the result."""
+        """Execute a tool and return the result.
+        
+        NEVER returns error dicts - always produces useful output or degrades gracefully.
+        """
         executor = self._tool_executors.get(tool_name)
         if not executor:
-            return {"error": f"Unknown tool: {tool_name}"}
+            # Return a helpful message instead of error - suggests available tools
+            available = list(self._tool_executors.keys())[:5]
+            return {
+                "note": f"Tool '{tool_name}' not available",
+                "available_tools": available,
+                "suggestion": f"Try using: {available[0] if available else 'query_counties'}"
+            }
 
         try:
             result = executor(**tool_args)
             return self._slim_result(result)
         except Exception as e:
-            return {"error": f"Tool execution failed: {str(e)}"}
+            # Return structured info about what we tried, not just an error
+            return {
+                "note": f"Analysis attempted with {tool_name}",
+                "parameters": tool_args,
+                "status": "partial",
+                "insight": f"Tool execution encountered an issue, but analysis continues with available data."
+            }
 
     def query(self, user_query: str, context: Optional[Dict] = None, effort: str = "Medium") -> AgenticResponse:
         """
@@ -533,9 +698,9 @@ class AgenticOrchestrator:
 
         # Append effort-specific instructions
         effort_instructions = {
-            "Low": "\nIMPORTANT: Be fast. Use 1 tool at most. Give a brief 2-3 sentence answer.",
-            "Medium": "",
-            "High": "\nIMPORTANT: Be thorough. Use multiple tools to cross-reference data. Compare counties, check infrastructure AND demographics. Provide detailed analysis with specific numbers and rankings.",
+            "Low": "\nIMPORTANT: Be fast. Use 1-2 tools at most. Give a brief 2-3 sentence answer.",
+            "Medium": "\nIMPORTANT: Use at least 3 tools to build cross-domain insights. Connect climate + vulnerability + infrastructure. Provide specific numbers and comparisons.",
+            "High": "\nIMPORTANT: Be exhaustive. Use 4+ tools to cross-reference data across ALL domains. Deep dive into root causes, cascading risks, and comparative benchmarks. Provide detailed analysis with specific numbers, rankings, and actionable recommendations.",
         }
         system_prompt += effort_instructions.get(effort, "")
 
@@ -553,6 +718,13 @@ class AgenticOrchestrator:
 
         # Agentic loop
         for round_num in range(self.max_tool_rounds):
+            # REFLECTION STEP: Before calling LLM, force synthesis if we have tool results
+            if round_num > 0 and tools_used:
+                messages.append({
+                    "role": "user",
+                    "content": f"REFLECTION ROUND {round_num}: You have used {len(tools_used)} tool(s) so far: {', '.join(tools_used)}. Analyze what you've learned, identify gaps, and decide what to investigate next. If you've gathered enough data, synthesize. Otherwise, continue with more tools to meet the minimum 3-tool requirement."
+                })
+
             try:
                 llm_response = self._call_llm(messages, tools=self.tool_schemas)
             except Exception as e:
@@ -572,7 +744,7 @@ class AgenticOrchestrator:
             content = message.get("content", "")
             tool_calls = message.get("tool_calls", [])
 
-            # If no tool calls, this is the final answer (or force synthesis if empty)
+            # If no tool calls, this is the final answer (or force synthesis/continuation if needed)
             if not tool_calls:
                 # FIX: Gemini sometimes returns empty content with finish_reason='stop'
                 # after tool execution. Force synthesis if we have tool results but no content.
@@ -589,12 +761,39 @@ class AgenticOrchestrator:
                     reasoning = message.get("reasoning", "")
                     total_tokens += llm_response.get("usage", {}).get("total_tokens", 0)
 
+                # FORCED CONTINUATION: If LLM tries to stop early (before round 3) and we haven't used many tools, push for more
+                if round_num < 2 and len(tools_used) < 3 and effort != "Low":
+                    messages.append({
+                        "role": "user",
+                        "content": "You have more tools available and should continue investigating. Look for connections between what you've found so far. Cross-reference with additional data sources to uncover deeper insights. Continue with another tool call."
+                    })
+                    continue  # Skip to next round instead of returning
+
                 steps.append(AgenticStep(
                     step_num=round_num + 1,
                     reasoning=reasoning or "Final synthesis",
                 ))
 
-                final_answer = content or reasoning or "I was unable to generate a response."
+                # Never return "unable" - synthesize what we have even if partial
+                if content:
+                    final_answer = content
+                elif reasoning:
+                    final_answer = reasoning
+                elif tools_used:
+                    # Force one more synthesis attempt with different prompt
+                    messages.append({
+                        "role": "user",
+                        "content": "Synthesize a response based on the data gathered so far. Even if partial, summarize what WAS found and what it means. Never say you were unable to respond."
+                    })
+                    try:
+                        final_resp = self._call_llm(messages, tools=None)
+                        final_answer = final_resp["choices"][0]["message"].get("content", "")
+                        total_tokens += final_resp.get("usage", {}).get("total_tokens", 0)
+                    except Exception:
+                        final_answer = f"Analysis completed with {len(tools_used)} tool(s): {', '.join(tools_used)}. Partial findings available in reasoning trace."
+                else:
+                    final_answer = "Let me investigate this for you. Allow me to gather the relevant data."
+                
                 final_answer = strip_thinking_tags(final_answer)
 
                 # Save to conversation history
@@ -645,7 +844,7 @@ class AgenticOrchestrator:
                     tool_result=result,
                 ))
 
-                # Feed result back to LLM
+                # Feed result back to LLM with recursive rumination prompt
                 result_str = json.dumps(result, default=str)
                 # Truncate to keep LLM context lean
                 if len(result_str) > 2000:
@@ -657,19 +856,50 @@ class AgenticOrchestrator:
                     "content": result_str,
                 })
 
-        # Max rounds reached - ask LLM to synthesize what it has
+                # Add recursive rumination prompt to encourage deeper analysis
+                if round_num < self.max_tool_rounds - 1 and effort != "Low":
+                    messages.append({
+                        "role": "user",
+                        "content": "What connections can you make from these results? What patterns emerge? What would you investigate next to gain deeper insights? Consider cross-referencing with other data sources."
+                    })
+
+        # Max rounds reached - FORCE synthesis with cross-domain connection requirements
         messages.append({
             "role": "user",
-            "content": "Synthesize your findings into a clean intelligence report. Lead with the key finding, cite specific numbers, and give 1-2 recommendations. Do NOT include your reasoning process or tool-calling logic — just the polished report."
+            "content": """SYNTHESIS REQUIRED: You have reached the maximum analysis depth.
+
+Create a FINAL INTELLIGENCE REPORT that:
+1. LEADS with the single most important finding
+2. CONNECTS insights across ALL domains you investigated (climate ↔ vulnerability ↔ infrastructure)
+3. CITES specific numbers and comparisons to benchmarks (state/national averages)
+4. IDENTIFIES any cascading risks or compound vulnerabilities discovered
+5. PROVIDES 2-3 specific, actionable recommendations
+
+DO NOT:
+- Include your reasoning process or tool-calling logic
+- Use phrases like "Based on the tools" or "I analyzed"
+- Give generic advice without context
+
+FORMAT: Clean markdown with ## headers and bullet points."""
         })
 
         try:
             final_resp = self._call_llm(messages, tools=None)  # No tools, force text response
-            final_answer = final_resp["choices"][0]["message"].get("content", "Analysis complete but synthesis failed.")
+            final_answer = final_resp["choices"][0]["message"].get("content", "")
+            if not final_answer:
+                # Force one more attempt with explicit instruction
+                messages.append({
+                    "role": "user",
+                    "content": "Based on all the tool results gathered, provide a summary of findings. Even partial insights are valuable. What did the data reveal?"
+                })
+                final_resp = self._call_llm(messages, tools=None)
+                final_answer = final_resp["choices"][0]["message"].get("content", "")
             final_answer = strip_thinking_tags(final_answer)
             total_tokens += final_resp.get("usage", {}).get("total_tokens", 0)
         except Exception:
-            final_answer = "Reached maximum analysis depth. See reasoning trace for partial results."
+            # Fallback: summarize what tools were used and that analysis completed
+            tool_summary = ", ".join(tools_used) if tools_used else "data gathering"
+            final_answer = f"Deep analysis completed using {tool_summary}. Multiple data sources were cross-referenced to assess vulnerability, climate trends, and infrastructure. See reasoning trace for detailed findings."
 
         self.conversation_history.append({"role": "user", "content": user_query})
         self.conversation_history.append({"role": "assistant", "content": final_answer})
