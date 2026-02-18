@@ -360,6 +360,117 @@ class ResilienceAgent:
         ids = AlertManager().trigger_alert(county_fips=county_fips, alert_type="storm", severity=severity, message=message)
         return {"subscribers_notified": len(ids)}
 
+    # -- RainDrop Precipitation Tools (api.raindrop.app) --
+    _RAINDROP_BASE = "https://api.raindrop.app"
+
+    def _county_latlon(self, fips):
+        """Get lat/lon for a county FIPS code."""
+        match = self.df[self.df["fips"] == str(fips)]
+        if match.empty:
+            return None, None
+        row = match.iloc[0]
+        return float(row.get("latitude", 0)), float(row.get("longitude", 0))
+
+    def get_precipitation_summary(self, fips):
+        """Real-time precipitation summary vs 30-year averages from RainDrop."""
+        import requests as _req
+        lat, lon = self._county_latlon(fips)
+        if not lat:
+            return {"error": f"County {fips} not found"}
+        try:
+            resp = _req.get(f"{self._RAINDROP_BASE}/precipitation/summary",
+                           params={"lat": lat, "lon": lon, "timezone": "America/Chicago"}, timeout=15)
+            resp.raise_for_status()
+            data = resp.json()
+            # Enrich with county name
+            match = self.df[self.df["fips"] == str(fips)]
+            if not match.empty:
+                data["county_name"] = match.iloc[0].get("county_name", f"FIPS {fips}")
+                data["fips"] = fips
+            # Compute deviation from average
+            tf = data.get("timeframes", {})
+            avg = data.get("averages", {})
+            deviations = {}
+            for k in ("7d", "30d", "ytd", "365d"):
+                if k in tf and k in avg and avg[k] > 0:
+                    deviations[k] = round((tf[k] - avg[k]) / avg[k] * 100, 1)
+            data["deviation_pct"] = deviations
+            return data
+        except Exception as e:
+            return {"error": f"RainDrop API failed: {str(e)[:100]}"}
+
+    def get_precipitation_yearly(self, fips, start_year=2015, end_year=2026):
+        """Multi-year precipitation trends from RainDrop."""
+        import requests as _req
+        lat, lon = self._county_latlon(fips)
+        if not lat:
+            return {"error": f"County {fips} not found"}
+        try:
+            resp = _req.get(f"{self._RAINDROP_BASE}/precipitation/yearly",
+                           params={"lat": lat, "lon": lon, "start_year": start_year,
+                                   "end_year": end_year, "timezone": "America/Chicago"}, timeout=15)
+            resp.raise_for_status()
+            data = resp.json()
+            # Enrich
+            match = self.df[self.df["fips"] == str(fips)]
+            if not match.empty:
+                data["county_name"] = match.iloc[0].get("county_name", f"FIPS {fips}")
+                data["fips"] = fips
+            # Compute trend
+            values = data.get("values", [])
+            avg = data.get("average", 0)
+            if len(values) >= 3 and avg > 0:
+                recent_3yr = sum(values[-4:-1]) / 3 if len(values) > 3 else sum(values[-3:]) / 3
+                data["recent_3yr_avg_mm"] = round(recent_3yr, 1)
+                data["trend_vs_average_pct"] = round((recent_3yr - avg) / avg * 100, 1)
+            return data
+        except Exception as e:
+            return {"error": f"RainDrop API failed: {str(e)[:100]}"}
+
+    def get_precipitation_monthly(self, fips, start_month, end_month):
+        """Monthly precipitation with PRISM historical averages from RainDrop."""
+        import requests as _req
+        lat, lon = self._county_latlon(fips)
+        if not lat:
+            return {"error": f"County {fips} not found"}
+        try:
+            resp = _req.get(f"{self._RAINDROP_BASE}/precipitation/monthly",
+                           params={"lat": lat, "lon": lon, "start_month": start_month,
+                                   "end_month": end_month, "timezone": "America/Chicago"}, timeout=15)
+            resp.raise_for_status()
+            data = resp.json()
+            match = self.df[self.df["fips"] == str(fips)]
+            if not match.empty:
+                data["county_name"] = match.iloc[0].get("county_name", f"FIPS {fips}")
+                data["fips"] = fips
+            return data
+        except Exception as e:
+            return {"error": f"RainDrop API failed: {str(e)[:100]}"}
+
+    def get_weather_alerts_raindrop(self, fips):
+        """Active NWS weather alerts for a county location via RainDrop."""
+        import requests as _req
+        lat, lon = self._county_latlon(fips)
+        if not lat:
+            return {"error": f"County {fips} not found"}
+        try:
+            resp = _req.get(f"{self._RAINDROP_BASE}/alerts",
+                           params={"lat": lat, "lon": lon}, timeout=15)
+            resp.raise_for_status()
+            data = resp.json()
+            alerts = data.get("alerts", [])
+            match = self.df[self.df["fips"] == str(fips)]
+            county_name = match.iloc[0].get("county_name", f"FIPS {fips}") if not match.empty else f"FIPS {fips}"
+            return {
+                "county_name": county_name,
+                "fips": fips,
+                "active_alerts": len(alerts),
+                "alerts": alerts,
+                "source": "National Weather Service via RainDrop"
+            }
+        except Exception as e:
+            return {"error": f"RainDrop alerts failed: {str(e)[:100]}"}
+
     # -- Meta Tools --
     def self_improve(self, query, response_summary):
         from src.self_improve import SelfImproveEngine

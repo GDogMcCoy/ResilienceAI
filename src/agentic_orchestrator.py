@@ -254,6 +254,67 @@ def get_working_tool_schemas() -> List[Dict]:
                 }
             }
         },
+        # ── RainDrop Precipitation Tools (api.raindrop.app) ────────────
+        {
+            "type": "function",
+            "function": {
+                "name": "get_precipitation_summary",
+                "description": "Get real-time precipitation totals vs 30-year historical averages for a county from RainDrop. Returns 12h/24h/48h/72h/7d/30d/MTD/YTD/365d rainfall plus deviation percentages showing whether current conditions are wetter or drier than normal. 1km resolution from 180 Doppler radars + 10,000 rain gauges.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "fips": {"type": "string", "description": "5-digit county FIPS code"}
+                    },
+                    "required": ["fips"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_precipitation_yearly",
+                "description": "Get multi-year annual precipitation totals (2015-2026) with 30-year average from RainDrop. Use to analyze long-term rainfall trends, identify drought/flood years, and compare recent 3-year average against the historical baseline.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                        "start_year": {"type": "integer", "description": "Start year (default: 2015)"},
+                        "end_year": {"type": "integer", "description": "End year (default: 2026)"}
+                    },
+                    "required": ["fips"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_precipitation_monthly",
+                "description": "Get monthly precipitation totals with PRISM historical averages from RainDrop. Shows month-by-month rainfall vs climatological norms to identify seasonal anomalies, drought months, or unusual wet periods.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "fips": {"type": "string", "description": "5-digit county FIPS code"},
+                        "start_month": {"type": "string", "description": "Start month YYYY-MM (e.g. '2024-01')"},
+                        "end_month": {"type": "string", "description": "End month YYYY-MM (e.g. '2025-12')"}
+                    },
+                    "required": ["fips", "start_month", "end_month"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_weather_alerts_raindrop",
+                "description": "Get active National Weather Service weather alerts for a county location via RainDrop. Returns real-time flood warnings, tornado watches, severe thunderstorm warnings, and other active NWS alerts.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "fips": {"type": "string", "description": "5-digit county FIPS code"}
+                    },
+                    "required": ["fips"]
+                }
+            }
+        },
         # ── Climate Intelligence Tools (via ClimateAgent) ──────────────
         {
             "type": "function",
@@ -507,6 +568,10 @@ class AgenticOrchestrator:
                 "compare_counties": lambda **kw: self.agent.compare_counties(**kw),
                 "find_compound_risk_counties": lambda **kw: self.agent.find_compound_risk_counties(**kw),
                 "get_disaster_trends": lambda **kw: self.agent.get_disaster_trends(**kw),
+                "get_precipitation_summary": lambda **kw: self.agent.get_precipitation_summary(**kw),
+                "get_precipitation_yearly": lambda **kw: self.agent.get_precipitation_yearly(**kw),
+                "get_precipitation_monthly": lambda **kw: self.agent.get_precipitation_monthly(**kw),
+                "get_weather_alerts_raindrop": lambda **kw: self.agent.get_weather_alerts_raindrop(**kw),
             })
         # Wire climate tools if ClimateAgent is available (independent of ResilienceAgent)
         # NOTE: ClimateAgent.execute_tool(name, params) expects params as a single dict,
