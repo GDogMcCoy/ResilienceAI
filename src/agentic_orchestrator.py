@@ -492,6 +492,13 @@ class AgenticOrchestrator:
             headers=headers,
             timeout=120,
         )
+        # Surface clear error messages for common API failures
+        if resp.status_code == 400:
+            body = resp.text[:500]
+            if "API_KEY_INVALID" in body or "expired" in body.lower():
+                raise RuntimeError("GEMINI_API_KEY is expired or invalid — generate a new key at https://aistudio.google.com/apikey")
+            elif "quota" in body.lower():
+                raise RuntimeError("Gemini API quota exceeded — wait or use a different key")
         resp.raise_for_status()
         return resp.json()
 
@@ -741,14 +748,18 @@ class AgenticOrchestrator:
                 ))
                 break
 
-            choice = llm_response["choices"][0]
-            message = choice["message"]
+            choices = llm_response.get("choices") or []
+            if not choices:
+                steps.append(AgenticStep(step_num=round_num + 1, reasoning="LLM returned empty choices", error="empty_choices"))
+                break
+            choice = choices[0]
+            message = choice.get("message") or {}
             total_tokens += llm_response.get("usage", {}).get("total_tokens", 0)
 
             # Extract reasoning (GPT-OSS 20B provides this)
             reasoning = message.get("reasoning", "")
             content = message.get("content", "")
-            tool_calls = message.get("tool_calls", [])
+            tool_calls = message.get("tool_calls") or []
 
             # If no tool calls, this is the final answer (or force synthesis/continuation if needed)
             if not tool_calls:
@@ -761,10 +772,11 @@ class AgenticOrchestrator:
                         "content": "Based on the tool results above, provide a clear answer to my question."
                     })
                     llm_response = self._call_llm(messages, tools=None)
-                    choice = llm_response["choices"][0]
-                    message = choice["message"]
-                    content = message.get("content", "")
-                    reasoning = message.get("reasoning", "")
+                    synth_choices = llm_response.get("choices") or []
+                    if synth_choices:
+                        message = synth_choices[0].get("message") or {}
+                        content = message.get("content", "")
+                        reasoning = message.get("reasoning", "")
                     total_tokens += llm_response.get("usage", {}).get("total_tokens", 0)
 
                 # FORCED CONTINUATION: If LLM tries to stop early (before round 3) and we haven't used many tools, push for more

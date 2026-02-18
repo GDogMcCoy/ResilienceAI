@@ -97,9 +97,19 @@ TOOL_COLOR_MAP = {
 def load_counties_geojson():
     """Load US county boundaries GeoJSON (cached per session, ~17MB one-time download)."""
     url = "https://raw.githubusercontent.com/plotly/datasets/master/geojson-counties-fips.json"
-    resp = _requests.get(url, timeout=30)
-    resp.raise_for_status()
-    return resp.json()
+    try:
+        resp = _requests.get(url, timeout=45)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception:
+        # Try alternative CDN
+        try:
+            alt_url = "https://cdn.jsdelivr.net/gh/plotly/datasets@master/geojson-counties-fips.json"
+            resp = _requests.get(alt_url, timeout=45)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception:
+            return None  # Choropleth maps degrade gracefully when None
 
 # Try to import internal modules
 try:
@@ -148,10 +158,22 @@ def init_session_state():
         'query_input': "",
         'agentic_orchestrator': None,
         'chat_history': [],
+        # Query-derived state (set by render_tool_visuals, read by Data Explorer)
+        'query_highlighted_fips': set(),
+        'query_color_col': 'risk_score',
+        'query_states': set(),
+        'query_text_display': "",
+        # Guard flag to prevent auto-focus rerun loops
+        '_auto_focus_done': False,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
+    # Ensure agent_config has all expected keys (handles upgrades mid-session)
+    cfg = st.session_state['agent_config']
+    for ck, cv in defaults['agent_config'].items():
+        if ck not in cfg:
+            cfg[ck] = cv
 
 init_session_state()
 
@@ -230,7 +252,7 @@ def render_3d_dot_matrix(
                 opacity=0.45, line=dict(width=0),
                 colorbar=dict(title=color_col.replace("_", " ").title(), thickness=12, len=0.6),
             ),
-            text=bg.get("county_name", bg.get("fips", "")),
+            text=bg["county_name"] if "county_name" in bg.columns else (bg["fips"] if "fips" in bg.columns else ""),
             hovertemplate="<b>%{text}</b><br>" + color_col + ": %{z:.3f}<extra></extra>",
             name="Counties",
         ))
@@ -245,7 +267,7 @@ def render_3d_dot_matrix(
                 size=hl["_sz"] * 1.5, color=hl[color_col], colorscale="RdYlGn_r",
                 opacity=1.0, line=dict(width=2, color="white"),
             ),
-            text=hl["county_name"].str.split(",").str[0] if "county_name" in hl.columns else hl.get("fips", ""),
+            text=hl["county_name"].str.split(",").str[0] if "county_name" in hl.columns else (hl["fips"] if "fips" in hl.columns else ""),
             textposition="top center",
             textfont=dict(size=9, color="white"),
             hovertemplate="<b>%{text}</b><br>" + color_col + ": %{z:.3f}<extra>Analyzed</extra>",
@@ -264,7 +286,7 @@ def render_3d_dot_matrix(
         ),
         legend=dict(x=0.01, y=0.99, bgcolor="rgba(0,0,0,0.5)"),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 def render_2d_state_map(
@@ -299,20 +321,20 @@ def render_2d_state_map(
         plot_df["_sz"] = 7
 
     # ── Primary scatter layer ────────────────────────────────────────
+    hover_data = {"_sz": False, "latitude": False, "longitude": False}
+    if "risk_score" in plot_df.columns:
+        hover_data["risk_score"] = ":.3f"
+    if "total_population" in plot_df.columns:
+        hover_data["total_population"] = ":,"
+    if color_col in plot_df.columns:
+        hover_data[color_col] = ":.3f"
     fig = px.scatter_geo(
         plot_df,
         lat="latitude", lon="longitude",
         color=color_col, color_continuous_scale="RdYlGn_r",
         size="_sz", size_max=20,
-        hover_name="county_name",
-        hover_data={
-            "risk_score": ":.3f",
-            "total_population": ":,",
-            color_col: ":.3f",
-            "_sz": False,
-            "latitude": False,
-            "longitude": False,
-        },
+        hover_name="county_name" if "county_name" in plot_df.columns else None,
+        hover_data=hover_data,
     )
 
     # ── Infrastructure gap overlay ───────────────────────────────────
@@ -379,7 +401,7 @@ def render_2d_state_map(
             font=dict(size=14),
         ),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -432,7 +454,7 @@ def render_choropleth_report_map(highlighted_fips, color_col="risk_score", title
     else:
         # Agentic report path: pull full dataset and scope by states in highlighted_fips
         full_df = st.session_state.get("df")
-        if full_df is None or not highlighted_fips:
+        if full_df is None or not highlighted_fips or "fips" not in full_df.columns:
             return
         state_fips_set = {f[:2] for f in highlighted_fips if len(f) >= 5}
         state_fips_set -= EXCLUDED_STATE_FIPS
@@ -446,6 +468,8 @@ def render_choropleth_report_map(highlighted_fips, color_col="risk_score", title
         geojson = load_counties_geojson()
     except Exception:
         return  # Silently fail if GeoJSON unavailable
+    if geojson is None:
+        return  # GeoJSON download failed — skip choropleth
 
     if color_col not in scope_df.columns:
         color_col = "risk_score"
@@ -476,7 +500,7 @@ def render_choropleth_report_map(highlighted_fips, color_col="risk_score", title
         ))
 
     # ── Infrastructure gap overlay: red X for >30km to hospital ─────────
-    if "dist_nearest_hospitals_km" in scope_df.columns:
+    if "dist_nearest_hospitals_km" in scope_df.columns and "latitude" in scope_df.columns and "longitude" in scope_df.columns:
         infra_gaps = scope_df[
             (scope_df["dist_nearest_hospitals_km"] > 30) &
             scope_df["latitude"].notna() & scope_df["longitude"].notna()
@@ -504,7 +528,7 @@ def render_choropleth_report_map(highlighted_fips, color_col="risk_score", title
         legend=dict(x=0.01, y=0.01, bgcolor="rgba(0,0,0,0.5)"),
         coloraxis_colorbar=dict(title=color_col.replace("_", " ").title(), thickness=15),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -554,20 +578,22 @@ def render_tool_visuals(steps):
                 if records:
                     rdf = pd.DataFrame(records)
 
-                    # Compact metrics row for top county
-                    top_county = rdf.loc[rdf['risk_score'].idxmax()]
-                    m1, m2, m3, m4 = st.columns(4)
-                    m1.metric("Highest Risk", top_county.get('county_name', 'N/A').split(',')[0])
-                    m2.metric("Risk Score", f"{top_county.get('risk_score', 0):.3f}")
-                    m3.metric("Population", f"{top_county.get('total_population', 0):,}" if _is_numeric(top_county.get('total_population')) else "N/A")
-                    m4.metric("Poverty", f"{top_county.get('poverty_pct', 0):.1f}%" if _is_numeric(top_county.get('poverty_pct')) else "N/A")
+                    # Compact metrics row for top county (guard against empty/NaN)
+                    if not rdf.empty and "risk_score" in rdf.columns and rdf["risk_score"].notna().any():
+                        top_county = rdf.loc[rdf['risk_score'].idxmax()]
+                        m1, m2, m3, m4 = st.columns(4)
+                        cname = top_county.get('county_name', 'N/A')
+                        m1.metric("Highest Risk", str(cname).split(',')[0] if cname else "N/A")
+                        m2.metric("Risk Score", f"{top_county.get('risk_score', 0):.3f}")
+                        m3.metric("Population", f"{top_county.get('total_population', 0):,}" if _is_numeric(top_county.get('total_population')) else "N/A")
+                        m4.metric("Poverty", f"{top_county.get('poverty_pct', 0):.1f}%" if _is_numeric(top_county.get('poverty_pct')) else "N/A")
 
                     # Collapsible full table
                     if len(rdf) > 0:
                         with st.expander(f"View All {len(rdf)} Counties", expanded=False):
                             show_cols = [c for c in ESSENTIAL_COLS if c in rdf.columns]
                             st.dataframe(rdf[show_cols].sort_values("risk_score", ascending=False),
-                                        use_container_width=True, hide_index=True)
+                                        width="stretch", hide_index=True)
 
             # ── County detail: metric cards (already optimized) ────────
             elif name == "get_county_detail":
@@ -655,13 +681,13 @@ def render_tool_visuals(steps):
                             xaxis_title=metric_col.replace("_", " ").title(),
                             coloraxis_showscale=False
                         )
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width="stretch")
                         
                         if remaining > 0:
                             with st.expander(f"View All {len(zdf)} Disparity Zones", expanded=False):
                                 show_cols = [c for c in ["county_name", metric_col, "risk_score", "poverty_pct"] if c in zdf.columns]
                                 st.dataframe(zdf[show_cols].sort_values(metric_col, ascending=False), 
-                                            use_container_width=True, hide_index=True)
+                                            width="stretch", hide_index=True)
 
             # ── Intervention ROI: bar chart (top 5) ────────────────────
             elif name == "calculate_intervention_roi":
@@ -695,13 +721,13 @@ def render_tool_visuals(steps):
                             xaxis_title=val_col.replace("_", " ").title(),
                             coloraxis_showscale=False
                         )
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width="stretch")
                         
                         if len(idf) > 5:
                             with st.expander(f"View All {len(idf)} Interventions", expanded=False):
                                 show_cols = [c for c in [name_col, val_col, "roi_score", "effectiveness"] if c in idf.columns]
                                 st.dataframe(idf[show_cols].sort_values(val_col), 
-                                            use_container_width=True, hide_index=True)
+                                            width="stretch", hide_index=True)
 
             # ── Scenario simulation: compact metrics ───────────────────
             elif name == "simulate_scenario":
@@ -725,7 +751,7 @@ def render_tool_visuals(steps):
                         with st.expander(f"View {len(affected)} Affected Counties", expanded=False):
                             adf = pd.DataFrame(affected)
                             show_cols = [c for c in ["county_name", "population_affected", "damage_estimate", "risk_level"] if c in adf.columns]
-                            st.dataframe(adf[show_cols][:10], use_container_width=True, hide_index=True)
+                            st.dataframe(adf[show_cols][:10], width="stretch", hide_index=True)
                             if len(adf) > 10:
                                 st.caption(f"... and {len(adf) - 10} more counties")
 
@@ -762,13 +788,13 @@ def render_tool_visuals(steps):
                             xaxis_title="Weighted Impact",
                             coloraxis_showscale=False
                         )
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width="stretch")
                         
                         if remaining > 0:
                             with st.expander(f"View All {len(rdf)} Counties", expanded=False):
                                 show_cols = [c for c in ["county_name", score_col, "risk_score", "total_population"] if c in rdf.columns]
                                 st.dataframe(rdf[show_cols].sort_values(score_col, ascending=False), 
-                                            use_container_width=True, hide_index=True)
+                                            width="stretch", hide_index=True)
 
             # ── Climate trends: summary metrics (compact) ───────────────
             elif name == "get_climate_trends":
@@ -847,12 +873,12 @@ def render_tool_visuals(steps):
                                 margin=dict(l=10, r=10, t=30, b=10),
                                 yaxis_title="", xaxis_title="NRI Risk Score",
                                 coloraxis_showscale=False)
-                            st.plotly_chart(fig, use_container_width=True)
+                            st.plotly_chart(fig, width="stretch")
 
                             if len(hdf) > 5:
                                 with st.expander(f"View All {len(hdf)} Active Hazards", expanded=False):
                                     st.dataframe(hdf[["hazard", "risk_score", "risk_rating", "expected_annual_loss"]],
-                                                use_container_width=True, hide_index=True)
+                                                width="stretch", hide_index=True)
                     else:
                         # Legacy list format
                         hazards = data.get("hazards", data.get("top_hazards", []))
@@ -860,7 +886,7 @@ def render_tool_visuals(steps):
                             hdf = pd.DataFrame(hazards[:5])
                             show_cols = [c for c in ["hazard", "risk_score", "frequency", "severity"] if c in hdf.columns]
                             if show_cols:
-                                st.dataframe(hdf[show_cols], use_container_width=True, hide_index=True)
+                                st.dataframe(hdf[show_cols], width="stretch", hide_index=True)
 
             # ── Flood frequency: compact table ─────────────────────────
             elif name == "get_flood_frequency":
@@ -879,7 +905,7 @@ def render_tool_visuals(steps):
                             col.metric(row["Return Period"], f"{row['Flow (cfs)']:,}")
                         if len(idf) > 4:
                             with st.expander("View All Return Periods", expanded=False):
-                                st.dataframe(idf, use_container_width=True, hide_index=True)
+                                st.dataframe(idf, width="stretch", hide_index=True)
 
             # ── Severe weather history: compact metrics ────────────────
             elif name == "get_severe_weather_history":
@@ -967,11 +993,17 @@ with st.sidebar:
 
     # State focus picker
     if df is not None:
-        state_list = sorted(df['county_name'].str.extract(r', (.+)$')[0].dropna().unique())
+        try:
+            state_list = sorted(df['county_name'].str.extract(r', (.+)$')[0].dropna().unique())
+        except Exception:
+            state_list = []
+        options = ["All States"] + list(state_list)
+        saved_focus = st.session_state.agent_config.get('focus_state', 'Missouri')
+        default_idx = options.index(saved_focus) if saved_focus in options else (options.index("Missouri") if "Missouri" in options else 0)
         focus_state = st.selectbox(
             "Focus State",
-            ["All States"] + list(state_list),
-            index=list(["All States"] + list(state_list)).index("Missouri"),
+            options,
+            index=default_idx,
             help="Filters data panels below. Agentic queries can ask about any state."
         )
         st.session_state.agent_config['focus_state'] = focus_state
@@ -1040,13 +1072,17 @@ with st.sidebar:
             )
             st.session_state.agent_config['lm_url'] = correct_url  # Sync to session state
         except Exception as e:
-            st.sidebar.error(f"Connection failed: {str(e)[:100]}")
-            import logging
-            logging.exception("Orchestrator init failed")
+            st.sidebar.error(f"Orchestrator init failed: {str(e)[:120]}")
+            st.session_state.agentic_orchestrator = None  # explicit None on failure
 
-    if st.session_state.agentic_orchestrator:
-        info = st.session_state.agentic_orchestrator.get_agent_info()
-        st.success(f"{info['model'].split('/')[-1]} | {info['tools']} tools | {info['counties_loaded']:,} counties")
+    orch_obj = st.session_state.get('agentic_orchestrator')
+    if orch_obj:
+        try:
+            info = orch_obj.get_agent_info()
+            model_short = (info.get('model') or 'unknown').split('/')[-1]
+            st.success(f"{model_short} | {info.get('tools', 0)} tools | {info.get('counties_loaded', 0):,} counties")
+        except Exception:
+            st.success("Orchestrator ready")
     else:
         st.warning("LLM unavailable — check connection settings")
 
@@ -1061,15 +1097,18 @@ with st.sidebar:
 
     # Quick context stats for focused state
     if df is not None:
+      try:
         fs = st.session_state.agent_config.get('focus_state', 'All States')
         ctx_df = df if fs == "All States" else df[df["county_name"].str.endswith(f", {fs}")]
         if not ctx_df.empty:
             c1, c2 = st.columns(2)
             c1.metric("Counties", f"{len(ctx_df):,}")
-            c2.metric("High Risk", f"{len(ctx_df[ctx_df['risk_level'] == 'High'])}")
+            c2.metric("High Risk", f"{len(ctx_df[ctx_df['risk_level'] == 'High'])}" if 'risk_level' in ctx_df.columns else "N/A")
             c3, c4 = st.columns(2)
-            c3.metric("Avg Risk", f"{ctx_df['risk_score'].mean():.3f}")
-            c4.metric("Poverty", f"{ctx_df['poverty_pct'].mean():.1f}%")
+            c3.metric("Avg Risk", f"{ctx_df['risk_score'].mean():.3f}" if 'risk_score' in ctx_df.columns else "N/A")
+            c4.metric("Poverty", f"{ctx_df['poverty_pct'].mean():.1f}%" if 'poverty_pct' in ctx_df.columns else "N/A")
+      except Exception:
+        pass  # sidebar stats are non-critical
 
     st.divider()
     st.caption("MUIDSI Hackathon 2026 | v3.3.0")
@@ -1118,7 +1157,7 @@ for tab, tab_name in zip(tabs, tab_names):
         cols = st.columns(len(prompts))
         for col, (label, query) in zip(cols, prompts):
             with col:
-                if st.button(label, key=f"preset_{tab_name}_{label}", use_container_width=True):
+                if st.button(label, key=f"preset_{tab_name}_{label}", width="stretch"):
                     st.session_state.query_input = query
                     st.rerun()  # Refresh to show the populated query in the text box
 
@@ -1134,7 +1173,7 @@ with st.form("query_form", clear_on_submit=True):
         placeholder="e.g., Which counties have accelerating disaster frequency and no hospital within 50km?",
         height=100,
     )
-    submit_q = st.form_submit_button("Analyze", type="primary", use_container_width=True)
+    submit_q = st.form_submit_button("Analyze", type="primary", width="stretch")
 
 # Note: Preset buttons now only populate the text box without auto-submitting.
 # The user can review/edit the prompt before manually clicking "Analyze".
@@ -1146,7 +1185,7 @@ if should_run:
     st.session_state.query_text_display = query_text
     effort = st.session_state.agent_config.get('reasoning_effort', 'Medium')
 
-    if st.session_state.agentic_orchestrator:
+    if st.session_state.get('agentic_orchestrator'):
         orch = st.session_state.agentic_orchestrator
         # Apply effort settings (rounds, max_tokens)
         effort_cfg = {"Low": (3, 2048), "Medium": (6, 4096), "High": (10, 8192)}
@@ -1157,28 +1196,33 @@ if should_run:
             try:
                 response = orch.query(query_text, effort=effort)
 
-                for step in response.steps:
+                for step in (response.steps or []):
                     if step.tool_name:
-                        st.write(f"**Step {step.step_num}**: `{step.tool_name}({json.dumps(step.tool_args)})`")
+                        args_str = json.dumps(step.tool_args) if step.tool_args else "{}"
+                        st.write(f"**Step {step.step_num}**: `{step.tool_name}({args_str})`")
                     if step.reasoning and step.reasoning != "Final synthesis":
                         st.write(f"*{step.reasoning[:200]}*")
 
-                tools_str = ", ".join(response.tools_used) if response.tools_used else "direct"
+                tools_used = response.tools_used or []
+                tools_str = ", ".join(tools_used) if tools_used else "direct"
+                elapsed = (response.execution_time_ms or 0) / 1000
                 status.update(
-                    label=f"Done — {len(response.steps)} steps, {len(response.tools_used)} tools ({tools_str}) in {response.execution_time_ms/1000:.1f}s",
+                    label=f"Done — {len(response.steps)} steps, {len(tools_used)} tools ({tools_str}) in {elapsed:.1f}s",
                     state="complete"
                 )
 
                 st.session_state.last_agent_response = response
+                st.session_state._auto_focus_done = False  # allow auto-focus for new query
                 st.session_state.chat_history.append({
                     "query": query_text,
-                    "answer": response.answer,
-                    "tools": response.tools_used,
-                    "time_ms": response.execution_time_ms,
-                    "steps": len(response.steps),
+                    "answer": getattr(response, 'answer', ''),
+                    "tools": tools_used,
+                    "time_ms": response.execution_time_ms or 0,
+                    "steps": len(response.steps or []),
                 })
             except Exception as e:
                 status.update(label=f"Error: {e}", state="error")
+                st.error(f"Query failed — check LLM connection. Details: {str(e)[:200]}")
     else:
         st.error("Agentic engine not available — check LLM connection in sidebar.")
 
@@ -1193,31 +1237,42 @@ if st.session_state.last_agent_response is not None:
         with col_h:
             st.markdown("### Intelligence Report")
         with col_stats:
-            st.caption(f"{res.execution_time_ms/1000:.1f}s | {len(res.tools_used)} tools | {res.model.split('/')[-1]}")
+            elapsed = (getattr(res, 'execution_time_ms', 0) or 0) / 1000
+            n_tools = len(getattr(res, 'tools_used', []) or [])
+            model_name = (getattr(res, 'model', '') or 'unknown').split('/')[-1]
+            st.caption(f"{elapsed:.1f}s | {n_tools} tools | {model_name}")
 
-        st.markdown(res.answer)
+        st.markdown(res.answer or "*No response generated.*")
 
         # ── Inline Tool Visualizations ─────────────────────────────
-        render_tool_visuals(res.steps)
+        try:
+            render_tool_visuals(res.steps or [])
+        except Exception as viz_err:
+            st.caption(f"Visualization rendering skipped: {str(viz_err)[:100]}")
 
-        # Auto-focus sidebar to query's state if single-state query
+        # Auto-focus sidebar to query's state if single-state query (one-shot, no loop)
         qs = st.session_state.get("query_states", set())
-        if len(qs) == 1:
+        if len(qs) == 1 and not st.session_state.get("_auto_focus_done"):
             detected = next(iter(qs))
             if st.session_state.agent_config.get("focus_state") != detected:
                 st.session_state.agent_config["focus_state"] = detected
+                st.session_state._auto_focus_done = True
                 st.rerun()
 
         # Reasoning trace
-        with st.expander(f"Reasoning Trace ({len(res.steps)} steps)", expanded=False):
-            for step in res.steps:
+        with st.expander(f"Reasoning Trace ({len(res.steps or [])} steps)", expanded=False):
+            for step in (res.steps or []):
                 st.markdown(f"**Step {step.step_num}**")
                 if step.reasoning:
                     st.markdown(f"> *{step.reasoning[:300]}*")
                 if step.tool_name:
-                    st.code(f"{step.tool_name}({json.dumps(step.tool_args, indent=2)})", language="json")
-                    if step.tool_result:
-                        result_str = json.dumps(step.tool_result, default=str, indent=2)
+                    args_str = json.dumps(step.tool_args, indent=2) if step.tool_args else "{}"
+                    st.code(f"{step.tool_name}({args_str})", language="json")
+                    if step.tool_result is not None:
+                        try:
+                            result_str = json.dumps(step.tool_result, default=str, indent=2)
+                        except (TypeError, ValueError):
+                            result_str = str(step.tool_result)
                         if len(result_str) > 1500:
                             result_str = result_str[:1500] + "\n... (truncated)"
                         st.code(result_str, language="json")
@@ -1228,17 +1283,19 @@ if st.session_state.last_agent_response is not None:
             st.info(res['answer'])
         if 'data' in res and res['data']:
             try:
-                st.dataframe(pd.DataFrame(res['data']), use_container_width=True)
+                st.dataframe(pd.DataFrame(res['data']), width="stretch")
             except Exception:
                 st.json(res['data'])
 
 # ── Chat History ──────────────────────────────────────────────────────
-if st.session_state.chat_history:
+if st.session_state.get('chat_history'):
     with st.expander(f"Session History ({len(st.session_state.chat_history)} queries)", expanded=False):
         for i, h in enumerate(reversed(st.session_state.chat_history)):
             idx = len(st.session_state.chat_history) - i
-            st.markdown(f"**Q{idx}**: {h['query']}")
-            st.caption(f"{h.get('steps', '?')} steps | Tools: {', '.join(h.get('tools', []))} | {h.get('time_ms', 0)/1000:.1f}s")
+            st.markdown(f"**Q{idx}**: {h.get('query', '(unknown)')}")
+            tools_list = h.get('tools') or []
+            elapsed_ms = h.get('time_ms', 0) or 0
+            st.caption(f"{h.get('steps', '?')} steps | Tools: {', '.join(tools_list)} | {elapsed_ms/1000:.1f}s")
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1269,7 +1326,9 @@ if df is not None:
 
     # ── Panel 1: Multi-Layer Vulnerability Map ──────────────────────────
     with st.expander(f"🗺️ Vulnerability Map — {state_label} ({len(focus_df):,} counties)", expanded=False):
-        color_by = st.selectbox("Color by", ["risk_score", "vulnerability_index", "poverty_pct", "uninsured_pct", "elderly_pct", "disability_pct"], key="map_color")
+      try:
+        available_color_opts = [c for c in ["risk_score", "vulnerability_index", "poverty_pct", "uninsured_pct", "elderly_pct", "disability_pct"] if c in focus_df.columns]
+        color_by = st.selectbox("Color by", available_color_opts or ["risk_score"], key="map_color")
         show_infra = st.checkbox("Overlay infrastructure gaps", value=True, key="map_infra")
 
         map_tab_2d, map_tab_choro, map_tab_3d = st.tabs(
@@ -1287,7 +1346,7 @@ if df is not None:
 
         with map_tab_choro:
             infra_fips = set()
-            if show_infra and "dist_nearest_hospitals_km" in focus_df.columns:
+            if show_infra and "dist_nearest_hospitals_km" in focus_df.columns and "fips" in focus_df.columns:
                 infra_fips = set(focus_df[focus_df["dist_nearest_hospitals_km"] > 30]["fips"])
             highlight_set = infra_fips | query_fips
             render_choropleth_report_map(
@@ -1304,19 +1363,27 @@ if df is not None:
                 title=f"3-D {color_by.replace('_', ' ').title()} — {state_label}",
             )
 
-        st.dataframe(
-            focus_df.nlargest(15, "risk_score")[["county_name", "risk_score", "risk_level", "total_population", "vulnerability_index"]],
-            use_container_width=True, hide_index=True
-        )
+        top_cols = [c for c in ["county_name", "risk_score", "risk_level", "total_population", "vulnerability_index"] if c in focus_df.columns]
+        if "risk_score" in focus_df.columns and top_cols:
+            st.dataframe(
+                focus_df.nlargest(15, "risk_score")[top_cols],
+                width="stretch", hide_index=True
+            )
+      except Exception as map_err:
+        st.caption(f"Map panel error: {str(map_err)[:100]}")
 
     # ── Panel 2: Healthcare Infrastructure ─────────────────────────────
     with st.expander(f"🏥 Healthcare Infrastructure — {state_label}", expanded=False):
+      try:
         c1, c2, c3, c4 = st.columns(4)
         zero_red = focus_df[focus_df['zero_redundancy_flag'] == 1] if 'zero_redundancy_flag' in focus_df.columns else pd.DataFrame()
         c1.metric("Zero-Redundancy", f"{len(zero_red):,}")
-        c2.metric("Avg Hospital Dist", f"{focus_df['dist_nearest_hospitals_km'].mean():.1f} km")
-        c3.metric("Avg EMS Dist", f"{focus_df['dist_nearest_ems_stations_km'].mean():.1f} km")
-        c4.metric(">50km to Hospital", f"{len(focus_df[focus_df['dist_nearest_hospitals_km'] > 50]):,}")
+        c2.metric("Avg Hospital Dist", f"{focus_df['dist_nearest_hospitals_km'].mean():.1f} km" if 'dist_nearest_hospitals_km' in focus_df.columns else "N/A")
+        c3.metric("Avg EMS Dist", f"{focus_df['dist_nearest_ems_stations_km'].mean():.1f} km" if 'dist_nearest_ems_stations_km' in focus_df.columns else "N/A")
+        if 'dist_nearest_hospitals_km' in focus_df.columns:
+            c4.metric(">50km to Hospital", f"{len(focus_df[focus_df['dist_nearest_hospitals_km'] > 50]):,}")
+        else:
+            c4.metric(">50km to Hospital", "N/A")
 
         # Density metrics
         density_cols = {
@@ -1331,81 +1398,84 @@ if df is not None:
             for col, (dcol, label) in zip(dcols, avail.items()):
                 col.metric(label, f"{focus_df[dcol].mean():.2f}")
 
-        col_chart, col_table = st.columns([3, 2])
-        with col_chart:
-            fig = px.scatter(
-                focus_df.nlargest(150, 'dist_nearest_hospitals_km'),
-                x="dist_nearest_hospitals_km", y="dist_nearest_ems_stations_km",
-                size="total_population", color="risk_level",
-                hover_name="county_name",
-                color_discrete_map={"High": "#e74c3c", "Medium": "#f39c12", "Low": "#2ecc71"},
-                title="Infrastructure Deserts"
-            )
-            fig.update_layout(
-                template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                xaxis_title="Hospital Distance (km)", yaxis_title="EMS Distance (km)",
-            )
-            st.plotly_chart(fig, use_container_width=True)
+        has_hosp = 'dist_nearest_hospitals_km' in focus_df.columns
+        has_ems = 'dist_nearest_ems_stations_km' in focus_df.columns
+        if has_hosp and has_ems:
+            col_chart, col_table = st.columns([3, 2])
+            with col_chart:
+                fig = px.scatter(
+                    focus_df.nlargest(150, 'dist_nearest_hospitals_km'),
+                    x="dist_nearest_hospitals_km", y="dist_nearest_ems_stations_km",
+                    size="total_population", color="risk_level",
+                    hover_name="county_name",
+                    color_discrete_map={"High": "#e74c3c", "Medium": "#f39c12", "Low": "#2ecc71"},
+                    title="Infrastructure Deserts"
+                )
+                fig.update_layout(
+                    template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    xaxis_title="Hospital Distance (km)", yaxis_title="EMS Distance (km)",
+                )
+                st.plotly_chart(fig, width="stretch")
 
-        with col_table:
-            worst = focus_df.nlargest(10, 'dist_nearest_hospitals_km')[
-                ['county_name', 'dist_nearest_hospitals_km', 'count_hospitals_50km', 'risk_level', 'fips']
-            ].copy()
-            if query_fips:
-                worst["Analyzed"] = worst["fips"].isin(query_fips).map({True: "\u2713", False: ""})
-                worst = worst.sort_values("Analyzed", ascending=False, kind="stable")
-                worst = worst.drop(columns=["fips"])
-                worst.columns = ['County', 'Hospital km', 'Hosp. in 50km', 'Risk', '\u2713']
-            else:
-                worst = worst.drop(columns=["fips"])
-                worst.columns = ['County', 'Hospital km', 'Hosp. in 50km', 'Risk']
-            st.dataframe(worst, use_container_width=True, hide_index=True)
+            with col_table:
+                table_cols = [c for c in ['county_name', 'dist_nearest_hospitals_km', 'count_hospitals_50km', 'risk_level', 'fips'] if c in focus_df.columns]
+                if table_cols and 'dist_nearest_hospitals_km' in table_cols:
+                    worst = focus_df.nlargest(10, 'dist_nearest_hospitals_km')[table_cols].copy()
+                    if query_fips and 'fips' in worst.columns:
+                        worst["Analyzed"] = worst["fips"].isin(query_fips).map({True: "\u2713", False: ""})
+                        worst = worst.sort_values("Analyzed", ascending=False, kind="stable")
+                    worst = worst.drop(columns=["fips"], errors="ignore")
+                    st.dataframe(worst, width="stretch", hide_index=True)
+      except Exception as panel_err:
+        st.caption(f"Healthcare panel error: {str(panel_err)[:100]}")
 
     # ── Panel 3: State Risk Profile ────────────────────────────────────
     with st.expander(f"📊 Risk Profile — {state_label}", expanded=False):
+      try:
+        has_vuln = "vulnerability_index" in focus_df.columns
+        has_iso = "isolation_index" in focus_df.columns
         col_chart2, col_table2 = st.columns([3, 2])
         with col_chart2:
-            fig = px.scatter(
-                focus_df, x="vulnerability_index", y="isolation_index",
-                size="total_population", color="risk_score",
-                hover_name="county_name",
-                color_continuous_scale="RdYlGn_r",
-                title="Vulnerability vs Isolation"
-            )
-            # Overlay analyzed counties as cyan rings
-            if query_fips and "fips" in focus_df.columns:
-                hl_df = focus_df[focus_df["fips"].isin(query_fips)]
-                if not hl_df.empty:
-                    fig.add_trace(go.Scatter(
-                        x=hl_df["vulnerability_index"], y=hl_df["isolation_index"],
-                        mode="markers",
-                        marker=dict(size=14, color="rgba(0,0,0,0)", line=dict(width=2, color="cyan")),
-                        text=hl_df["county_name"],
-                        hovertemplate="<b>%{text}</b><extra>Analyzed</extra>",
-                        name="Analyzed",
-                        showlegend=True,
-                    ))
-            fig.update_layout(
-                template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            )
-            st.plotly_chart(fig, use_container_width=True)
+            if has_vuln and has_iso:
+                fig = px.scatter(
+                    focus_df, x="vulnerability_index", y="isolation_index",
+                    size="total_population", color="risk_score",
+                    hover_name="county_name",
+                    color_continuous_scale="RdYlGn_r",
+                    title="Vulnerability vs Isolation"
+                )
+                # Overlay analyzed counties as cyan rings
+                if query_fips and "fips" in focus_df.columns:
+                    hl_df = focus_df[focus_df["fips"].isin(query_fips)]
+                    if not hl_df.empty:
+                        fig.add_trace(go.Scatter(
+                            x=hl_df["vulnerability_index"], y=hl_df["isolation_index"],
+                            mode="markers",
+                            marker=dict(size=14, color="rgba(0,0,0,0)", line=dict(width=2, color="cyan")),
+                            text=hl_df["county_name"],
+                            hovertemplate="<b>%{text}</b><extra>Analyzed</extra>",
+                            name="Analyzed",
+                            showlegend=True,
+                        ))
+                fig.update_layout(
+                    template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                )
+                st.plotly_chart(fig, width="stretch")
+            else:
+                st.info("Vulnerability/isolation indices not available in dataset.")
 
         with col_table2:
-            top = focus_df.nlargest(10, "risk_score")[
-                ["county_name", "risk_score", "total_population", "poverty_pct", "uninsured_pct", "fips"]
-            ].copy()
-            if query_fips:
-                top["Analyzed"] = top["fips"].isin(query_fips).map({True: "\u2713", False: ""})
-                top = top.sort_values("Analyzed", ascending=False, kind="stable")
-                top = top.drop(columns=["fips"])
-                top.columns = ["County", "Risk", "Population", "Poverty %", "Uninsured %", "\u2713"]
-            else:
-                top = top.drop(columns=["fips"])
-                top.columns = ["County", "Risk", "Population", "Poverty %", "Uninsured %"]
-            st.dataframe(top, use_container_width=True, hide_index=True)
+            table_cols = [c for c in ["county_name", "risk_score", "total_population", "poverty_pct", "uninsured_pct", "fips"] if c in focus_df.columns]
+            if "risk_score" in focus_df.columns and table_cols:
+                top = focus_df.nlargest(10, "risk_score")[table_cols].copy()
+                if query_fips and "fips" in top.columns:
+                    top["Analyzed"] = top["fips"].isin(query_fips).map({True: "\u2713", False: ""})
+                    top = top.sort_values("Analyzed", ascending=False, kind="stable")
+                top = top.drop(columns=["fips"], errors="ignore")
+                st.dataframe(top, width="stretch", hide_index=True)
 
         # Disparity bar chart
-        if len(focus_df) > 5:
+        if len(focus_df) > 5 and "uninsured_pct" in focus_df.columns:
             fig2 = px.bar(
                 focus_df.nlargest(15, "uninsured_pct"),
                 x="county_name", y="uninsured_pct",
@@ -1417,7 +1487,9 @@ if df is not None:
                 template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                 xaxis_tickangle=-45
             )
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width="stretch")
+      except Exception as panel_err:
+        st.caption(f"Risk profile panel error: {str(panel_err)[:100]}")
 
 # -- Footer -------------------------------------------------------------
 st.divider()
