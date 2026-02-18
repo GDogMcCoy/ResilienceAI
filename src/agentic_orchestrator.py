@@ -394,7 +394,9 @@ class AgenticOrchestrator:
         self.api_key = api_key
         self.model = model
         self.max_tool_rounds = max_tool_rounds
-        self._max_tokens = 1024
+        # Gemini 2.5 Pro is a thinking model — internal reasoning consumes tokens
+        # before any visible output. 1024 leaves zero room for actual answers.
+        self._max_tokens = 8192
         self.temperature = temperature
 
         # Initialize the data agent
@@ -799,6 +801,10 @@ class AgenticOrchestrator:
                 
                 final_answer = strip_thinking_tags(final_answer)
 
+                # SAFETY NET: thinking model token exhaustion can leave empty answer
+                if not final_answer or not final_answer.strip():
+                    final_answer = self._emergency_synthesis(steps, tools_used, user_query)
+
                 # Save to conversation history
                 self.conversation_history.append(
                     {"role": "user", "content": user_query}
@@ -900,9 +906,13 @@ FORMAT: Clean markdown with ## headers and bullet points."""
             final_answer = strip_thinking_tags(final_answer)
             total_tokens += final_resp.get("usage", {}).get("total_tokens", 0)
         except Exception:
-            # Fallback: summarize what tools were used and that analysis completed
-            tool_summary = ", ".join(tools_used) if tools_used else "data gathering"
-            final_answer = f"Deep analysis completed using {tool_summary}. Multiple data sources were cross-referenced to assess vulnerability, climate trends, and infrastructure. See reasoning trace for detailed findings."
+            final_answer = ""
+
+        # SAFETY NET: If LLM produced nothing (thinking model token exhaustion,
+        # empty Gemini response, strip_thinking_tags removed everything), build
+        # an answer from the tool results we already collected.
+        if not final_answer or not final_answer.strip():
+            final_answer = self._emergency_synthesis(steps, tools_used, user_query)
 
         self.conversation_history.append({"role": "user", "content": user_query})
         self.conversation_history.append({"role": "assistant", "content": final_answer})
