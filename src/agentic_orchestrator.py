@@ -486,19 +486,31 @@ class AgenticOrchestrator:
         else:
             url = f"{self.base_url}/v1/chat/completions"
 
-        resp = requests.post(
-            url,
-            json=payload,
-            headers=headers,
-            timeout=120,
-        )
-        # Surface clear error messages for common API failures
-        if resp.status_code == 400:
-            body = resp.text[:500]
-            if "API_KEY_INVALID" in body or "expired" in body.lower():
-                raise RuntimeError("GEMINI_API_KEY is expired or invalid — generate a new key at https://aistudio.google.com/apikey")
-            elif "quota" in body.lower():
-                raise RuntimeError("Gemini API quota exceeded — wait or use a different key")
+        # Retry with exponential backoff for transient errors (429, 500, 502, 503)
+        max_retries = 3
+        for attempt in range(max_retries):
+            resp = requests.post(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=120,
+            )
+            # Surface clear error messages for common API failures
+            if resp.status_code == 400:
+                body = resp.text[:500]
+                if "API_KEY_INVALID" in body or "expired" in body.lower():
+                    raise RuntimeError("GEMINI_API_KEY is expired or invalid — generate a new key at https://aistudio.google.com/apikey")
+                elif "quota" in body.lower():
+                    raise RuntimeError("Gemini API quota exceeded — wait or use a different key")
+            # Retry on transient server errors
+            if resp.status_code in (429, 500, 502, 503) and attempt < max_retries - 1:
+                wait = 2 ** attempt + 1  # 2s, 3s, 5s
+                logger.warning(f"LLM returned {resp.status_code}, retrying in {wait}s (attempt {attempt+1}/{max_retries})")
+                time.sleep(wait)
+                continue
+            resp.raise_for_status()
+            return resp.json()
+        # Final attempt already raised via raise_for_status
         resp.raise_for_status()
         return resp.json()
 
