@@ -404,28 +404,29 @@ class AgenticOrchestrator:
 
     def _build_executors(self) -> Dict[str, callable]:
         """Map tool names to their execution functions."""
-        if not self.agent:
-            return {}
-        executors = {
-            "query_counties": lambda **kw: self.agent.query_counties(**kw),
-            "get_county_detail": lambda **kw: self.agent.get_county_detail(**kw),
-            "get_state_rankings": lambda **kw: self.agent.query_counties(state=kw.get("state"), max_results=10),
-            "analyze_risk_contagion": lambda **kw: self.agent.analyze_risk_contagion(**kw),
-            "calculate_pop_weighted_impact": lambda **kw: self.agent.calculate_pop_weighted_impact(**kw),
-            "get_infrastructure_density": lambda **kw: self.agent.get_infrastructure_density(**kw),
-            "get_mo_health_disparities": lambda **kw: self.agent.get_mo_health_disparities(**kw),
-            "calculate_intervention_roi": lambda **kw: self.agent.calculate_intervention_roi(**kw),
-            "simulate_scenario": lambda **kw: self.agent.simulate_scenario(**kw),
-        }
-        # Wire climate tools if ClimateAgent is available
+        executors = {}
+        # Wire core tools if ResilienceAgent is available
+        if self.agent:
+            executors.update({
+                "query_counties": lambda **kw: self.agent.query_counties(**kw),
+                "get_county_detail": lambda **kw: self.agent.get_county_detail(**kw),
+                "get_state_rankings": lambda **kw: self.agent.query_counties(state=kw.get("state"), max_results=10),
+                "analyze_risk_contagion": lambda **kw: self.agent.analyze_risk_contagion(**kw),
+                "calculate_pop_weighted_impact": lambda **kw: self.agent.calculate_pop_weighted_impact(**kw),
+                "get_infrastructure_density": lambda **kw: self.agent.get_infrastructure_density(**kw),
+                "get_mo_health_disparities": lambda **kw: self.agent.get_mo_health_disparities(**kw),
+                "calculate_intervention_roi": lambda **kw: self.agent.calculate_intervention_roi(**kw),
+                "simulate_scenario": lambda **kw: self.agent.simulate_scenario(**kw),
+            })
+        # Wire climate tools if ClimateAgent is available (independent of ResilienceAgent)
         if self.climate_agent:
-            executors["get_climate_trends"] = lambda **kw: self.climate_agent.execute_tool("get_climate_trends", kw)
-            executors["get_hazard_risk_profile"] = lambda **kw: self.climate_agent.execute_tool("get_hazard_risk_profile", kw)
-            executors["get_flood_frequency"] = lambda **kw: self.climate_agent.execute_tool("get_flood_frequency", kw)
-            executors["get_severe_weather_history"] = lambda **kw: self.climate_agent.execute_tool("get_severe_weather_history", kw)
-            executors["get_drought_history"] = lambda **kw: self.climate_agent.execute_tool("get_drought_history", kw)
-            executors["compare_climate_trends"] = lambda **kw: self.climate_agent.execute_tool("compare_climate_trends", kw)
-            executors["project_climate_risk_enhanced"] = lambda **kw: self.climate_agent.execute_tool("project_climate_risk_enhanced", kw)
+            executors["get_climate_trends"] = lambda **kw: self.climate_agent.execute_tool("get_climate_trends", **kw)
+            executors["get_hazard_risk_profile"] = lambda **kw: self.climate_agent.execute_tool("get_hazard_risk_profile", **kw)
+            executors["get_flood_frequency"] = lambda **kw: self.climate_agent.execute_tool("get_flood_frequency", **kw)
+            executors["get_severe_weather_history"] = lambda **kw: self.climate_agent.execute_tool("get_severe_weather_history", **kw)
+            executors["get_drought_history"] = lambda **kw: self.climate_agent.execute_tool("get_drought_history", **kw)
+            executors["compare_climate_trends"] = lambda **kw: self.climate_agent.execute_tool("compare_climate_trends", **kw)
+            executors["project_climate_risk_enhanced"] = lambda **kw: self.climate_agent.execute_tool("project_climate_risk_enhanced", **kw)
         return executors
 
     def _call_llm(self, messages: List[Dict], tools: Optional[List[Dict]] = None) -> Dict:
@@ -571,8 +572,23 @@ class AgenticOrchestrator:
             content = message.get("content", "")
             tool_calls = message.get("tool_calls", [])
 
-            # If no tool calls, this is the final answer
-            if not tool_calls or choice.get("finish_reason") == "stop":
+            # If no tool calls, this is the final answer (or force synthesis if empty)
+            if not tool_calls:
+                # FIX: Gemini sometimes returns empty content with finish_reason='stop'
+                # after tool execution. Force synthesis if we have tool results but no content.
+                if not content and tools_used:
+                    # Force synthesis by calling LLM again without tools
+                    messages.append({
+                        "role": "user",
+                        "content": "Based on the tool results above, provide a clear answer to my question."
+                    })
+                    llm_response = self._call_llm(messages, tools=None)
+                    choice = llm_response["choices"][0]
+                    message = choice["message"]
+                    content = message.get("content", "")
+                    reasoning = message.get("reasoning", "")
+                    total_tokens += llm_response.get("usage", {}).get("total_tokens", 0)
+
                 steps.append(AgenticStep(
                     step_num=round_num + 1,
                     reasoning=reasoning or "Final synthesis",

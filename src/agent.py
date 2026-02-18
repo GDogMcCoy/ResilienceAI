@@ -15,6 +15,16 @@ from typing import List, Dict, Optional, Any
 from config import PROCESSED_DIR, MODELS_DIR, REPORTS_DIR
 
 
+# Backward compatibility: module-level state filter for dashboard
+def _filter_by_state(df, state_code):
+    """Filter DataFrame by state code, resolving abbreviations to full names."""
+    if not state_code:
+        return df
+    from agent import ResilienceAgent
+    full_name = ResilienceAgent._STATE_NAMES.get(state_code.upper(), state_code)
+    return df[df["county_name"].str.endswith(f", {full_name}", na=False)]
+
+
 # ── System Prompt for Archia Agent ────────────────────────────────────
 AGENT_SYSTEM_PROMPT = """You are ResilienceAI, an expert disaster vulnerability assessment agent.
 You help emergency planners, public health officials, and policymakers understand

@@ -326,6 +326,7 @@ with st.sidebar:
         # Detect model switch → reinitialize orchestrator
         if selected_key != st.session_state.agent_config.get('selected_model'):
             st.session_state.agent_config['selected_model'] = selected_key
+            st.session_state.agent_config['lm_url'] = preset["base_url"]  # Update URL for selected model
             st.session_state.agentic_orchestrator = None  # force re-init
 
         # Per-model API key selection
@@ -357,15 +358,20 @@ with st.sidebar:
         selected_key = "gpt-oss-20b"
 
     # Initialize orchestrator with selected model
+    # FIX: Always use preset URL (not stale session state), sync after init
     if st.session_state.agentic_orchestrator is None and AGENTIC_AVAILABLE:
         try:
+            correct_url = preset["base_url"]
             st.session_state.agentic_orchestrator = AgenticOrchestrator(
-                lm_studio_url=st.session_state.agent_config.get('lm_url', preset["base_url"]),
+                lm_studio_url=correct_url,
                 api_key=active_api_key,
                 model=preset["model"],
             )
-        except Exception:
-            pass
+            st.session_state.agent_config['lm_url'] = correct_url  # Sync to session state
+        except Exception as e:
+            st.sidebar.error(f"Connection failed: {str(e)[:100]}")
+            import logging
+            logging.exception("Orchestrator init failed")
 
     if st.session_state.agentic_orchestrator:
         info = st.session_state.agentic_orchestrator.get_agent_info()
