@@ -650,6 +650,11 @@ for tab, tab_name in zip(tabs, tab_names):
             with col:
                 if st.button(label, key=f"preset_{tab_name}_{label}", use_container_width=True):
                     st.session_state.query_input = query
+                    st.rerun()  # Refresh to show the populated query in the text box
+
+# Show indicator if a preset was selected
+if st.session_state.get('query_input'):
+    st.info("👆 Preset query loaded. Edit if needed, then click **Analyze**.")
 
 # Query form (Enter key works)
 with st.form("query_form", clear_on_submit=True):
@@ -660,10 +665,8 @@ with st.form("query_form", clear_on_submit=True):
     )
     submit_q = st.form_submit_button("Analyze", type="primary", use_container_width=True)
 
-# Handle preset button clicks (outside form)
-if st.session_state.query_input and not submit_q:
-    query_text = st.session_state.query_input
-    submit_q = True
+# Note: Preset buttons now only populate the text box without auto-submitting.
+# The user can review/edit the prompt before manually clicking "Analyze".
 
 # ── Execute Query ─────────────────────────────────────────────────────
 should_run = submit_q and query_text
