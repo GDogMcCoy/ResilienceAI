@@ -1050,6 +1050,9 @@ with st.sidebar:
                 gemini_key = st.text_input("Gemini API Key", value=st.session_state.agent_config['gemini_key'], type="password")
                 st.session_state.agent_config['gemini_key'] = gemini_key
                 active_api_key = gemini_key
+                # Hot-swap: if user pastes a new key, update the live orchestrator immediately
+                if gemini_key and st.session_state.get('agentic_orchestrator'):
+                    st.session_state.agentic_orchestrator.api_key = gemini_key
             else:
                 lm_key = st.text_input("LM Studio Key", value=st.session_state.agent_config['lm_key'], type="password")
                 st.session_state.agent_config['lm_key'] = lm_key
@@ -1228,6 +1231,15 @@ if should_run:
                     "time_ms": response.execution_time_ms or 0,
                     "steps": len(response.steps or []),
                 })
+            except RuntimeError as e:
+                err_msg = str(e)
+                status.update(label="API Key Error", state="error")
+                if "expired" in err_msg.lower() or "invalid" in err_msg.lower():
+                    st.error("Gemini API key has expired. Please update the key in the sidebar Connection Settings or in the .env file.")
+                elif "quota" in err_msg.lower():
+                    st.error("Gemini API quota exceeded. Please wait a minute and try again.")
+                else:
+                    st.error(f"LLM error: {err_msg[:200]}")
             except Exception as e:
                 status.update(label=f"Error: {e}", state="error")
                 st.error(f"Query failed — check LLM connection. Details: {str(e)[:200]}")
