@@ -1223,20 +1223,24 @@ if should_run:
 
         with st.status(f"ResilienceAI is thinking ({effort.lower()} effort)...", expanded=True) as status:
             import time as _time
-            _t0 = _time.time()
-            st.write(f"Query sent to LLM... {_LOADING_FACTS[0]}")
-            try:
-                response = orch.query(query_text, effort=effort)
+            _step_container = st.container()
+            _step_container.write(f"Query sent to LLM... _{_LOADING_FACTS[0]}_")
 
-                for i, step in enumerate(response.steps):
-                    elapsed = _time.time() - _t0
-                    fact = _LOADING_FACTS[(i + 1) % len(_LOADING_FACTS)]
-                    if step.tool_name:
-                        st.write(f"**Step {step.step_num}** ({elapsed:.0f}s): `{step.tool_name}({json.dumps(step.tool_args)})`")
-                    if step.reasoning and step.reasoning != "Final synthesis":
-                        st.write(f"*{step.reasoning[:200]}*")
-                    if i < len(response.steps) - 1:
-                        st.caption(f"💡 {fact}")
+            # Live callback: streams each tool call into the status box as it happens
+            _step_counter = [0]  # mutable container for closure
+            def _on_step(step, n_tools, elapsed_sec):
+                _step_counter[0] += 1
+                idx = _step_counter[0]
+                fact = _LOADING_FACTS[idx % len(_LOADING_FACTS)]
+                if step.tool_name:
+                    _step_container.write(f"**Step {step.step_num}** ({elapsed_sec:.0f}s): `{step.tool_name}({json.dumps(step.tool_args)})`")
+                if step.reasoning and step.reasoning != "Final synthesis":
+                    _step_container.write(f"*{step.reasoning[:200]}*")
+                _step_container.caption(f"💡 {fact}")
+                status.update(label=f"ResilienceAI is thinking — {n_tools} tool(s) called ({elapsed_sec:.0f}s)...")
+
+            try:
+                response = orch.query(query_text, effort=effort, on_step=_on_step)
 
                 elapsed_total = response.execution_time_ms / 1000
                 tools_str = ", ".join(response.tools_used) if response.tools_used else "direct"

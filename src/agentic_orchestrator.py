@@ -697,7 +697,7 @@ class AgenticOrchestrator:
                 "insight": f"Tool execution encountered an issue, but analysis continues with available data."
             }
 
-    def query(self, user_query: str, context: Optional[Dict] = None, effort: str = "Medium") -> AgenticResponse:
+    def query(self, user_query: str, context: Optional[Dict] = None, effort: str = "Medium", on_step=None) -> AgenticResponse:
         """
         Process a query through the full agentic reasoning loop.
 
@@ -862,13 +862,21 @@ class AgenticOrchestrator:
                 tools_used.append(tool_name)
 
                 # Record the step
-                steps.append(AgenticStep(
+                step = AgenticStep(
                     step_num=round_num + 1,
                     reasoning=reasoning,
                     tool_name=tool_name,
                     tool_args=tool_args,
                     tool_result=result,
-                ))
+                )
+                steps.append(step)
+
+                # Notify caller of live progress
+                if on_step:
+                    try:
+                        on_step(step, len(tools_used), time.time() - start_time)
+                    except Exception:
+                        pass  # Never let callback errors break the loop
 
                 # Feed result back to LLM
                 result_str = json.dumps(result, default=str)
